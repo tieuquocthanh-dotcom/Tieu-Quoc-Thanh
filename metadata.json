@@ -1,0 +1,5 @@
+{
+  "name": "Phần Mềm Quản Lý Bán Hàng & Kho (Real-time)",
+  "description": "Một ứng dụng web thời gian thực để quản lý bán hàng và tồn kho, sử dụng React, Tailwind CSS và Firebase Firestore. Dữ liệu được đồng bộ hóa tức thì trên tất cả các thiết bị.",
+  "requestFramePermissions": []
+}
