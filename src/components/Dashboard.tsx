@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, where, Timestamp, getDocs, collectionGroup, writeBatch } from 'firebase/firestore';
+import JSZip from 'jszip';
 import { db } from '../services/firebase';
 import { Sale, Product, Customer, GoodsReceipt } from '../types';
 import { Package, DollarSign, TrendingUp, BarChart, XCircle, Loader, ReceiptText, Users, Briefcase, Activity, ArrowUp, ArrowDown, AlertCircle, Warehouse, Wallet, Calendar, ShoppingCart, List, TableProperties, Download, ShieldCheck, Upload } from 'lucide-react';
@@ -101,8 +102,10 @@ const Dashboard: React.FC = () => {
   const [inventoryRaw, setInventoryRaw] = useState<Map<string, number>>(new Map());
 
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isBackingUpZip, setIsBackingUpZip] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [showBackupConfirm, setShowBackupConfirm] = useState(false);
+  const [showBackupZipConfirm, setShowBackupZipConfirm] = useState(false);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -148,7 +151,7 @@ const Dashboard: React.FC = () => {
         URL.revokeObjectURL(url);
         
         window.dispatchEvent(new CustomEvent('app-error', { 
-            detail: { message: 'Đã tải xuống bản sao lưu thành công!', type: 'success' } 
+            detail: { message: 'Đã tải xuống bản sao lưu JSON thành công!', type: 'success' } 
         }));
     } catch (err) {
         console.error('Backup error:', err);
@@ -158,6 +161,66 @@ const Dashboard: React.FC = () => {
         }));
     } finally {
         setIsBackingUp(false);
+    }
+  };
+
+  const handleZipBackup = async () => {
+    setIsBackingUpZip(true);
+    try {
+        const zip = new JSZip();
+        const collections = [
+            'products', 'sales', 'customers', 'goodsReceipts', 
+            'suppliers', 'warehouses', 'paymentMethods', 'shippers', 
+            'appUsers', 'chinaImports', 'plannedOrders', 'notes', 'savingsBooks'
+        ];
+
+        const metadata = {
+            version: '1.0',
+            timestamp: new Date().toISOString(),
+            collections: collections
+        };
+        zip.file("metadata.json", JSON.stringify(metadata, null, 2));
+
+        const dataFolder = zip.folder("data");
+        
+        for (const collName of collections) {
+            const snapshot = await getDocs(collection(db, collName));
+            const items = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            dataFolder?.file(`${collName}.json`, JSON.stringify(items, null, 2));
+        }
+
+        // Handle subcollections (inventory)
+        const inventorySnapshot = await getDocs(collectionGroup(db, 'inventory'));
+        const inventoryItems = inventorySnapshot.docs.map(doc => ({
+            id: doc.id,
+            path: doc.ref.path,
+            ...doc.data()
+        }));
+        dataFolder?.file(`inventory.json`, JSON.stringify(inventoryItems, null, 2));
+
+        const content = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `backup_full_data_${new Date().toISOString().split('T')[0]}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        window.dispatchEvent(new CustomEvent('app-error', { 
+            detail: { message: 'Đã tải xuống bản sao lưu ZIP thành công!', type: 'success' } 
+        }));
+    } catch (err) {
+        console.error('ZIP Backup error:', err);
+        window.dispatchEvent(new CustomEvent('app-error', { 
+            detail: { message: 'Có lỗi xảy ra khi tạo file ZIP.', type: 'error' } 
+        }));
+    } finally {
+        setIsBackingUpZip(false);
     }
   };
 
@@ -524,15 +587,23 @@ const Dashboard: React.FC = () => {
             <div className="w-px h-6 bg-slate-300 mx-1 hidden md:block"></div>
             <button 
                 onClick={() => setShowBackupConfirm(true)}
-                disabled={isBackingUp || isRestoring}
+                disabled={isBackingUp || isBackingUpZip || isRestoring}
                 className="flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all bg-slate-800 text-white hover:bg-black disabled:opacity-50"
             >
                 {isBackingUp ? <Loader size={14} className="mr-1.5 animate-spin"/> : <ShieldCheck size={14} className="mr-1.5 text-green-400"/>}
-                {isBackingUp ? 'Đang xử lý...' : 'Sao lưu'}
+                {isBackingUp ? 'Đang xử lý...' : 'Sao lưu JSON'}
+            </button>
+            <button 
+                onClick={() => setShowBackupZipConfirm(true)}
+                disabled={isBackingUp || isBackingUpZip || isRestoring}
+                className="flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
+            >
+                {isBackingUpZip ? <Loader size={14} className="mr-1.5 animate-spin"/> : <Download size={14} className="mr-1.5 text-white"/>}
+                {isBackingUpZip ? 'Đang nén...' : 'Sao lưu ZIP'}
             </button>
             <button 
                 onClick={handleRestoreClick}
-                disabled={isBackingUp || isRestoring}
+                disabled={isBackingUp || isBackingUpZip || isRestoring}
                 className="flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all bg-white text-orange-600 border border-orange-200 hover:bg-orange-50 disabled:opacity-50"
             >
                 {isRestoring ? <Loader size={14} className="mr-1.5 animate-spin"/> : <Upload size={14} className="mr-1.5"/>}
@@ -562,10 +633,20 @@ const Dashboard: React.FC = () => {
         isOpen={showBackupConfirm}
         onClose={() => setShowBackupConfirm(false)}
         onConfirm={handleSystemBackup}
-        title="Xác nhận Sao lưu"
-        message="Bạn có muốn tải xuống bản sao lưu toàn bộ dữ liệu hệ thống không?"
-        confirmText="Tải xuống"
-        confirmColor="bg-blue-600 hover:bg-blue-700"
+        title="Xác nhận Sao lưu JSON"
+        message="Bạn có muốn tải xuống bản sao lưu toàn bộ dữ liệu hệ thống dưới dạng 1 file JSON duy nhất không?"
+        confirmText="Tải xuống JSON"
+        confirmColor="bg-slate-800 hover:bg-black"
+      />
+
+      <ConfirmationModal 
+        isOpen={showBackupZipConfirm}
+        onClose={() => setShowBackupZipConfirm(false)}
+        onConfirm={handleZipBackup}
+        title="Xác nhận Sao lưu ZIP"
+        message="Hệ thống sẽ nén tất cả các bảng dữ liệu thành các file riêng biệt bên trong 1 file ZIP. Bạn có muốn tiếp tục không?"
+        confirmText="Tải xuống ZIP"
+        confirmColor="bg-blue-700 hover:bg-blue-800"
       />
 
       <ConfirmationModal 
