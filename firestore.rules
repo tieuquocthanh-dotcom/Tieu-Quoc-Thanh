@@ -95,6 +95,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Inventory subcollection (can be under warehouses or products)
+    match /{path=**}/inventory/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isStaff();
+    }
+
     // Sales collection
     match /sales/{saleId} {
       allow read: if isAuthenticated();

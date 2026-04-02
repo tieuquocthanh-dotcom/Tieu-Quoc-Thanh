@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, orderBy, where, Timestamp, getDocs, coll
 import JSZip from 'jszip';
 import { db } from '../services/firebase';
 import { Sale, Product, Customer, GoodsReceipt } from '../types';
-import { Package, DollarSign, TrendingUp, BarChart, XCircle, Loader, ReceiptText, Users, Briefcase, Activity, ArrowUp, ArrowDown, AlertCircle, Warehouse, Wallet, Calendar, ShoppingCart, List, TableProperties, Download, ShieldCheck, Upload } from 'lucide-react';
+import { Package, DollarSign, TrendingUp, BarChart, XCircle, Loader, ReceiptText, Users, Briefcase, Activity, ArrowUp, ArrowDown, AlertCircle, Warehouse, Wallet, Calendar, ShoppingCart, List, TableProperties, Download, ShieldCheck, Upload, ShoppingBag } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import { handleFirestoreError, OperationType } from '../utils/errorHandler';
 import { setDoc, doc as firestoreDoc } from 'firebase/firestore';
@@ -31,7 +31,7 @@ const ProgressBar: React.FC<{ label: string; value: number; max: number; color: 
 };
 
 const AreaChart: React.FC<{ data: { date: string; revenue: number; profit: number }[] }> = ({ data }) => {
-    if (data.length === 0) return <div className="h-64 flex items-center justify-center text-gray-500 font-medium text-sm">Chưa có dữ liệu</div>;
+    if (data.length === 0) return <div className="h-64 flex items-center justify-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">Chưa có dữ liệu</div>;
 
     const maxVal = Math.max(...data.map(d => Math.max(d.revenue, d.profit))) || 1;
     
@@ -48,40 +48,40 @@ const AreaChart: React.FC<{ data: { date: string; revenue: number; profit: numbe
 
     return (
         <div className="relative h-64 w-full select-none">
-            <div className="absolute inset-0 flex items-end justify-between text-[10px] text-gray-700 font-semibold pb-6 px-1 pointer-events-none">
+            <div className="absolute inset-0 flex items-end justify-between text-[10px] text-slate-500 font-bold pb-6 px-1 pointer-events-none uppercase tracking-tighter">
                 {data.filter((_, i) => i % Math.ceil(data.length / 6) === 0).map((d, i) => (
                     <span key={i}>{d.date.split('/')[0]}</span>
                 ))}
             </div>
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full pb-8 overflow-visible">
-                <line x1="0" y1="25" x2="100" y2="25" stroke="#cbd5e1" strokeWidth="0.5" vectorEffect="non-scaling-stroke" strokeDasharray="4"/>
-                <line x1="0" y1="50" x2="100" y2="50" stroke="#cbd5e1" strokeWidth="0.5" vectorEffect="non-scaling-stroke" strokeDasharray="4"/>
-                <line x1="0" y1="75" x2="100" y2="75" stroke="#cbd5e1" strokeWidth="0.5" vectorEffect="non-scaling-stroke" strokeDasharray="4"/>
-                <polygon points={`0,100 ${revenuePoints} 100,100`} fill="rgba(59, 130, 246, 0.1)" />
-                <polyline points={revenuePoints} fill="none" stroke="#2563eb" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"/>
-                <polygon points={`0,100 ${profitPoints} 100,100`} fill="rgba(22, 163, 74, 0.1)" />
-                <polyline points={profitPoints} fill="none" stroke="#16a34a" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"/>
+                <line x1="0" y1="25" x2="100" y2="25" stroke="#e2e8f0" strokeWidth="0.5" vectorEffect="non-scaling-stroke" strokeDasharray="4"/>
+                <line x1="0" y1="50" x2="100" y2="50" stroke="#e2e8f0" strokeWidth="0.5" vectorEffect="non-scaling-stroke" strokeDasharray="4"/>
+                <line x1="0" y1="75" x2="100" y2="75" stroke="#e2e8f0" strokeWidth="0.5" vectorEffect="non-scaling-stroke" strokeDasharray="4"/>
+                <polygon points={`0,100 ${revenuePoints} 100,100`} fill="rgba(30, 64, 175, 0.05)" />
+                <polyline points={revenuePoints} fill="none" stroke="#1e40af" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"/>
+                <polygon points={`0,100 ${profitPoints} 100,100`} fill="rgba(5, 150, 105, 0.05)" />
+                <polyline points={profitPoints} fill="none" stroke="#059669" strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            <div className="absolute top-2 right-2 flex space-x-3 text-xs bg-white/90 p-2 rounded border border-slate-300 shadow-sm font-medium text-gray-800">
-                <div className="flex items-center"><div className="w-3 h-1 bg-blue-600 mr-1 rounded"></div> Doanh thu</div>
-                <div className="flex items-center"><div className="w-3 h-1 bg-green-600 mr-1 rounded"></div> Lợi nhuận</div>
+            <div className="absolute top-2 right-2 flex space-x-3 text-[10px] bg-white p-2 rounded-md border border-slate-200 shadow-sm font-bold text-slate-700 uppercase tracking-widest">
+                <div className="flex items-center"><div className="w-3 h-1 bg-blue-700 mr-1.5 rounded-full"></div> Doanh thu</div>
+                <div className="flex items-center"><div className="w-3 h-1 bg-emerald-600 mr-1.5 rounded-full"></div> Lợi nhuận</div>
             </div>
         </div>
     );
 };
 
 const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: string | number; color: string; subValue?: string; subLabel?: string }> = ({ icon, title, value, color, subValue, subLabel }) => (
-  <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-start space-x-4 transition-transform hover:-translate-y-1 hover:shadow-md">
-    <div className={`p-3 rounded-xl text-white shadow-md ${color}`}>
+  <div className="bg-white p-5 rounded-lg shadow-md border-l-4 border-blue-700 flex items-center space-x-4 transition-all hover:shadow-lg">
+    <div className={`p-3 rounded-md text-white shadow-sm ${color}`}>
       {icon}
     </div>
     <div className="flex-1">
-      <p className="text-xs text-gray-600 font-bold uppercase tracking-wider mb-1">{title}</p>
-      <p className="text-2xl font-extrabold text-black">{value}</p>
+      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">{title}</p>
+      <p className="text-xl font-bold text-slate-900">{value}</p>
       {subValue && (
-          <div className="mt-2 flex items-center text-xs">
-              <span className={`font-bold ${subValue.startsWith('+') ? 'text-green-700' : 'text-gray-700'}`}>{subValue}</span>
-              <span className="text-gray-600 font-medium ml-1 truncate">{subLabel}</span>
+          <div className="mt-1 flex items-center text-[10px]">
+              <span className={`font-bold ${subValue.startsWith('+') ? 'text-emerald-600' : 'text-slate-600'}`}>{subValue}</span>
+              <span className="text-slate-400 font-bold ml-1 uppercase">{subLabel}</span>
           </div>
       )}
     </div>
@@ -104,9 +104,11 @@ const Dashboard: React.FC = () => {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isBackingUpZip, setIsBackingUpZip] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isRestoringSystem, setIsRestoringSystem] = useState(false);
   const [showBackupConfirm, setShowBackupConfirm] = useState(false);
   const [showBackupZipConfirm, setShowBackupZipConfirm] = useState(false);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [showSystemRestoreConfirm, setShowSystemRestoreConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSystemBackup = async () => {
@@ -228,6 +230,82 @@ const Dashboard: React.FC = () => {
     setShowRestoreConfirm(true);
   };
 
+  const handleSystemRestore = async () => {
+    setIsRestoringSystem(true);
+    try {
+        const response = await fetch('/full_backup.json');
+        if (!response.ok) throw new Error('Không tìm thấy file sao lưu hệ thống.');
+        
+        const backupData = await response.json();
+        await performRestore(backupData);
+        
+        window.dispatchEvent(new CustomEvent('app-error', { 
+            detail: { message: 'Khôi phục dữ liệu hệ thống thành công!', type: 'success' } 
+        }));
+        setTimeout(() => window.location.reload(), 2000);
+    } catch (err) {
+        console.error('System restore error:', err);
+        window.dispatchEvent(new CustomEvent('app-error', { 
+            detail: { message: 'Lỗi khôi phục hệ thống: ' + (err instanceof Error ? err.message : 'Lỗi không xác định'), type: 'error' } 
+        }));
+    } finally {
+        setIsRestoringSystem(false);
+        setShowSystemRestoreConfirm(false);
+    }
+  };
+
+  const performRestore = async (backupData: any) => {
+    if (!backupData.data || typeof backupData.data !== 'object') {
+        throw new Error('Định dạng file sao lưu không hợp lệ.');
+    }
+
+    const batch = writeBatch(db);
+    let count = 0;
+
+    // Restore main collections
+    for (const collName in backupData.data) {
+        if (collName === 'inventory') continue; // Handle subcollections separately
+        
+        const items = backupData.data[collName];
+        if (Array.isArray(items)) {
+            for (const item of items) {
+                const { id, ...data } = item;
+                // Convert timestamp strings back to Firestore Timestamps
+                Object.keys(data).forEach(key => {
+                    if (data[key] && typeof data[key] === 'object' && data[key].type === 'firestore/timestamp/1.0') {
+                        data[key] = new Timestamp(data[key].seconds, data[key].nanoseconds);
+                    } else if ((key.endsWith('At') || key.endsWith('Date')) && typeof data[key] === 'string') {
+                        data[key] = Timestamp.fromDate(new Date(data[key]));
+                    }
+                });
+
+                batch.set(firestoreDoc(db, collName, id), data);
+                count++;
+                
+                if (count % 400 === 0) {
+                    await batch.commit();
+                }
+            }
+        }
+    }
+
+    // Restore inventory subcollections
+    const inventoryItems = backupData.data['inventory'];
+    if (Array.isArray(inventoryItems)) {
+        for (const item of inventoryItems) {
+            const { id, path, ...data } = item;
+            if (path) {
+                batch.set(firestoreDoc(db, path), data);
+                count++;
+                if (count % 400 === 0) await batch.commit();
+            }
+        }
+    }
+
+    await batch.commit();
+    return count;
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -236,52 +314,8 @@ const Dashboard: React.FC = () => {
     try {
         const text = await file.text();
         const backupData = JSON.parse(text);
+        const count = await performRestore(backupData);
 
-        if (!backupData.data || typeof backupData.data !== 'object') {
-            throw new Error('Định dạng file sao lưu không hợp lệ.');
-        }
-
-        const batch = writeBatch(db);
-        let count = 0;
-
-        // Restore main collections
-        for (const collName in backupData.data) {
-            if (collName === 'inventory') continue; // Handle subcollections separately
-            
-            const items = backupData.data[collName];
-            if (Array.isArray(items)) {
-                for (const item of items) {
-                    const { id, ...data } = item;
-                    Object.keys(data).forEach(key => {
-                        if ((key.endsWith('At') || key.endsWith('Date')) && typeof data[key] === 'string') {
-                            data[key] = Timestamp.fromDate(new Date(data[key]));
-                        }
-                    });
-
-                    batch.set(firestoreDoc(db, collName, id), data);
-                    count++;
-                    
-                    if (count % 400 === 0) {
-                        await batch.commit();
-                    }
-                }
-            }
-        }
-
-        // Restore inventory subcollections
-        const inventoryItems = backupData.data['inventory'];
-        if (Array.isArray(inventoryItems)) {
-            for (const item of inventoryItems) {
-                const { id, path, ...data } = item;
-                if (path) {
-                    batch.set(firestoreDoc(db, path), data);
-                    count++;
-                    if (count % 400 === 0) await batch.commit();
-                }
-            }
-        }
-
-        await batch.commit();
         window.dispatchEvent(new CustomEvent('app-error', { 
             detail: { message: `Khôi phục thành công ${count} bản ghi! Hệ thống sẽ tải lại.`, type: 'success' } 
         }));
@@ -426,16 +460,16 @@ const Dashboard: React.FC = () => {
             <StatCard 
                 icon={<DollarSign size={24} />} 
                 title="Doanh Thu (30 ngày)" 
-                value={`${formatNumber(salesAnalysis.revenue)} ₫`}
-                color="bg-blue-600"
+                value={`${formatNumber(salesAnalysis.revenue)}`}
+                color="bg-blue-700"
                 subValue="Tháng này"
                 subLabel={formatNumber(salesAnalysis.revenueMonth)}
             />
             <StatCard 
                 icon={<TrendingUp size={24} />} 
                 title="Lợi Nhuận (30 ngày)" 
-                value={`${formatNumber(salesAnalysis.profit)} ₫`}
-                color="bg-green-600"
+                value={`${formatNumber(salesAnalysis.profit)}`}
+                color="bg-emerald-600"
                 subValue={`${salesAnalysis.revenue > 0 ? ((salesAnalysis.profit/salesAnalysis.revenue)*100).toFixed(1) : 0}%`}
                 subLabel="Tỷ suất LN"
             />
@@ -443,27 +477,33 @@ const Dashboard: React.FC = () => {
                 icon={<ReceiptText size={24} />} 
                 title="Đơn Hàng" 
                 value={orderStats.totalOrders} 
-                color="bg-purple-600"
+                color="bg-indigo-600"
                 subValue={`${orderStats.ordersToday}`}
                 subLabel="Hôm nay"
             />
              <StatCard 
                 icon={<Package size={24} />} 
                 title="Giá Trị Tồn Kho" 
-                value={`${formatNumber(totalInventoryValue)} ₫`}
-                color="bg-orange-500"
+                value={`${formatNumber(totalInventoryValue)}`}
+                color="bg-amber-500"
                 subValue={`${products.length}`}
                 subLabel="Sản phẩm"
             />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h3 className="font-bold text-lg text-black mb-6">Biểu đồ doanh thu & lợi nhuận (30 ngày)</h3>
+            <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-6 flex items-center">
+                    <TrendingUp className="mr-2 text-blue-700" size={18} />
+                    Biểu đồ doanh thu & lợi nhuận (30 ngày)
+                </h3>
                 <AreaChart data={salesAnalysis.chartData} />
             </div>
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h3 className="font-bold text-lg text-black mb-4">Trạng thái đơn hàng</h3>
+             <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-4 flex items-center">
+                    <ShoppingBag className="mr-2 text-blue-700" size={18} />
+                    Trạng thái đơn hàng
+                </h3>
                 <div className="flex flex-col justify-center h-full pb-6">
                     <div className="space-y-4 mt-2">
                         <div className="flex justify-between items-center p-4 bg-slate-50 rounded-lg border border-slate-100 hover:bg-slate-100 transition-colors">
@@ -557,70 +597,86 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+    <div className="p-6 max-w-7xl mx-auto flex flex-col h-full">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-            <h1 className="text-3xl font-extrabold text-black">Dashboard</h1>
-            <p className="text-gray-700 font-medium mt-1">Phân tích hiệu quả kinh doanh đa chiều.</p>
+          <h1 className="text-2xl font-bold text-blue-800 flex items-center uppercase tracking-tight">
+            <Activity className="mr-3 text-blue-700" size={28} />
+            Bảng Điều Khiển
+          </h1>
+          <p className="text-slate-500 text-sm font-medium">Tổng quan hoạt động kinh doanh</p>
         </div>
         
-        {/* Tab Navigation */}
-        <div className="flex flex-wrap items-center bg-slate-200/50 p-1 rounded-xl border border-slate-200 gap-1">
-            <button 
-                onClick={() => setActiveTab('overview')}
-                className={`flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all ${activeTab === 'overview' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-black'}`}
-            >
-                <Activity size={14} className="mr-1.5"/> Tổng quan
-            </button>
-            <button 
-                onClick={() => setActiveTab('dailyRevenue')}
-                className={`flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all ${activeTab === 'dailyRevenue' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-black'}`}
-            >
-                <DollarSign size={14} className="mr-1.5"/> Doanh thu ngày
-            </button>
-            <button 
-                onClick={() => setActiveTab('dailyProfit')}
-                className={`flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all ${activeTab === 'dailyProfit' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-black'}`}
-            >
-                <TrendingUp size={14} className="mr-1.5"/> Lợi nhuận ngày
-            </button>
-            <div className="w-px h-6 bg-slate-300 mx-1 hidden md:block"></div>
-            <button 
-                onClick={() => setShowBackupConfirm(true)}
-                disabled={isBackingUp || isBackingUpZip || isRestoring}
-                className="flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all bg-slate-800 text-white hover:bg-black disabled:opacity-50"
-            >
-                {isBackingUp ? <Loader size={14} className="mr-1.5 animate-spin"/> : <ShieldCheck size={14} className="mr-1.5 text-green-400"/>}
-                {isBackingUp ? 'Đang xử lý...' : 'Sao lưu JSON'}
-            </button>
-            <button 
-                onClick={() => setShowBackupZipConfirm(true)}
-                disabled={isBackingUp || isBackingUpZip || isRestoring}
-                className="flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
-            >
-                {isBackingUpZip ? <Loader size={14} className="mr-1.5 animate-spin"/> : <Download size={14} className="mr-1.5 text-white"/>}
-                {isBackingUpZip ? 'Đang nén...' : 'Sao lưu ZIP'}
-            </button>
-            <button 
-                onClick={handleRestoreClick}
-                disabled={isBackingUp || isBackingUpZip || isRestoring}
-                className="flex items-center px-4 py-2 rounded-lg text-xs font-black uppercase tracking-tighter transition-all bg-white text-orange-600 border border-orange-200 hover:bg-orange-50 disabled:opacity-50"
-            >
-                {isRestoring ? <Loader size={14} className="mr-1.5 animate-spin"/> : <Upload size={14} className="mr-1.5"/>}
-                {isRestoring ? 'Đang khôi phục...' : 'Khôi phục'}
-            </button>
-            <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                accept=".json" 
-                className="hidden" 
-            />
+        <div className="flex items-center space-x-2 bg-white p-1 rounded-lg shadow-sm border border-slate-200">
+          <button 
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'overview' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Tổng quan
+          </button>
+          <button 
+            onClick={() => setActiveTab('dailyRevenue')}
+            className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'dailyRevenue' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Doanh thu
+          </button>
+          <button 
+            onClick={() => setActiveTab('dailyProfit')}
+            className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'dailyProfit' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Lợi nhuận
+          </button>
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-6 bg-slate-50 p-3 rounded-lg border border-slate-200">
+        <button 
+            onClick={() => setShowBackupConfirm(true)}
+            disabled={isBackingUp || isBackingUpZip || isRestoring}
+            className="flex items-center px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50 shadow-sm"
+        >
+            {isBackingUp ? <Loader size={14} className="mr-1.5 animate-spin"/> : <ShieldCheck size={14} className="mr-1.5 text-emerald-400"/>}
+            {isBackingUp ? 'Đang xử lý...' : 'Sao lưu JSON'}
+        </button>
+        <button 
+            onClick={() => setShowBackupZipConfirm(true)}
+            disabled={isBackingUp || isBackingUpZip || isRestoring}
+            className="flex items-center px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 shadow-sm"
+        >
+            {isBackingUpZip ? <Loader size={14} className="mr-1.5 animate-spin"/> : <Download size={14} className="mr-1.5 text-white"/>}
+            {isBackingUpZip ? 'Đang nén...' : 'Sao lưu ZIP'}
+        </button>
+        <button 
+            onClick={() => setShowSystemRestoreConfirm(true)}
+            disabled={isBackingUp || isBackingUpZip || isRestoring || isRestoringSystem}
+            className="flex items-center px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 shadow-sm"
+        >
+            {isRestoringSystem ? <Loader size={14} className="mr-1.5 animate-spin"/> : <ShieldCheck size={14} className="mr-1.5"/>}
+            {isRestoringSystem ? 'Đang khôi phục...' : 'Khôi phục hệ thống'}
+        </button>
+        <button 
+            onClick={handleRestoreClick}
+            disabled={isBackingUp || isBackingUpZip || isRestoring || isRestoringSystem}
+            className="flex items-center px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all bg-white text-orange-600 border border-orange-200 hover:bg-orange-50 disabled:opacity-50 shadow-sm"
+        >
+            {isRestoring ? <Loader size={14} className="mr-1.5 animate-spin"/> : <Upload size={14} className="mr-1.5"/>}
+            {isRestoring ? 'Đang khôi phục...' : 'Khôi phục từ file'}
+        </button>
+        <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            accept=".json" 
+            className="hidden" 
+        />
+      </div>
+
       {loading ? (
-         <div className="flex items-center justify-center h-64"><Loader className="animate-spin text-blue-700" size={40}/></div>
+         <div className="flex flex-col items-center justify-center h-64 p-10 bg-white rounded-lg shadow-sm border border-slate-200">
+            <Loader className="animate-spin text-blue-700 mb-4" size={40}/>
+            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Đang tải dữ liệu...</p>
+         </div>
       ) : (
         <>
             {activeTab === 'overview' && renderOverview()}
@@ -653,10 +709,20 @@ const Dashboard: React.FC = () => {
         isOpen={showRestoreConfirm}
         onClose={() => setShowRestoreConfirm(false)}
         onConfirm={() => fileInputRef.current?.click()}
-        title="Xác nhận Khôi phục"
-        message="CẢNH BÁO: Việc khôi phục dữ liệu sẽ GHI ĐÈ hoặc THÊM MỚI dữ liệu hiện có. Bạn có chắc chắn muốn tiếp tục không? Hãy đảm bảo bạn đã sao lưu dữ liệu hiện tại trước."
+        title="Xác nhận Khôi phục từ file"
+        message="CẢNH BÁO: Việc khôi phục dữ liệu từ file sẽ GHI ĐÈ hoặc THÊM MỚI dữ liệu hiện có. Bạn có chắc chắn muốn tiếp tục không?"
         confirmText="Tiếp tục"
         confirmColor="bg-orange-600 hover:bg-orange-700"
+      />
+
+      <ConfirmationModal 
+        isOpen={showSystemRestoreConfirm}
+        onClose={() => setShowSystemRestoreConfirm(false)}
+        onConfirm={handleSystemRestore}
+        title="Xác nhận Khôi phục từ hệ thống"
+        message="Hệ thống sẽ tự động lấy dữ liệu từ các file backup có sẵn trong thư mục /data và nạp vào Firestore. Việc này sẽ ghi đè dữ liệu hiện tại. Bạn có chắc chắn muốn thực hiện không?"
+        confirmText="Khôi phục ngay"
+        confirmColor="bg-red-600 hover:bg-red-700"
       />
       
       <style>{`

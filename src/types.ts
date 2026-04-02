@@ -14,12 +14,17 @@ export interface Supplier {
   phone: string;
   email: string;
   address: string;
+  debt?: number;
+  note?: string;
   createdAt: Timestamp;
 }
 
 export interface Warehouse {
   id: string;
   name: string;
+  address?: string;
+  phone?: string;
+  description?: string;
   createdAt: Timestamp;
 }
 
@@ -31,6 +36,9 @@ export interface Customer {
   phone: string;
   address: string;
   email: string;
+  facebook?: string;
+  zalo?: string;
+  debt?: number;
   type: CustomerType;
   createdAt: Timestamp;
 }
@@ -83,6 +91,7 @@ export interface Product {
   manufacturerId: string;
   manufacturerName: string;
   totalInvoicedStock?: number;
+  unit?: string;
   createdAt: Timestamp;
   // Tính năng Combo
   isCombo?: boolean;
@@ -96,6 +105,7 @@ export interface SaleItem {
   quantity: number;
   price: number;
   importPrice?: number;
+  unit?: string;
   isCombo?: boolean; // Lưu vết để biết lúc trừ kho
 }
 
@@ -111,6 +121,7 @@ export interface Sale {
   id: string;
   items: SaleItem[];
   total: number;
+  discount?: number;
   shippingFee: number; // Phí vận chuyển
   amountPaid?: number;
   paymentHistory?: PaymentHistoryEntry[];
@@ -182,6 +193,7 @@ export interface WarehouseTransfer {
 export interface AppUser {
   id: string;
   email: string;
+  username?: string;
   displayName: string;
   role: 'admin' | 'staff';
   createdAt: Timestamp;
@@ -259,4 +271,12 @@ export interface SavingsBook {
   createdAt: Timestamp;
   createdBy?: string;
   creatorName?: string;
+}
+
+export interface InventoryItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  warehouseId: string;
+  warehouseName: string;
 }

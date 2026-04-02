@@ -1,59 +1,68 @@
 @import "tailwindcss";
 
 :root {
-  --primary: #1D4ED8;
-  --primary-hover: #2563EB;
-  --secondary: #F97316;
-  --secondary-hover: #FB923C;
-  --light: #F8FAFC;
-  --dark: #0F172A;
-  --neutral: #64748B;
+  --primary: #1e40af; /* Blue 800 - Traditional Blue */
+  --primary-hover: #1e3a8a;
+  --secondary: #f97316;
+  --light: #ffffff;
+  --dark: #000000;
+  --border: #cbd5e1;
 }
 
 body {
-  background-color: #f1f5f9; /* slate-100 */
-  color: #1e293b; /* slate-800 */
-  font-family: sans-serif;
+  background-color: #f8fafc;
+  color: #000000;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .btn-primary {
   background-color: var(--primary);
   color: white;
   font-weight: bold;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 4px;
   transition: all 0.2s;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
 
-.btn-primary:hover {
-  background-color: var(--primary-hover);
+.card-traditional {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.btn-primary:active {
-  transform: scale(0.95);
+.table-traditional {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-@keyframes fade-in {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+.table-traditional th {
+  background-color: #f1f5f9;
+  color: #475569;
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--border);
+  text-align: left;
 }
 
-.animate-fade-in {
-  animation: fade-in 0.5s ease-out forwards;
+.table-traditional td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.875rem;
 }
 
-@keyframes fade-in-down {
-  0% {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.input-traditional {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+  font-weight: 500;
 }
 
-.animate-fade-in-down {
-  animation: fade-in-down 0.3s ease-out forwards;
+.input-traditional:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(30, 64, 175, 0.1);
 }

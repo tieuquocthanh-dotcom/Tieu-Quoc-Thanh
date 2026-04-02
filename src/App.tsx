@@ -4,7 +4,6 @@ import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, onSnapshot as onDocSnapshot, getDocs, collection, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from './services/firebase';
 import ErrorBoundary from './components/ErrorBoundary';
-import NotificationSystem from './components/NotificationSystem';
 import { notifyError, notifySuccess } from './utils/errorHandler';
 import { getDocFromServer, doc as firestoreDoc } from 'firebase/firestore';
 
@@ -51,10 +50,21 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  // Check for custom login on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('customUser');
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      setUser(parsedUser);
+      setUserRole(parsedUser.role);
+      setAuthLoading(false);
+    }
+  }, []);
 
   // Test connection to Firestore on boot
   useEffect(() => {
@@ -107,13 +117,23 @@ const App: React.FC = () => {
         // Đảm bảo cờ hasLoggedIn luôn đúng nếu có user
         localStorage.setItem('hasLoggedIn', 'true');
       } else {
+        // Check if we have a custom user logged in
+        const savedUser = localStorage.getItem('customUser');
+        if (savedUser) {
+          const parsedUser = JSON.parse(savedUser);
+          setUser(parsedUser);
+          setUserRole(parsedUser.role);
+          setAuthLoading(false);
+          return;
+        }
+
         // Nếu không có user, kiểm tra xem có cờ hasLoggedIn không
         // Nếu có, có thể Safari đang chậm khôi phục session, đợi thêm 1 chút
         const wasLoggedIn = localStorage.getItem('hasLoggedIn') === 'true';
         if (wasLoggedIn) {
           setTimeout(() => {
             // Kiểm tra lại sau 1.5 giây
-            if (!auth.currentUser) {
+            if (!auth.currentUser && !localStorage.getItem('customUser')) {
               setUser(null);
               setUserRole(null);
               setAuthLoading(false);
@@ -205,8 +225,17 @@ const App: React.FC = () => {
       await signOut(auth);
       localStorage.removeItem('hasLoggedIn');
       localStorage.removeItem('currentView');
+      localStorage.removeItem('customUser');
+      setUser(null);
+      setUserRole(null);
       setView('sales');
       setIsSettingsOpen(false);
+  };
+
+  const handleCustomLogin = (userData: any) => {
+    setUser(userData);
+    setUserRole(userData.role);
+    setView('welcome');
   };
 
   const LoadingFallback = () => (
@@ -222,7 +251,7 @@ const App: React.FC = () => {
   const renderView = () => {
     if (view === 'login') return (
       <Suspense fallback={<LoadingFallback />}>
-        <Login onBack={() => setView('welcome')} />
+        <Login onBack={() => setView('welcome')} onCustomLogin={handleCustomLogin} />
       </Suspense>
     );
     // Nếu Firebase chưa được cấu hình, hiển thị thông báo (thay vì setup guide)
@@ -240,7 +269,7 @@ const App: React.FC = () => {
 
     if (!user) return (
       <Suspense fallback={<LoadingFallback />}>
-        <Login />
+        <Login onCustomLogin={handleCustomLogin} />
       </Suspense>
     );
 
@@ -249,19 +278,42 @@ const App: React.FC = () => {
         {(() => {
           switch (view) {
             case 'welcome': return (
-              <div className="flex flex-col items-center justify-center h-full space-y-6 animate-fade-in">
-                <div className="p-12 bg-white rounded-3xl shadow-2xl border-4 border-slate-800 text-center transform hover:scale-105 transition-transform duration-300">
-                  <Package size={80} className="mx-auto text-primary mb-6 animate-bounce" />
-                  <h1 className="text-4xl font-black text-slate-800 uppercase tracking-tighter">Phần mềm quản lý sản phẩm</h1>
-                  <p className="mt-4 text-slate-400 font-bold uppercase text-xs tracking-widest">Hệ thống đang sẵn sàng - Vui lòng chọn chức năng</p>
+              <div className="flex flex-col items-center justify-center h-full space-y-8 bg-slate-100 p-6">
+                <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <button onClick={() => setView('sales')} className="p-8 bg-blue-700 text-white rounded shadow-md hover:bg-blue-800 transition-all flex flex-col items-center justify-center space-y-4">
+                    <ShoppingCart size={48} />
+                    <span className="text-xl font-bold uppercase tracking-wider">Bán Hàng</span>
+                  </button>
+                  <button onClick={() => setView('goodsReceipt')} className="p-8 bg-blue-600 text-white rounded shadow-md hover:bg-blue-700 transition-all flex flex-col items-center justify-center space-y-4">
+                    <Archive size={48} />
+                    <span className="text-xl font-bold uppercase tracking-wider">Nhập Hàng</span>
+                  </button>
+                  <button onClick={() => setView('inventoryMatrix')} className="p-8 bg-blue-500 text-white rounded shadow-md hover:bg-blue-600 transition-all flex flex-col items-center justify-center space-y-4">
+                    <Package size={48} />
+                    <span className="text-xl font-bold uppercase tracking-wider">Tồn Kho</span>
+                  </button>
                 </div>
-                
-                {/* Pre-loading hidden components to fetch data in background */}
-                <div className="hidden">
-                  <Suspense fallback={null}>
-                    <SalesTerminal userRole={userRole} user={user} />
-                    <GoodsReceipt userRole={userRole} user={user} />
-                  </Suspense>
+
+                <div className="w-full max-w-4xl bg-white p-8 rounded border border-slate-200 shadow-sm">
+                  <h2 className="text-2xl font-bold text-slate-800 mb-6 border-b pb-4 uppercase tracking-tight">Lối tắt quản lý</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <button onClick={() => setView('products')} className="p-4 border border-slate-200 rounded hover:bg-slate-50 flex flex-col items-center text-slate-700">
+                      <Package size={24} className="mb-2 text-blue-600" />
+                      <span className="text-sm font-bold">Sản phẩm</span>
+                    </button>
+                    <button onClick={() => setView('customers')} className="p-4 border border-slate-200 rounded hover:bg-slate-50 flex flex-col items-center text-slate-700">
+                      <Contact size={24} className="mb-2 text-blue-600" />
+                      <span className="text-sm font-bold">Khách hàng</span>
+                    </button>
+                    <button onClick={() => setView('suppliers')} className="p-4 border border-slate-200 rounded hover:bg-slate-50 flex flex-col items-center text-slate-700">
+                      <Users size={24} className="mb-2 text-blue-600" />
+                      <span className="text-sm font-bold">Nhà cung cấp</span>
+                    </button>
+                    <button onClick={() => setView('warehouses')} className="p-4 border border-slate-200 rounded hover:bg-slate-50 flex flex-col items-center text-slate-700">
+                      <Warehouse size={24} className="mb-2 text-blue-600" />
+                      <span className="text-sm font-bold">Kho hàng</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -307,10 +359,10 @@ const App: React.FC = () => {
     onClick?: () => void;
   }> = ({ targetView, icon, label, disabled = false, onClick }) => {
     const isActive = view === targetView;
-    const baseClasses = 'flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium';
-    const activeClasses = 'bg-primary text-white shadow';
-    const inactiveClasses = 'text-neutral hover:bg-slate-100 hover:text-dark';
-    const disabledClasses = 'text-slate-400 cursor-not-allowed';
+    const baseClasses = 'flex items-center space-x-2 px-4 py-2 transition-all duration-200 text-sm font-bold uppercase tracking-wide border-b-2';
+    const activeClasses = 'border-white text-white bg-white/10';
+    const inactiveClasses = 'border-transparent text-white/80 hover:text-white hover:bg-white/5';
+    const disabledClasses = 'text-white/40 cursor-not-allowed';
 
     const handleClick = () => {
         if(onClick) onClick();
@@ -324,7 +376,7 @@ const App: React.FC = () => {
         disabled={disabled}
       >
         {icon}
-        <span className="hidden md:inline">{label}</span>
+        <span className="hidden lg:inline">{label}</span>
       </button>
     );
   };
@@ -388,19 +440,18 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div className="flex flex-col h-screen bg-slate-100 font-sans">
-        <NotificationSystem />
-        <header className="w-full bg-white shadow-md p-3 z-20 border-b border-slate-200 flex-shrink-0">
+      <div className="flex flex-col h-screen bg-white font-sans">
+        <header className="w-full bg-blue-700 shadow-lg p-3 z-20 border-b border-blue-800 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="text-xl font-bold text-primary cursor-pointer flex items-center" onClick={() => setView('welcome')}>
-            <Home className="mr-2"/> Kho & Bán Hàng
+          <div className="text-2xl font-black text-white cursor-pointer flex items-center tracking-tight" onClick={() => setView('welcome')}>
+            <Home className="mr-2" size={24}/> KHO & BÁN HÀNG
           </div>
           
           <nav className="flex items-center space-x-1">
             {(view !== 'sales' && view !== 'dashboard' && view !== 'welcome') && (
                 <button 
                     onClick={() => setView('welcome')}
-                    className="flex items-center space-x-2 px-3 py-2 rounded-lg text-neutral hover:bg-slate-100 text-sm font-medium md:hidden"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg text-white/80 hover:bg-white/10 text-sm font-medium md:hidden"
                 >
                     <Home size={18}/>
                 </button>
@@ -413,29 +464,29 @@ const App: React.FC = () => {
 
             {isAdmin && (
                 <>
-                    <div className="h-6 w-px bg-slate-200 mx-2"></div>
+                    <div className="h-6 w-px bg-white/20 mx-2"></div>
                     <div className="relative" ref={settingsRef}>
                         <button
                             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                            className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${isSettingsOpen ? 'bg-slate-100 text-dark' : 'text-neutral hover:bg-slate-100 hover:text-dark'}`}
+                            className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-bold ${isSettingsOpen ? 'bg-white text-blue-700 shadow-inner' : 'text-white/90 hover:bg-white/10 hover:text-white'}`}
                         >
                             <Settings size={18} />
-                            <span className="hidden md:inline">Quản Lý & Cài Đặt</span>
+                            <span className="hidden md:inline uppercase tracking-wider">Cài Đặt</span>
                         </button>
                         {isSettingsOpen && (
-                            <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-slate-200 p-2 animate-fade-in-down overflow-y-auto max-h-[80vh] z-50">
-                                <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Tài Chính</div>
+                            <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 p-2 animate-fade-in-down overflow-y-auto max-h-[80vh] z-50">
+                                <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tài Chính</div>
                                 <SettingsItem targetView="savings" icon={<PiggyBank size={16}/>} label="Sổ tiết kiệm" />
                                 <SettingsItem targetView="accounts" icon={<Landmark size={16}/>} label="Quản Lý Tài Khoản" />
                                 <SettingsItem targetView="debtManagement" icon={<Wallet size={16}/>} label="Quản Lý Công Nợ" />
 
                                 <div className="my-1 h-px bg-slate-100"></div>
-                                <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Mua Hàng</div>
+                                <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Mua Hàng</div>
                                 <SettingsItem targetView="plannedOrders" icon={<ClipboardList size={16}/>} label="Dự kiến đặt hàng" />
                                 <SettingsItem targetView="chinaImport" icon={<Plane size={16}/>} label="Nhập Hàng TQ" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
-                                <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Truy Vết & Báo Cáo</div>
+                                <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Truy Vết & Báo Cáo</div>
                                 <SettingsItem targetView="supplierPaymentHistory" icon={<CheckCheck size={16}/>} label="Truy Vết Trả Tiền NCC" />
                                 <SettingsItem targetView="priceComparison" icon={<BarChart2 size={16}/>} label="So Sánh Giá Nhập" />
                                 <SettingsItem targetView="inventoryLedger" icon={<History size={16}/>} label="Truy Vết Tồn Kho" />
@@ -443,7 +494,7 @@ const App: React.FC = () => {
                                 <SettingsItem targetView="supplierAnalytics" icon={<PieChart size={16}/>} label="Nhập Hàng Theo NCC" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
-                                <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Hàng Hóa & Đối Tác</div>
+                                <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hàng Hóa & Đối Tác</div>
                                 <SettingsItem targetView="products" icon={<Package size={16}/>} label="Sản Phẩm" />
                                 <SettingsItem targetView="quotations" icon={<FileText size={16}/>} label="Quản Lý Báo Giá" />
                                 <SettingsItem targetView="customers" icon={<Contact size={16}/>} label="Khách Hàng" />
@@ -452,22 +503,22 @@ const App: React.FC = () => {
                                 <SettingsItem targetView="shippers" icon={<Truck size={16}/>} label="Đơn Vị Vận Chuyển" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
-                                <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Quản Lý</div>
+                                <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Quản Lý</div>
                                 <SettingsItem targetView="shipmentManagement" icon={<Send size={16}/>} label="Quản Lý Vận Đơn" />
                                 <SettingsItem targetView="inventoryAlerts" icon={<AlertTriangle size={16}/>} label="Cảnh Báo Tồn Kho" />
                                 <SettingsItem targetView="outsideStockAlerts" icon={<Bell size={16}/>} label="Cảnh Báo Kho Ngoài" />
                                 <SettingsItem targetView="notes" icon={<StickyNote size={16}/>} label="Ghi chú hệ thống" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
-                                <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Cấu Hình</div>
+                                <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cấu Hình</div>
                                 <SettingsItem targetView="users" icon={<UserCircle size={16}/>} label="Quản Lý Người Dùng" />
                                 <SettingsItem targetView="manufacturers" icon={<Building size={16}/>} label="Hãng Sản Xuất" />
                                 <SettingsItem targetView="paymentMethods" icon={<CreditCard size={16}/>} label="Phương Thức TT" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
-                                <button onClick={handleLogout} className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50">
+                                <button onClick={handleLogout} className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50 font-bold">
                                     <LogOut size={16} />
-                                    <span>Đăng Xuất ({user?.email})</span>
+                                    <span>Đăng Xuất</span>
                                 </button>
                             </div>
                         )}
@@ -476,7 +527,7 @@ const App: React.FC = () => {
             )}
 
             {!isAdmin && user && (
-                <button onClick={handleLogout} className="flex items-center space-x-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 text-sm font-medium">
+                <button onClick={handleLogout} className="flex items-center space-x-2 px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 text-sm font-bold">
                     <LogOut size={18} />
                     <span className="hidden md:inline">Đăng Xuất</span>
                 </button>

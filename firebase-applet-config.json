@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0258060588",
-  "appId": "1:182438320340:web:b0a1a7effbd160fde58341",
-  "apiKey": "AIzaSyCCYwBt6tTp0Y2eGLNpOSRy7UwvtQynPk4",
-  "authDomain": "gen-lang-client-0258060588.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-fc9a1f2a-c011-40a8-89a1-48a93309afa1",
-  "storageBucket": "gen-lang-client-0258060588.firebasestorage.app",
-  "messagingSenderId": "182438320340",
+  "projectId": "quan-ly-cua-hang-cua-ban",
+  "appId": "1:721223599718:web:8495a2ffbfe38ccb2ecfa7",
+  "apiKey": "AIzaSyCNUU-QQwQ6kf-QSHkow7dOFBb8TH6hc2A",
+  "authDomain": "quan-ly-cua-hang-cua-ban.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "quan-ly-cua-hang-cua-ban.firebasestorage.app",
+  "messagingSenderId": "721223599718",
   "measurementId": ""
 }

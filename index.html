@@ -3,11 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hệ Thống Quản Lý Cửa Hàng</title>
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#1D4ED8">
+    <title>Quản Lý Bán Hàng & Kho</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+      try {
+        Object.defineProperty(window, 'fetch', {
+          value: window.fetch,
+          writable: true,
+          configurable: true
+        });
+      } catch (e) {
+        console.error(e);
+      }
       tailwind.config = {
         theme: {
           extend: {
@@ -24,61 +31,22 @@
         },
       }
     </script>
-  </head>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.553.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
   <body class="bg-slate-100">
-    <div id="error-display" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; color: red; padding: 20px; z-index: 99999; overflow: auto; font-family: monospace;">
-      <h1 style="font-size: 24px; margin-bottom: 10px;">LỖI HỆ THỐNG (CRITICAL ERROR)</h1>
-      <div id="error-message" style="font-weight: bold; margin-bottom: 20px;"></div>
-      <pre id="error-stack" style="font-size: 12px; background: #fff5f5; padding: 10px; border: 1px solid #ffcccc;"></pre>
-      <button onclick="window.location.reload()" style="margin-top: 20px; padding: 10px 20px; background: red; color: white; border: none; border-radius: 5px; cursor: pointer;">Tải lại trang</button>
-    </div>
-    <script>
-      // Unregister any existing service workers to clear stale cache
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister();
-            console.log("Service Worker unregistered");
-          }
-        });
-      }
-
-      window.onerror = function(message, source, lineno, colno, error) {
-        const display = document.getElementById('error-display');
-        const msg = document.getElementById('error-message');
-        const stack = document.getElementById('error-stack');
-        if (display && msg && stack) {
-          display.style.display = 'block';
-          msg.textContent = message;
-          stack.textContent = error ? error.stack : 'No stack trace available';
-        }
-        return false;
-      };
-      window.onunhandledrejection = function(event) {
-        const display = document.getElementById('error-display');
-        const msg = document.getElementById('error-message');
-        const stack = document.getElementById('error-stack');
-        if (display && msg && stack) {
-          display.style.display = 'block';
-          msg.textContent = 'Unhandled Promise Rejection: ' + event.reason;
-          stack.textContent = event.reason && event.reason.stack ? event.reason.stack : 'No stack trace available';
-        }
-      };
-    </script>
-    <div id="root">
-      <div style="display: flex; height: 100vh; align-items: center; justify-content: center; font-family: sans-serif; color: #1e293b; background: #f8fafc; border: 10px solid #3b82f6;">
-        <div style="text-align: center; padding: 40px; background: white; border-radius: 24px; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);">
-          <div style="width: 60px; height: 60px; border: 5px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
-          <h1 style="font-size: 1.5rem; font-weight: 900; margin-bottom: 0.5rem; color: #1e293b;">ĐANG KHỞI ĐỘNG HỆ THỐNG...</h1>
-          <p style="font-size: 0.875rem; color: #64748b; margin-bottom: 20px;">Vui lòng đợi trong giây lát. Nếu màn hình này đứng yên quá lâu, hãy kiểm tra kết nối mạng.</p>
-          <div style="display: flex; gap: 10px; justify-content: center;">
-            <button onclick="window.location.reload()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 12px;">Tải lại trang</button>
-            <button onclick="localStorage.clear(); sessionStorage.clear(); window.location.reload();" style="padding: 10px 20px; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 12px;">Xóa dữ liệu tạm & Tải lại</button>
-          </div>
-          <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
-        </div>
-      </div>
-    </div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="root"></div>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

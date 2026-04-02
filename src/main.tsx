@@ -5,6 +5,24 @@ import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
+// Suppress errors from Chrome extensions to prevent Vite error overlay
+window.addEventListener('error', (e) => {
+  if (e.filename && e.filename.includes('chrome-extension://')) {
+    e.preventDefault();
+    console.warn('Suppressed extension error:', e.message);
+  } else if (e.message && e.message.includes('chrome-extension://')) {
+    e.preventDefault();
+    console.warn('Suppressed extension error:', e.message);
+  }
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  if (e.reason && e.reason.stack && e.reason.stack.includes('chrome-extension://')) {
+    e.preventDefault();
+    console.warn('Suppressed extension promise rejection:', e.reason);
+  }
+});
+
 console.log("Imports in main.tsx complete.");
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -23,17 +41,3 @@ if (!rootElement) {
     console.error("Failed to render app:", error);
   }
 }
-
-// Register Service Worker for PWA
-// Service Worker registration removed to prevent caching issues during development
-/*
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(registration => {
-      console.log('SW registered: ', registration);
-    }).catch(registrationError => {
-      console.log('SW registration failed: ', registrationError);
-    });
-  });
-}
-*/
