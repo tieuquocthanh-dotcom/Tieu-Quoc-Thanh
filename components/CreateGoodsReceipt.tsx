@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, increment, setDoc, Timestamp, where, addDoc, limit, getDocs, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
+import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, increment, setDoc, Timestamp, where, addDoc, limit, getDocs, updateDoc, deleteDoc, runTransaction, collectionGroup } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, Supplier, GoodsReceiptItem, Warehouse, PaymentMethod, Manufacturer, GoodsReceipt, PlannedOrder, ChinaImport } from '../types';
 import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck } from 'lucide-react';
@@ -83,7 +83,9 @@ const ImportProductCard: React.FC<{
     onAdd: (product: Product, quantity: number, importPrice: number) => void;
     onUpdateImportPrice?: (productId: string, price: number) => Promise<void>;
     userRole: 'admin' | 'staff' | null;
-}> = ({ product, lastSupplierPrice, onAdd, onUpdateImportPrice, userRole }) => {
+    allStocks: Record<string, number>;
+    warehouses: Warehouse[];
+}> = ({ product, lastSupplierPrice, onAdd, onUpdateImportPrice, userRole, allStocks, warehouses }) => {
     const initialPrice = lastSupplierPrice !== undefined ? lastSupplierPrice : product.importPrice;
     const [inputQty, setInputQty] = useState(1);
     const [inputImportPrice, setInputImportPrice] = useState(initialPrice);
@@ -109,6 +111,14 @@ const ImportProductCard: React.FC<{
             )}
             <div className="mb-2 mt-3">
                 <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1" title={product.name}>{product.name}</div>
+                <div className="text-[9px] text-neutral font-bold flex flex-row flex-wrap gap-x-2 gap-y-0.5 mt-1">
+                    {warehouses.map(w => (
+                        <div key={w.id} className="flex items-center gap-1">
+                            <span className="truncate max-w-[50px]">{w.name}:</span>
+                            <span className={`${(allStocks[w.id] || 0) <= 0 ? 'text-red-600' : 'text-primary'}`}>{allStocks[w.id] || 0}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
             <div className="space-y-1 mb-3">
                 <div className="flex items-center gap-1">
@@ -134,7 +144,7 @@ const ImportProductCard: React.FC<{
             </div>
             <div className="flex space-x-2">
                 <input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg outline-none text-center font-black focus:border-primary border-slate-200" min="1" />
-                <button onClick={() => onAdd(product, inputQty, inputImportPrice) || setInputQty(1)} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white text-[10px] font-black rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center uppercase tracking-tighter"><Plus size={14} className="mr-1"/> Nhập</button>
+                <button onClick={() => { onAdd(product, inputQty, inputImportPrice); setInputQty(1); }} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white text-[10px] font-black rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center uppercase tracking-tighter"><Plus size={14} className="mr-1"/> Nhập</button>
             </div>
         </div>
     );
@@ -152,6 +162,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   // Nguồn dữ liệu nhập thêm
   const [plannedOrders, setPlannedOrders] = useState<PlannedOrder[]>([]);
   const [chinaImports, setChinaImports] = useState<ChinaImport[]>([]);
+  const [detailedInventory, setDetailedInventory] = useState<Record<string, Record<string, number>>>({});
 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -196,6 +207,21 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
     const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
     onSnapshot(query(collection(db, "goodsReceipts"), where("createdAt", ">=", Timestamp.fromDate(startOfToday)), orderBy("createdAt", "desc")), (snap) => setTodayReceipts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoodsReceipt))));
+
+    // Lấy tồn kho chi tiết
+    onSnapshot(collectionGroup(db, 'inventory'), (snapshot) => {
+        const newDetailedInventory: Record<string, Record<string, number>> = {};
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const productId = doc.ref.parent.parent?.id;
+            if (productId && data.warehouseId && typeof data.stock === 'number') {
+                if (!newDetailedInventory[productId]) newDetailedInventory[productId] = {};
+                newDetailedInventory[productId][data.warehouseId] = data.stock;
+            }
+        });
+        setDetailedInventory(newDetailedInventory);
+    });
+
     setLoading(false);
   }, []);
 
@@ -470,7 +496,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                 </button>
                             )}
                         </div>
-                        <div className={`grid gap-2 content-start ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ImportProductCard key={p.id} product={p} lastSupplierPrice={supplierPriceHistory[p.id]} onAdd={addToReceipt} onUpdateImportPrice={handleUpdateProductImportPrice} userRole={userRole} />)) }</div>
+                        <div className={`grid gap-2 content-start ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ImportProductCard key={p.id} product={p} lastSupplierPrice={supplierPriceHistory[p.id]} onAdd={addToReceipt} onUpdateImportPrice={handleUpdateProductImportPrice} userRole={userRole} allStocks={detailedInventory[p.id] || {}} warehouses={warehouses} />)) }</div>
                         <div className="mt-3 flex justify-between items-center border-t pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
                     </div>
                 </div>
@@ -530,8 +556,8 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                 {r.hasInvoice && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded font-black uppercase shadow-sm">HĐ ĐỎ</span>}
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
-                                                <button onClick={() => setSelectedReceiptEdit(r) || setIsEditModalOpen(true)} className="p-1 bg-white/20 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
-                                                <button onClick={() => setSelectedReceiptDetail(r) || setIsDetailModalOpen(true)} className="p-1 bg-white/20 text-white rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
+                                                <button onClick={() => { setSelectedReceiptEdit(r); setIsEditModalOpen(true); }} className="p-1 bg-white/20 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
+                                                <button onClick={() => { setSelectedReceiptDetail(r); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 text-white rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
                                                 <span className="text-sm font-black text-yellow-400 ml-1">{formatNumber(r.total)} ₫</span>
                                             </div>
                                         </div>

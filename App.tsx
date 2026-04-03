@@ -80,15 +80,10 @@ const App: React.FC = () => {
   // Lấy vai trò người dùng từ Firestore
   useEffect(() => {
       if (user) {
-          if (user.email === 'tieuquocthanh@gmail.com') {
-              setUserRole('admin');
-          }
           const unsubRole = onDocSnapshot(doc(db, "users", user.uid), (docSnap) => {
               if (docSnap.exists()) {
                   const role = docSnap.data().role as 'admin' | 'staff';
-                  if (user.email !== 'tieuquocthanh@gmail.com') {
-                      setUserRole(role);
-                  }
+                  setUserRole(role);
                   
                   // Nếu là nhân viên mà đang ở trang cấm, đẩy về trang bán hàng
                   const adminOnlyViews: View[] = [
@@ -100,24 +95,12 @@ const App: React.FC = () => {
                       'priceComparison', 'supplierPaymentHistory', 'plannedOrders', 'notes', 'savings'
                   ];
                   
-                  if (role === 'staff' && adminOnlyViews.includes(view) && user.email !== 'tieuquocthanh@gmail.com') {
+                  if (role === 'staff' && adminOnlyViews.includes(view)) {
                       setView('sales');
                   }
               } else {
-                  if (user.email === 'tieuquocthanh@gmail.com') {
-                      setUserRole('admin');
-                      import('firebase/firestore').then(({ setDoc }) => {
-                          setDoc(doc(db, "users", user.uid), {
-                              email: user.email,
-                              name: 'Admin',
-                              role: 'admin',
-                              createdAt: new Date()
-                          }, { merge: true });
-                      });
-                  } else {
-                      // Mặc định là staff nếu không tìm thấy dữ liệu user trong Firestore
-                      setUserRole('staff');
-                  }
+                  // Mặc định là staff nếu không tìm thấy dữ liệu user trong Firestore
+                  setUserRole('staff');
               }
               setAuthLoading(false);
           }, (err) => {
@@ -179,8 +162,8 @@ const App: React.FC = () => {
       case 'suppliers': return <SupplierManagement />;
       case 'customers': return <CustomerManagement />;
       case 'warehouses': return <WarehouseManagement />;
-      case 'inventoryMatrix': return <InventoryMatrix user={user} />;
-      case 'shipmentManagement': return <ShipmentManagement />;
+      case 'inventoryMatrix': return <InventoryMatrix user={user} onNavigate={navigateTo} />;
+      case 'shipmentManagement': return <ShipmentManagement userRole={userRole} />;
       case 'inventoryAlerts': return <InventoryAlerts />;
       case 'outsideStockAlerts': return <OutsideStockAlerts />;
       case 'debtManagement': return <DebtManagement />;

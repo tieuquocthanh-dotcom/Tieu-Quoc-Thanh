@@ -1,28 +1,22 @@
-
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from "firebase/firestore";
 
 export interface Product {
   id: string;
   name: string;
+  manufacturerId: string;
   importPrice: number;
   sellingPrice: number;
   warningThreshold: number;
-  outsideStockWarningThreshold: number;
-  manufacturerId: string;
-  manufacturerName: string;
-  isSuspended: boolean;
-  isCombo: boolean;
-  comboItems: ComboItem[];
-  createdAt: Timestamp;
-  stock?: number;
-  invoicedStock?: number;
+  outsideStockWarningThreshold?: number;
   totalInvoicedStock?: number;
+  isCombo?: boolean;
+  comboItems?: { productId: string; quantity: number }[];
+  createdAt?: Timestamp;
 }
 
-export interface ComboItem {
-  productId: string;
-  productName: string;
-  quantity: number;
+export interface Warehouse {
+  id: string;
+  name: string;
 }
 
 export interface Manufacturer {
@@ -30,96 +24,38 @@ export interface Manufacturer {
   name: string;
 }
 
-export type CustomerType = 'wholesale' | 'retail';
-
-export interface Customer {
+export interface Supplier {
   id: string;
   name: string;
-  phone: string;
-  email: string;
-  address: string;
-  debt: number;
-  type: CustomerType;
-  createdAt: Timestamp;
-}
-
-export interface Warehouse {
-  id: string;
-  name: string;
-  location?: string;
 }
 
 export interface PaymentMethod {
   id: string;
   name: string;
-  balance?: number;
+  balance: number;
 }
 
-export interface Shipper {
+export interface GoodsReceipt {
   id: string;
-  name: string;
-  phone?: string;
-  address?: string;
-  createdAt: Timestamp;
-}
-
-export interface Supplier {
-  id: string;
-  name: string;
-  phone?: string;
-  address?: string;
-  contactPerson?: string;
-  email?: string;
-  createdAt: Timestamp;
-}
-
-export interface SaleItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  price: number;
-  importPrice?: number;
-  isCombo?: boolean;
-  comboItems?: ComboItem[];
-}
-
-export interface CartItem extends SaleItem {
-  stock: number;
-  invoicedStock: number;
-  originalImportPrice: number;
-  originalSellingPrice: number;
-  currentImportPrice: number;
-  updateImportPrice: boolean;
-  updateSellingPrice: boolean;
-  importPrice: number;
-}
-
-export interface Sale {
-  id: string;
-  items: SaleItem[];
-  total: number;
-  shippingFee: number;
-  amountPaid: number;
-  customerId: string;
-  customerName: string;
+  supplierId: string;
+  supplierName?: string;
   warehouseId: string;
-  warehouseName: string;
-  paymentMethodId?: string;
+  warehouseName?: string;
+  items: GoodsReceiptItem[];
+  totalAmount: number;
+  discount: number;
+  finalAmount: number;
+  amountPaid: number;
+  paymentStatus: 'paid' | 'debt';
+  paymentMethodId: string;
   paymentMethodName?: string;
-  createdAt: Timestamp;
-  isDebt: boolean;
-  isSaved?: boolean;
-  shipperId?: string;
-  shipperName?: string;
-  shippingStatus?: string;
-  paymentHistory?: PaymentHistoryEntry[];
-  hasReturn?: boolean;
-  status?: string;
-  issueInvoice?: boolean;
-  note?: string;
-  creatorName?: string;
-  shippingPayer?: 'sender' | 'receiver' | 'customer' | 'shop';
+  notes?: string;
+  hasInvoice?: boolean;
+  total?: number;
   paidAt?: Timestamp;
+  creatorName?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface GoodsReceiptItem {
@@ -127,215 +63,115 @@ export interface GoodsReceiptItem {
   productName: string;
   quantity: number;
   importPrice: number;
-  sellingPrice?: number;
-  manufacturerId?: string;
-  manufacturerName?: string;
+  totalPrice: number;
   isCombo?: boolean;
 }
 
-export interface GoodsReceipt {
-  id: string;
-  items: GoodsReceiptItem[];
-  total: number;
-  supplierId: string;
-  supplierName: string;
-  warehouseId: string;
-  warehouseName: string;
-  createdAt: Timestamp;
-  paymentStatus: 'paid' | 'debt';
-  amountPaid: number;
-  paymentMethodId?: string;
-  paymentMethodName?: string;
-  paidAt?: Timestamp;
-  hasInvoice?: boolean;
-  creatorName?: string;
-  paymentHistory?: PaymentHistoryEntry[];
-}
-
-export interface AlertProduct extends Product {
-  // Additional fields for alerts if any
-}
-
-export interface SoldItemDetail extends SaleItem {
-  saleId: string;
-  createdAt: Timestamp;
-  customerName: string;
-}
-
-export interface User {
-  id: string;
-  email: string;
-  displayName?: string;
-  role: 'admin' | 'staff';
-}
-
-export interface Debt {
-  id: string;
-  customerId?: string;
-  customerName?: string;
-  supplierId?: string;
-  supplierName?: string;
-  amount: number;
-  type: 'customer' | 'supplier';
-  createdAt: Timestamp;
-}
-
-export type NoteStatus = 'pending' | 'completed' | 'cancelled' | 'khởi tạo' | 'đã xong' | 'Có vấn đề';
-
-export interface Note {
-  id: string;
-  content: string;
-  createdAt: Timestamp;
-  status?: NoteStatus;
-  creatorName?: string;
-}
-
-export interface Savings {
-  id: string;
-  amount: number;
-  goal?: string;
-  createdAt: Timestamp;
-}
-
-export interface Quotation {
+export interface Sale {
   id: string;
   customerId: string;
-  customerName: string;
-  items: any[];
-  total: number;
-  createdAt: Timestamp;
-}
-
-export type PlannedOrderStatus = 'pending' | 'ordered' | 'received' | 'cancelled' | 'shipped' | 'received_full' | 'received_missing';
-
-export interface PlannedOrderItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  note?: string;
-}
-
-export interface PlannedOrder {
-  id: string;
-  items: PlannedOrderItem[];
-  total: number;
-  createdAt: Timestamp;
-  supplierId?: string;
-  supplierName?: string;
-  status?: PlannedOrderStatus;
+  customerName?: string;
+  warehouseId: string;
+  warehouseName?: string;
+  items: SaleItem[];
+  totalAmount: number;
+  discount: number;
+  finalAmount: number;
+  amountPaid: number;
+  paymentStatus: 'paid' | 'debt';
+  paymentMethodId: string;
+  paymentMethodName?: string;
+  shipperId?: string;
+  shipperName?: string;
+  shippingFee?: number;
+  shippingStatus?: string;
+  status?: string;
+  issueInvoice?: boolean;
+  total?: number;
+  notes?: string;
   note?: string;
   creatorName?: string;
-}
-
-export interface Shipment {
-  id: string;
-  name: string;
+  paymentHistory?: any[];
   createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
-export interface Shipping {
-  id: string;
-  saleId: string;
-  shipperId: string;
-  status: string;
-  createdAt: Timestamp;
-}
-
-export type ChinaImportStatus = 'pending' | 'ordered' | 'received' | 'cancelled' | 'placed' | 'paid' | 'at_vn' | 'received_full' | 'received_missing' | 'shipping';
-
-export interface ChinaImportItem {
+export interface SaleItem {
   productId: string;
   productName: string;
   quantity: number;
-  importPrice?: number;
-  priceCNY: number;
-  totalCNY: number;
-  note?: string;
+  price: number;
+  importPrice: number;
+  isCombo?: boolean;
 }
 
-export interface ChinaImport {
+export interface Customer {
   id: string;
-  orderName: string;
-  importDate: any; // Using any to support both string and Timestamp methods as seen in errors
-  trackingNumber?: string;
-  exchangeRate: number;
-  shippingFeeCN: number;
-  shippingFeeVN: number;
-  shippingFeeExtra: number;
-  currencyExchangeFee: number;
-  totalCostCNY: number;
-  totalCostVND: number;
-  note?: string;
-  status: ChinaImportStatus;
-  paymentMethodId?: string;
-  paymentMethodName?: string;
-  items: ChinaImportItem[];
-  createdAt: Timestamp;
+  name: string;
+  phone?: string;
+  address?: string;
+  type?: 'retail' | 'wholesale';
 }
 
-export interface PaymentHistoryEntry {
-  id?: string;
-  amount: number;
-  paymentMethodId?: string;
-  paymentMethodName?: string;
-  createdAt?: Timestamp;
-  date?: any;
-  note?: string;
+export interface Shipper {
+  id: string;
+  name: string;
+  phone?: string;
 }
 
 export interface PaymentLog {
   id: string;
-  amount: number;
-  type: 'income' | 'expense' | 'deposit' | 'transfer_in' | 'withdraw';
-  category: string;
   paymentMethodId: string;
-  paymentMethodName: string;
+  amount: number;
+  type: 'in' | 'out' | 'deposit' | 'withdraw' | 'transfer_in' | 'transfer_out' | 'sale' | 'receipt' | 'refund';
+  referenceId: string;
+  referenceType: 'sale' | 'receipt' | 'other' | 'transfer';
   createdAt: Timestamp;
   note?: string;
-  referenceId?: string;
   relatedId?: string;
   relatedType?: string;
   creatorName?: string;
   balanceAfter?: number;
 }
 
-export interface WarehouseTransfer {
+export interface PlannedOrder {
   id: string;
-  fromWarehouseId: string;
-  fromWarehouseName: string;
-  toWarehouseId: string;
-  toWarehouseName: string;
-  productId?: string;
-  productName?: string;
-  quantity?: number;
+  orderName?: string;
+  supplierId: string;
+  supplierName: string;
   items: {
     productId: string;
     productName: string;
     quantity: number;
   }[];
+  status: 'pending' | 'completed';
   createdAt: Timestamp;
-  note?: string;
+}
+
+export interface ChinaImport {
+  id: string;
+  orderName?: string;
+  shippingFeeCN: number;
+  exchangeRate: number;
+  shippingFeeVN: number;
+  shippingFeeExtra: number;
+  currencyExchangeFee?: number;
+  items: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    priceCNY: number;
+  }[];
+  status: 'pending' | 'completed';
+  createdAt: Timestamp;
+}
+
+export interface PaymentHistoryEntry {
+  id: string;
+  amount: number;
+  paymentMethodId: string;
+  paymentMethodName: string;
+  createdAt: Timestamp;
   creatorName?: string;
-}
-
-export interface SavingsBook {
-  id: string;
-  name: string;
-  bankName?: string;
-  amount?: number;
-  balance: number;
-  status?: string;
-  depositDate?: any;
-  maturityDate?: any;
-  createdAt: Timestamp;
   note?: string;
-}
-
-export interface AppUser {
-  id: string;
-  uid: string;
-  email: string;
-  displayName?: string;
-  role: 'admin' | 'staff' | 'user';
-  createdAt: Timestamp;
 }

@@ -10,6 +10,8 @@ import ConfirmationModal from './ConfirmationModal';
 import { ManufacturerModal } from './ManufacturerManagement';
 import ProductLifecycle from './ProductLifecycle';
 
+declare var XLSX: any;
+
 type SortKey = 'name' | 'importPrice' | 'sellingPrice' | 'profit' | 'warningThreshold';
 type SortDirection = 'asc' | 'desc';
 
@@ -345,7 +347,7 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                             <input type="text" placeholder="Tìm theo tên..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full sm:w-48 pl-10 pr-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm"/>
                         </div>
                         <select value={selectedManufacturerId} onChange={e => setSelectedManufacturerId(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-xl bg-black text-white text-xs font-black uppercase outline-none"><option value="all">Tất cả hãng</option>{manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
-                        <button onClick={() => setEditingProduct(null) || setIsModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-lg transform active:scale-95 transition-all"><PlusCircle size={20} /><span>Thêm Mới</span></button>
+                        <button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }} className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-lg transform active:scale-95 transition-all"><PlusCircle size={20} /><span>Thêm Mới</span></button>
                     </div>
                 </div>
 
@@ -390,8 +392,8 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                                 <td className={`p-4 font-black text-right text-sm ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumber(profit)} ₫</td>
                                 <td className="p-4">
                                     <div className="flex justify-center space-x-1">
-                                    <button onClick={() => setEditingProduct(product) || setIsModalOpen(true)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition"><Edit size={18} /></button>
-                                    <button onClick={() => setProductToDelete(product) || setIsConfirmModalOpen(true)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"><Trash2 size={18} /></button>
+                                    <button onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition"><Edit size={18} /></button>
+                                    <button onClick={() => { setProductToDelete(product); setIsConfirmModalOpen(true); }} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"><Trash2 size={18} /></button>
                                     </div>
                                 </td>
                                 </tr>

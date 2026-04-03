@@ -4,12 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quản Lý Bán Hàng & Kho</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
       try {
+        const originalFetch = window.fetch;
         Object.defineProperty(window, 'fetch', {
-          value: window.fetch,
-          writable: true,
+          get: function() { return originalFetch; },
+          set: function(val) { 
+            console.warn('Prevented overwriting window.fetch'); 
+          },
           configurable: true
         });
       } catch (e) {
@@ -31,22 +33,11 @@
         },
       }
     </script>
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.553.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+    <link rel="stylesheet" href="/src/index.css">
+  </head>
   <body class="bg-slate-100">
     <div id="root"></div>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

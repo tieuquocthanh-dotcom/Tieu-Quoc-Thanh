@@ -3,12 +3,15 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, doc, setDoc, writeBatch, increment, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Warehouse, Manufacturer } from '../types';
-import { Loader, XCircle, Package, Search, AlertTriangle, List, LayoutGrid, Edit, GitCommit, Download, Upload, Trash2, Filter, Tag, X } from 'lucide-react';
+import { Loader, XCircle, Package, Search, AlertTriangle, List, LayoutGrid, Edit, GitCommit, Download, Upload, Trash2, Filter, Tag, X, Plus } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import InventoryTransferModal from './InventoryTransferModal';
 import ConfirmationModal from './ConfirmationModal';
 import Pagination from './Pagination';
 import { User } from 'firebase/auth';
+
+// Khai báo biến toàn cục từ thư viện được import qua CDN
+declare var XLSX: any;
 
 interface FlatInventoryItem {
     productId: string;
@@ -103,7 +106,7 @@ const EditStockModal: React.FC<{
 };
 
 
-const InventoryMatrix: React.FC<{ user: User | null }> = ({ user }) => {
+const InventoryMatrix: React.FC<{ user: User | null, onNavigate?: (view: any) => void }> = ({ user, onNavigate }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
@@ -505,6 +508,13 @@ const InventoryMatrix: React.FC<{ user: User | null }> = ({ user }) => {
                                     <button onClick={() => handleOpenTransferModal(item)} className="p-2 text-orange-600 hover:bg-orange-100 rounded-lg transition" title="Chuyển kho">
                                         <GitCommit size={16} />
                                     </button>
+                                    <button 
+                                        onClick={() => onNavigate?.('create')} 
+                                        className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition" 
+                                        title="Nhập kho"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -532,7 +542,24 @@ const InventoryMatrix: React.FC<{ user: User | null }> = ({ user }) => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {(paginatedData as [string, any][]).map(([productId, productData]) => {
-                        const totalPhysical = Array.from(productData.stockByWarehouse.values()).reduce((a: number, b: number) => a + (b as number), 0);
+                        const totalPhysical = Array.from(productData.stockByWarehouse.values()).reduce((a: number, b: any) => a + (b as number), 0) as number;
+                        
+                        // Lấy một item đại diện để thực hiện hành động
+                        const representativeItem: FlatInventoryItem = {
+                            productId: productId,
+                            productName: productData.name,
+                            manufacturerId: '', // Không quan trọng cho modal
+                            manufacturerName: productData.manufacturerName,
+                            warehouseId: warehouses[0]?.id || '', // Mặc định kho đầu tiên
+                            warehouseName: warehouses[0]?.name || '',
+                            stock: productData.stockByWarehouse.get(warehouses[0]?.id) || 0,
+                            invoicedStock: productData.invoicedStock,
+                            warningThreshold: 0,
+                            outsideStockWarningThreshold: 0,
+                            importPrice: productData.importPrice,
+                            sellingPrice: productData.sellingPrice
+                        };
+
                         return (
                         <tr key={productId} className="hover:bg-slate-50 transition-colors">
                             <td className="p-3 font-bold text-dark border border-slate-200 text-xs uppercase">
@@ -551,11 +578,45 @@ const InventoryMatrix: React.FC<{ user: User | null }> = ({ user }) => {
                             <td className="p-3 font-black text-purple-700 border border-slate-200 text-center text-base">
                                 {totalPhysical}
                             </td>
-                            {displayWarehouses.map(wh => (
-                                <td key={wh.id} className="p-3 text-slate-900 border border-slate-200 text-center font-black text-sm">
-                                    {productData.stockByWarehouse.get(wh.id) ?? 0}
-                                </td>
-                            ))}
+                            {displayWarehouses.map(wh => {
+                                const stock = productData.stockByWarehouse.get(wh.id) ?? 0;
+                                const cellItem: FlatInventoryItem = {
+                                    ...representativeItem,
+                                    warehouseId: wh.id,
+                                    warehouseName: wh.name,
+                                    stock: stock
+                                };
+                                return (
+                                    <td key={wh.id} className="p-3 text-slate-900 border border-slate-200 text-center font-black text-sm group/cell relative min-w-[120px]">
+                                        <div className="flex flex-col items-center gap-1">
+                                            <span className="text-lg">{stock}</span>
+                                            <div className="flex items-center justify-center gap-1 opacity-0 group-hover/cell:opacity-100 transition-opacity">
+                                                <button 
+                                                    onClick={() => handleOpenEditModal(cellItem)} 
+                                                    className="p-1 text-blue-600 hover:bg-blue-100 rounded transition" 
+                                                    title="Sửa tồn kho"
+                                                >
+                                                    <Edit size={12} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleOpenTransferModal(cellItem)} 
+                                                    className="p-1 text-orange-600 hover:bg-orange-100 rounded transition" 
+                                                    title="Chuyển kho"
+                                                >
+                                                    <GitCommit size={12} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => onNavigate?.('create')} 
+                                                    className="p-1 text-green-600 hover:bg-green-100 rounded transition" 
+                                                    title="Nhập kho"
+                                                >
+                                                    <Plus size={12} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                );
+                            })}
                         </tr>
                     )})}
                 </tbody>

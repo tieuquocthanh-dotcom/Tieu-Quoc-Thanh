@@ -253,7 +253,21 @@ const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () 
     );
 };
 
-const ProductCardItem: React.FC<{ product: Product; stock: number; shippingMode: string; onAdd: (product: Product, quantity: number, price: number, importPrice: number) => void; onQuickImport?: (product: Product) => void; onTransfer?: (product: Product) => void; onUpdatePrice?: (productId: string, price: number) => Promise<void>; onUpdateImportPrice?: (productId: string, price: number) => Promise<void>; lastSoldPrice?: number; isPOS?: boolean; isAdmin?: boolean; }> = ({ product, stock, shippingMode, onAdd, onQuickImport, onTransfer, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin }) => {
+const ProductCardItem: React.FC<{ 
+    product: Product; 
+    stock: number; 
+    allStocks: Record<string, number>;
+    warehouses: Warehouse[];
+    shippingMode: string; 
+    onAdd: (product: Product, quantity: number, price: number, importPrice: number) => void; 
+    onQuickImport?: (product: Product) => void; 
+    onTransfer?: (product: Product) => void; 
+    onUpdatePrice?: (productId: string, price: number) => Promise<void>; 
+    onUpdateImportPrice?: (productId: string, price: number) => Promise<void>; 
+    lastSoldPrice?: number; 
+    isPOS?: boolean; 
+    isAdmin?: boolean; 
+}> = ({ product, stock, allStocks, warehouses, shippingMode, onAdd, onQuickImport, onTransfer, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin }) => {
     const [inputQty, setInputQty] = useState(1);
     const [inputPrice, setInputPrice] = useState(lastSoldPrice !== undefined ? lastSoldPrice : product.sellingPrice);
     const [inputImportPrice, setInputImportPrice] = useState(product.importPrice);
@@ -274,7 +288,14 @@ const ProductCardItem: React.FC<{ product: Product; stock: number; shippingMode:
             <div className="mb-2 mt-3 flex justify-between items-start">
                 <div className="flex-1">
                     <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1">{product.name}</div>
-                    <div className="text-[10px] text-neutral font-bold">Tồn kho: <span className={`${stock <= 0 ? 'text-red-600' : 'text-primary'}`}>{stock}</span></div>
+                    <div className="text-[9px] text-neutral font-bold flex flex-row flex-wrap gap-x-2 gap-y-0.5">
+                        {warehouses.map(w => (
+                            <div key={w.id} className="flex items-center gap-1">
+                                <span className="truncate max-w-[50px]">{w.name}:</span>
+                                <span className={`${(allStocks[w.id] || 0) <= 0 ? 'text-red-600' : 'text-primary'}`}>{allStocks[w.id] || 0}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 {isAdmin && !product.isCombo && (
                     <div className="flex gap-1 ml-1">
@@ -394,6 +415,14 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     onSnapshot(query(collection(db, "sales"), where("createdAt", ">=", Timestamp.fromDate(startOfToday))), (snapshot) => { const list: Sale[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)); list.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); setTodaySales(list); });
     setLoading(false);
   }, []);
+
+  // Mặc định chọn kho 'Ngoài CH'
+  useEffect(() => {
+    if (warehouses.length > 0 && !selectedWarehouseId) {
+      const ngoaiCH = warehouses.find(w => w.name === 'Ngoài CH');
+      if (ngoaiCH) setSelectedWarehouseId(ngoaiCH.id);
+    }
+  }, [warehouses, selectedWarehouseId]);
 
   // CẬP NHẬT Logic: Lấy giá bán gần nhất cho khách hàng sỉ - Lấy tối đa 50 đơn hàng gần nhất
   useEffect(() => {
@@ -880,7 +909,30 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 </button>
                             )}
                         </div>
-                        <div className={`grid gap-2 content-start overflow-y-auto ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ProductCardItem key={p.id} product={p} stock={calculateEffectiveStock(p, selectedWarehouseId)} shippingMode={shippingMode} onAdd={addToCart} onQuickImport={(prod) => { setSelectedQuickImportProduct(prod); setIsQuickImportOpen(true); }} onTransfer={(prod) => { setSelectedQuickTransferProduct(prod); setIsQuickTransferOpen(true); }} onUpdatePrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{sellingPrice:pr})} onUpdateImportPrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{importPrice:pr})} lastSoldPrice={wholesalePrices[p.id]} isPOS={isFullscreen} isAdmin={isAdmin} />)) }</div>
+                        <div className={`grid gap-2 content-start overflow-y-auto ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => {
+                            const allStocks: Record<string, number> = {};
+                            warehouses.forEach(w => {
+                                allStocks[w.id] = calculateEffectiveStock(p, w.id);
+                            });
+                            return (
+                                <ProductCardItem 
+                                    key={p.id} 
+                                    product={p} 
+                                    stock={calculateEffectiveStock(p, selectedWarehouseId)} 
+                                    allStocks={allStocks}
+                                    warehouses={warehouses}
+                                    shippingMode={shippingMode} 
+                                    onAdd={addToCart} 
+                                    onQuickImport={(prod) => { setSelectedQuickImportProduct(prod); setIsQuickImportOpen(true); }} 
+                                    onTransfer={(prod) => { setSelectedQuickTransferProduct(prod); setIsQuickTransferOpen(true); }} 
+                                    onUpdatePrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{sellingPrice:pr})} 
+                                    onUpdateImportPrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{importPrice:pr})} 
+                                    lastSoldPrice={wholesalePrices[p.id]} 
+                                    isPOS={isFullscreen} 
+                                    isAdmin={isAdmin} 
+                                />
+                            );
+                        }) }</div>
                         <div className="mt-3 flex justify-between items-center border-t border-slate-100 pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
                     </div>
                 </div>
@@ -1023,8 +1075,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                 <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase shadow-sm ${shipColor}`}>{shipLabel}</span>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
-                                                <button onClick={() => setSelectedSaleEdit(sale) || setIsEditModalOpen(true)} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>
-                                                <button onClick={() => setSelectedSaleDetail(sale) || setIsDetailModalOpen(true)} className="p-1 bg-white/20 rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
+                                                <button onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>
+                                                <button onClick={() => { setSelectedSaleDetail(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
                                                 <span className="text-sm font-black text-yellow-400 ml-1">{formatNumber(sale.total)} ₫</span>
                                             </div>
                                         </div>
