@@ -1,0 +1,22 @@
+dist/assets/Dashboard-BRxMj3Jc.js:52:c()=>{I(!0);try{const $=await fetch("/full_backup.json");if(!$.ok
+dist/assets/index-D71zKHqG.js:2:p)return;a.ep=!0;const l=t(a);fetch(a.href,l)}})();var ip={export
+dist/assets/index-D71zKHqG.js:34: 0):p=null,i.d.C(g,p))},fn.prefetchDNS=function(g){typeof g=="str
+dist/assets/index-D71zKHqG.js:34:p.integrity:void 0,N=typeof p.fetchPriority=="string"?p.fetchPrio
+dist/assets/index-D71zKHqG.js:34: 0,{crossOrigin:T,integrity:A,fetchPriority:N}):v==="script"&&i.d
+dist/assets/index-D71zKHqG.js:34:(g,{crossOrigin:T,integrity:A,fetchPriority:N,nonce:typeof p.nonc
+dist/assets/index-D71zKHqG.js:34:.type=="string"?p.type:void 0,fetchPriority:typeof p.fetchPriorit
+dist/assets/index-D71zKHqG.js:34:y=="string"?p.fetchPriority:void 0,referrerPolicy
+dist/assets/index-D71zKHqG.js:50:tion hR(n){gr.D(n),CE("dns-prefetch",n,null)}function fR(n,r){gr.
+dist/assets/index-D71zKHqG.js:125:c function c_(s){return(await fetch(s,{credentials:"include"})).o
+dist/assets/index-D71zKHqG.js:529:static initialize(e,t,i){this.fetchImpl=e,t&&(this.headersImpl=t)
+dist/assets/index-D71zKHqG.js:529:&(this.responseImpl=i)}static fetch(){if(this.fetchImpl)return th
+dist/assets/index-D71zKHqG.js:529:is.fetchImpl;if(typeof self<"u"&&"fetc
+dist/assets/index-D71zKHqG.js:529:h"in self)return self.fetch;if(typeof globalThis<"u"&&glo
+dist/assets/index-D71zKHqG.js:529:balThis.fetch)return globalThis.fetch;if(ty
+dist/assets/index-D71zKHqG.js:529:peof fetch<"u")return fetch;pr("Could not find fetch impl
+dist/assets/index-D71zKHqG.js:559:&(p.credentials="include"),zA.fetch()(await BA(s,s.config.apiHost
+dist/assets/index-D71zKHqG.js:664:&(g.credentials="include"),zA.fetch()(c,g)});return{accessToken:t
+dist/assets/index-D71zKHqG.js:1534:0:t.token;MT!==a&&(MT=a,await fetch(s,{method:a?"POST":"DELETE",h
+dist/assets/index-D71zKHqG.js:1553:gServer: timeout",!1,_)},1e4);fetch(h,{signal:w.signal}).then(K=>
+dist/assets/index-D71zKHqG.js:1553: 0};h&&(_.body=h),(this.D||d).fetch(new Request(this.A,_)).then(t
+dist/assets/index-D71zKHqG.js:4101:!1)},I=>{console.error("Error fetching user role:",I),d.email==="

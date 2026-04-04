@@ -4,7 +4,7 @@ import { Archive, History, Table, GitCommit } from 'lucide-react';
 import CreateGoodsReceipt from './CreateGoodsReceipt';
 import InventoryMatrix from './InventoryMatrix';
 import GoodsReceiptHistory from './GoodsReceiptHistory';
-import TransferHistory from './TransferHistory';
+// import TransferHistory from './TransferHistory';
 import { User } from 'firebase/auth';
 
 type GoodsReceiptView = 'create' | 'inventory' | 'history' | 'transfers';
@@ -53,7 +53,7 @@ const GoodsReceiptPage: React.FC<{ userRole: 'admin' | 'staff' | null, user: Use
                 {activeTab === 'create' && <CreateGoodsReceipt userRole={userRole} user={user} />}
                 {activeTab === 'inventory' && <InventoryMatrix user={user} onNavigate={(tab: any) => setActiveTab(tab)} />}
                 {isAdmin && activeTab === 'history' && <GoodsReceiptHistory userRole={userRole} />}
-                {activeTab === 'transfers' && <TransferHistory />}
+                {/* {activeTab === 'transfers' && <TransferHistory />} */}
             </div>
         </div>
     );

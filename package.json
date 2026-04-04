@@ -10,12 +10,13 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "firebase": "^12.6.0",
     "lucide-react": "^0.553.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "firebase": "^12.6.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",

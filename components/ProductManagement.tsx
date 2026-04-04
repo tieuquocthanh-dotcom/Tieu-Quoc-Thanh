@@ -7,8 +7,8 @@ import { PlusCircle, Edit, Trash2, XCircle, Loader, Package, Search, Upload, Dow
 import Pagination from './Pagination';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import ConfirmationModal from './ConfirmationModal';
-import { ManufacturerModal } from './ManufacturerManagement';
-import ProductLifecycle from './ProductLifecycle';
+// import { ManufacturerModal } from './ManufacturerManagement';
+// import ProductLifecycle from './ProductLifecycle';
 
 declare var XLSX: any;
 
@@ -242,14 +242,14 @@ export const ProductModal: React.FC<{
       </div>
     </div>
     
-    {isManuModalOpen && (
+    {/* {isManuModalOpen && (
         <ManufacturerModal 
             manufacturer={null} 
             onClose={() => setIsManuModalOpen(false)} 
             onSave={handleCreateManufacturer}
             existingNames={manufacturers.map(m => m.name)}
         />
-    )}
+    )} */}
     </>
   );
 };
@@ -338,7 +338,7 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
       </div>
 
       <div className="flex-1 min-h-0 relative">
-        {activeTab === 'list' ? (
+        {/* {activeTab === 'list' ? ( */}
             <div className="h-full overflow-y-auto pr-2">
                 <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -406,9 +406,9 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                     )}
                 </div>
             </div>
-        ) : (
+        {/* ) : (
             <div className="h-full overflow-y-auto bg-slate-50"><ProductLifecycle userRole={userRole} /></div>
-        )}
+        )} */}
       </div>
     </div>
   );

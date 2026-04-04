@@ -1,0 +1,123 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields: email, displayName, role (admin/staff), createdAt
+    //
+    // Collection: products
+    // Fields: name, importPrice, sellingPrice, manufacturerId, etc.
+    //
+    // Collection: sales
+    // Fields: items, total, customerId, warehouseId, status, etc.
+    //
+    // [And other collections: manufacturers, suppliers, warehouses, customers, 
+    //  shippers, paymentMethods, paymentLogs, goodsReceipts, transfers, 
+    //  chinaImports, plannedOrders, notes, savings]
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "tieuquocthanh@gmail.com" && request.auth.token.email_verified == true));
+    }
+    
+    function isStaff() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff' || isAdmin());
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.email is string && 
+             data.role in ['admin', 'staff'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidProduct(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.importPrice is number && data.importPrice >= 0 &&
+             data.sellingPrice is number && data.sellingPrice >= 0 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidSale(data) {
+      return data.items is list && data.items.size() > 0 &&
+             data.total is number && data.total >= 0 &&
+             data.status in ['paid', 'debt'] &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Products collection
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidProduct(request.resource.data);
+      allow update: if isStaff() && isValidProduct(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Inventory subcollection (can be under warehouses or products)
+    match /{path=**}/inventory/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isStaff();
+    }
+
+    // Sales collection
+    match /sales/{saleId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff() && isValidSale(request.resource.data);
+      allow update: if isStaff() && isValidSale(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Generic rules for other collections (mostly admin/staff controlled)
+    match /{collectionName}/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isStaff();
+    }
+    
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

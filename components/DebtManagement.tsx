@@ -2,14 +2,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, Timestamp, arrayUnion, writeBatch, increment, getDocs, orderBy, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
-import { Sale, GoodsReceipt, PaymentMethod, Customer, Shipper, Supplier, Warehouse, Product } from '../types';
-import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User, Edit } from 'lucide-react';
+import { Sale, GoodsReceipt, PaymentMethod } from '../types';
+import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 import SaleDetailModal from './SaleDetailModal';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
-import SaleEditModal from './SaleEditModal';
-import GoodsReceiptEditModal from './GoodsReceiptEditModal';
 
 type DebtTab = 'receivables' | 'payables';
 
@@ -46,9 +44,9 @@ const PayBulkModal: React.FC<{
             setPaymentDate(getTodayString());
             setPayAmount(totalAmount);
             setSelectedMethodId('');
-            setNote(type === 'receivables' ? `Thu hồi nợ gộp (${count} đơn) từ ${debtorName}` : `Thanh toán nợ gộp (${count} phiếu) cho ${debtorName}`);
+            setNote(type === 'receivables' ? `Thu hồi nợ các đơn đã chọn từ ${debtorName}` : `Thanh toán nợ các phiếu đã chọn cho ${debtorName}`);
         }
-    }, [isOpen, type, debtorName, totalAmount, count]);
+    }, [isOpen, type, debtorName, totalAmount]);
 
     if (!isOpen) return null;
 
@@ -64,15 +62,15 @@ const PayBulkModal: React.FC<{
                     </h3>
                     <button onClick={onClose} className="text-black hover:text-red-500 transition-colors"><X size={24} /></button>
                 </div>
-                <div className="p-6">
+                <div className="p-6 overflow-y-auto max-h-[70vh]">
                     <div className="bg-slate-50 p-4 rounded-xl border-2 border-slate-200 mb-6 text-center shadow-inner">
                         <p className="text-[10px] text-slate-500 font-black uppercase mb-1">Đối tác: {debtorName}</p>
                         <p className="text-[10px] text-slate-500 font-black uppercase">Đang chọn {count} mục</p>
-                        <div className="flex flex-col items-center mt-2">
-                            <span className="text-[10px] font-black text-slate-400 uppercase">Tổng nợ đã chọn:</span>
-                            <div className={`text-2xl font-black ${isReceivable ? 'text-blue-700' : 'text-red-600'}`}>
+                        <div className="flex justify-between items-center mt-2 border-t-2 border-slate-200 pt-2">
+                            <span className="text-xs font-black text-slate-500 uppercase">Tổng nợ:</span>
+                            <span className={`text-xl font-black ${isReceivable ? 'text-blue-700' : 'text-red-600'}`}>
                                 {formatNumber(totalAmount)} ₫
-                            </div>
+                            </span>
                         </div>
                     </div>
 
@@ -89,7 +87,7 @@ const PayBulkModal: React.FC<{
                             </select>
                         </div>
                         <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán (Gộp)</label>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán</label>
                             <input 
                                 type="text" inputMode="numeric"
                                 value={formatNumber(payAmount)} 
@@ -108,18 +106,9 @@ const PayBulkModal: React.FC<{
                                 style={{ colorScheme: 'light' }}
                             />
                         </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ghi chú</label>
-                            <textarea 
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                className="w-full px-3 py-2 border-2 border-slate-800 rounded-xl font-bold focus:ring-2 focus:ring-primary outline-none min-h-[60px]"
-                                placeholder="Nhập ghi chú thanh toán..."
-                            />
-                        </div>
                     </div>
                 </div>
-                <div className="p-4 bg-slate-50 flex gap-3">
+                <div className="p-4 bg-slate-50 flex gap-3 border-t-2 border-slate-800">
                     <button 
                         onClick={onClose} 
                         className="flex-1 py-3 bg-white border-2 border-slate-800 text-black rounded-xl font-black text-xs uppercase hover:bg-slate-100 transition active:scale-95"
@@ -238,11 +227,6 @@ const DebtManagement: React.FC = () => {
     const [salesDebt, setSalesDebt] = useState<Sale[]>([]);
     const [receiptsDebt, setReceiptsDebt] = useState<GoodsReceipt[]>([]);
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [shippers, setShippers] = useState<Shipper[]>([]);
-    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-    const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     
@@ -262,62 +246,31 @@ const DebtManagement: React.FC = () => {
 
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [isSaleDetailOpen, setIsSaleDetailOpen] = useState(false);
-    const [isSaleEditOpen, setIsSaleEditOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<GoodsReceipt | null>(null);
     const [isReceiptDetailOpen, setIsReceiptDetailOpen] = useState(false);
-    const [isReceiptEditOpen, setIsReceiptEditOpen] = useState(false);
-
-    useEffect(() => {
-        const q = query(collection(db, 'paymentMethods'), orderBy('name'));
-        const unsub = onSnapshot(q, (snapshot) => {
-            setPaymentMethods(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentMethod)));
-        });
-        return unsub;
-    }, []);
-
-    useEffect(() => {
-        const unsub = onSnapshot(collection(db, 'customers'), (snapshot) => {
-            setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
-        });
-        return unsub;
-    }, []);
-
-    useEffect(() => {
-        const unsub = onSnapshot(collection(db, 'shippers'), (snapshot) => {
-            setShippers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Shipper)));
-        });
-        return unsub;
-    }, []);
-
-    useEffect(() => {
-        const unsub = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
-            setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
-        });
-        return unsub;
-    }, []);
-
-    useEffect(() => {
-        const unsub = onSnapshot(collection(db, 'warehouses'), (snapshot) => {
-            setWarehouses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Warehouse)));
-        });
-        return unsub;
-    }, []);
-
-    useEffect(() => {
-        const unsub = onSnapshot(collection(db, 'products'), (snapshot) => {
-            setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
-        });
-        return unsub;
-    }, []);
 
     useEffect(() => {
         setLoading(true);
+        let salesLoaded = false;
+        let receiptsLoaded = false;
+
+        const checkLoading = () => {
+            if (salesLoaded && receiptsLoaded) {
+                setLoading(false);
+            }
+        };
+
         const qSales = query(collection(db, 'sales'), where('status', '==', 'debt'));
         const unsubSales = onSnapshot(qSales, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale));
             data.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setSalesDebt(data);
-            if (activeTab === 'receivables') setLoading(false);
+            salesLoaded = true;
+            checkLoading();
+        }, (err) => {
+            console.error("Error fetching sales debt:", err);
+            salesLoaded = true;
+            checkLoading();
         });
 
         const qReceipts = query(collection(db, 'goodsReceipts'), where('paymentStatus', '==', 'debt'));
@@ -325,7 +278,12 @@ const DebtManagement: React.FC = () => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoodsReceipt));
             data.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
             setReceiptsDebt(data);
-            if (activeTab === 'payables') setLoading(false);
+            receiptsLoaded = true;
+            checkLoading();
+        }, (err) => {
+            console.error("Error fetching receipts debt:", err);
+            receiptsLoaded = true;
+            checkLoading();
         });
 
         const unsubMethods = onSnapshot(query(collection(db, "paymentMethods"), orderBy("name")), (snap) => {
@@ -340,7 +298,7 @@ const DebtManagement: React.FC = () => {
         document.addEventListener('mousedown', handleClickOutside);
 
         return () => { unsubSales(); unsubReceipts(); unsubMethods(); document.removeEventListener('mousedown', handleClickOutside); };
-    }, [activeTab]);
+    }, []);
 
     useEffect(() => {
         setSelectedIds(new Set());
@@ -353,8 +311,8 @@ const DebtManagement: React.FC = () => {
         
         dataList.forEach(item => {
             const anyItem = item as any;
-            const id = activeTab === 'receivables' ? (item.customerId || 'guest') : (item.supplierId || 'unknown');
-            const name = activeTab === 'receivables' ? (item.customerName || 'Khách vãng lai') : (item.supplierName || 'NCC không tên');
+            const id = activeTab === 'receivables' ? (anyItem.customerId || 'guest') : (anyItem.supplierId || 'unknown');
+            const name = activeTab === 'receivables' ? (anyItem.customerName || 'Khách vãng lai') : (anyItem.supplierName || 'Nhà cung cấp không tên');
             
             if (!summaryMap.has(id)) {
                 summaryMap.set(id, { id, name, totalDebt: 0, count: 0, items: [] });
@@ -373,7 +331,7 @@ const DebtManagement: React.FC = () => {
     }, [salesDebt, receiptsDebt, activeTab]);
 
     const filteredSummary = useMemo(() => {
-        return currentSummary.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        return currentSummary.filter(item => (item.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()));
     }, [currentSummary, searchTerm]);
 
     const paginatedList = useMemo(() => {
@@ -509,43 +467,47 @@ const DebtManagement: React.FC = () => {
                 const currentBal = accSnap.data().balance || 0;
                 const partnerName = selectedItemsData.debtorName;
 
-                // Sort items by date ascending (oldest first) to distribute payment
-                const sortedItems = [...selectedItemsData.items].sort((a, b) => 
-                    (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)
-                );
+                const sortedItems = [...selectedItemsData.items].sort((a, b) => {
+                    const timeA = a.createdAt?.toMillis() || 0;
+                    const timeB = b.createdAt?.toMillis() || 0;
+                    return timeA - timeB;
+                });
 
-                let remainingToDistribute = amount;
+                let remainingAmountToDistribute = amount;
+                let actuallyPaidTotal = 0;
 
                 for (const item of sortedItems) {
-                    if (remainingToDistribute <= 0) break;
+                    if (remainingAmountToDistribute <= 0) break;
 
                     const anyItem = item as any;
-                    const remainingDebt = item.total - (anyItem.amountPaid || 0);
-                    const paymentForThisItem = Math.min(remainingToDistribute, remainingDebt);
+                    const itemRemainingDebt = item.total - (anyItem.amountPaid || 0);
+                    
+                    if (itemRemainingDebt <= 0) continue;
 
-                    if (paymentForThisItem > 0) {
-                        const newPaid = (anyItem.amountPaid || 0) + paymentForThisItem;
-                        const isFull = newPaid >= item.total;
-                        const ref = doc(db, isReceivable ? 'sales' : 'goodsReceipts', item.id);
+                    const payForThisItem = Math.min(itemRemainingDebt, remainingAmountToDistribute);
+                    
+                    const ref = doc(db, isReceivable ? 'sales' : 'goodsReceipts', item.id);
+                    const newPaid = (anyItem.amountPaid || 0) + payForThisItem;
+                    const isFull = newPaid >= item.total;
 
-                        transaction.update(ref, {
-                            [isReceivable ? 'status' : 'paymentStatus']: isFull ? 'paid' : 'debt',
-                            amountPaid: newPaid,
-                            paidAt: isFull ? ts : (anyItem.paidAt || null),
-                            paymentHistory: arrayUnion({ 
-                                date: ts, 
-                                amount: paymentForThisItem, 
-                                note: note || (isReceivable ? 'Thu hồi nợ gộp' : 'Trả nợ gộp'),
-                                paymentMethodId: paymentMethodId,
-                                paymentMethodName: method?.name || 'N/A'
-                            })
-                        });
+                    transaction.update(ref, {
+                        [isReceivable ? 'status' : 'paymentStatus']: isFull ? 'paid' : 'debt',
+                        amountPaid: newPaid,
+                        paidAt: isFull ? ts : (anyItem.paidAt || null),
+                        paymentHistory: arrayUnion({ 
+                            date: ts, 
+                            amount: payForThisItem, 
+                            note: note,
+                            paymentMethodId: paymentMethodId,
+                            paymentMethodName: method?.name || 'N/A'
+                        })
+                    });
 
-                        remainingToDistribute -= paymentForThisItem;
-                    }
+                    remainingAmountToDistribute -= payForThisItem;
+                    actuallyPaidTotal += payForThisItem;
                 }
 
-                const finalBal = isReceivable ? currentBal + amount : currentBal - amount;
+                const finalBal = isReceivable ? currentBal + actuallyPaidTotal : currentBal - actuallyPaidTotal;
                 transaction.update(accRef, { balance: finalBal });
 
                 const logRef = doc(collection(db, 'paymentLogs'));
@@ -558,9 +520,9 @@ const DebtManagement: React.FC = () => {
                     paymentMethodId,
                     paymentMethodName: method?.name || 'N/A',
                     type: isReceivable ? 'deposit' : 'withdraw',
-                    amount: amount,
+                    amount: actuallyPaidTotal,
                     balanceAfter: finalBal,
-                    note: note || bulkAutoNote,
+                    note: bulkAutoNote,
                     createdAt: ts,
                     createdBy: auth.currentUser?.uid || null,
                     creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A'
@@ -569,7 +531,7 @@ const DebtManagement: React.FC = () => {
 
             setSelectedIds(new Set());
             setIsPayBulkModalOpen(false);
-            alert("Đã thanh toán gộp thành công!");
+            alert("Đã thanh toán thành công!");
         } catch (err) { 
             console.error(err);
             alert("Lỗi thanh toán hàng loạt."); 
@@ -585,16 +547,6 @@ const DebtManagement: React.FC = () => {
         } else {
             setSelectedReceipt(item as GoodsReceipt);
             setIsReceiptDetailOpen(true);
-        }
-    };
-
-    const handleOpenEditOrder = (item: any) => {
-        if (activeTab === 'receivables') {
-            setSelectedSale(item as Sale);
-            setIsSaleEditOpen(true);
-        } else {
-            setSelectedReceipt(item as GoodsReceipt);
-            setIsReceiptEditOpen(true);
         }
     };
 
@@ -644,25 +596,6 @@ const DebtManagement: React.FC = () => {
                 </div>
             </div>
 
-            <SaleEditModal 
-                isOpen={isSaleEditOpen} 
-                onClose={() => setIsSaleEditOpen(false)} 
-                sale={selectedSale} 
-                customers={customers}
-                paymentMethods={paymentMethods}
-                shippers={shippers}
-                products={products}
-            />
-            <GoodsReceiptEditModal 
-                isOpen={isReceiptEditOpen} 
-                onClose={() => setIsReceiptEditOpen(false)} 
-                receipt={selectedReceipt} 
-                suppliers={suppliers}
-                paymentMethods={paymentMethods}
-                warehouses={warehouses}
-                products={products}
-            />
-
             <div className="bg-white p-4 rounded-2xl shadow-md border-2 border-slate-200 mb-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="relative flex-1 w-full" ref={searchDropdownRef}>
@@ -677,13 +610,13 @@ const DebtManagement: React.FC = () => {
                         />
                         {isSearchDropdownOpen && searchTerm && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto overflow-x-hidden">
-                                {currentSummary.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 ? (
+                                {currentSummary.filter(d => (d.name || '').toLowerCase().includes((searchTerm || '').toLowerCase())).length === 0 ? (
                                     <div className="p-4 text-center text-xs font-black text-slate-400 uppercase tracking-widest">Không có dữ liệu</div>
                                 ) : (
-                                    currentSummary.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase())).map(d => (
+                                    currentSummary.filter(d => (d.name || '').toLowerCase().includes((searchTerm || '').toLowerCase())).map(d => (
                                         <button 
                                             key={d.id} 
-                                            onClick={() => {setSearchTerm(d.name); setIsSearchDropdownOpen(false);}}
+                                            onClick={() => {setSearchTerm(d.name || ''); setIsSearchDropdownOpen(false);}}
                                             className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-100 flex justify-between items-center group transition-colors"
                                         >
                                             <div className="flex items-center">
@@ -768,7 +701,6 @@ const DebtManagement: React.FC = () => {
                                                     <td className="px-4 py-3">
                                                         <div className="flex items-center justify-center gap-1">
                                                             <button onClick={() => handleViewDetail(item)} className="p-1.5 bg-blue-50 text-blue-600 hover:bg-primary hover:text-white rounded-lg transition" title="Xem chi tiết"><Eye size={16} /></button>
-                                                            <button onClick={() => handleOpenEditOrder(item)} className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition" title="Chỉnh sửa đơn"><Edit size={16} /></button>
                                                             <button onClick={() => handleOpenPaymentModal(item, activeTab === 'receivables' ? 'sale' : 'receipt')} className="p-1.5 bg-slate-100 hover:bg-green-600 hover:text-white rounded-lg transition text-green-600" title="Trả tiền phiếu này"><CreditCard size={16}/></button>
                                                         </div>
                                                     </td>
