@@ -60,7 +60,9 @@ const ProductAnalytics: React.FC = () => {
 
     // Fetch sales based on date range
     useEffect(() => {
-        setLoading(true);
+        setTimeout(() => {
+            setLoading(true);
+        }, 0);
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
         const end = new Date(endDate);
@@ -297,8 +299,8 @@ const ProductAnalytics: React.FC = () => {
                                         <tr key={stat.productId} className="hover:bg-slate-50 transition-colors group">
                                             <td className="p-4 font-bold text-dark flex items-center">
                                                 {stat.productName}
-                                                {isTopSold && <span title="Bán chạy nhất"><Award size={16} className="ml-2 text-orange-500" /></span>}
-                                                {isTopProfit && <span title="Lợi nhuận cao nhất"><TrendingUp size={16} className="ml-1 text-green-600" /></span>}
+                                                {isTopSold && <Award size={16} className="ml-2 text-orange-500" title="Bán chạy nhất" />}
+                                                {isTopProfit && <TrendingUp size={16} className="ml-1 text-green-600" title="Lợi nhuận cao nhất" />}
                                             </td>
                                             <td className="p-4 text-sm text-neutral">{stat.manufacturerName}</td>
                                             <td className="p-4 text-center">

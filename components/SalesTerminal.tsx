@@ -11,6 +11,8 @@ import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import ProductSalesHistory from './ProductSalesHistory';
 import InventoryTransferModal from './InventoryTransferModal';
+import PriceComparisonModal from './PriceComparisonModal';
+import InventoryLedger from './InventoryLedger';
 import { ProductModal } from './ProductManagement';
 import { ShipperModal } from './ShippingManagement';
 import { User as FirebaseAuthUser } from 'firebase/auth';
@@ -253,7 +255,7 @@ const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () 
     );
 };
 
-const ProductCardItem: React.FC<{ product: Product; stock: number; shippingMode: string; onAdd: (product: Product, quantity: number, price: number, importPrice: number) => void; onQuickImport?: (product: Product) => void; onTransfer?: (product: Product) => void; onUpdatePrice?: (productId: string, price: number) => Promise<void>; onUpdateImportPrice?: (productId: string, price: number) => Promise<void>; lastSoldPrice?: number; isPOS?: boolean; isAdmin?: boolean; warehouses?: Warehouse[]; calculateEffectiveStock?: (product: Product, warehouseId: string) => number; }> = ({ product, stock, shippingMode, onAdd, onQuickImport, onTransfer, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin, warehouses, calculateEffectiveStock }) => {
+const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<string, Record<string, number>>; warehouses: Warehouse[]; shippingMode: string; onAdd: (product: Product, quantity: number, price: number, importPrice: number) => void; onQuickImport?: (product: Product) => void; onTransfer?: (product: Product) => void; onUpdatePrice?: (productId: string, price: number) => Promise<void>; onUpdateImportPrice?: (productId: string, price: number) => Promise<void>; lastSoldPrice?: number; isPOS?: boolean; isAdmin?: boolean; onCompare?: (product: Product) => void; }> = ({ product, detailedInventory, warehouses, shippingMode, onAdd, onQuickImport, onTransfer, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin, onCompare }) => {
     const [inputQty, setInputQty] = useState(1);
     const [inputPrice, setInputPrice] = useState(lastSoldPrice !== undefined ? lastSoldPrice : product.sellingPrice);
     const [inputImportPrice, setInputImportPrice] = useState(product.importPrice);
@@ -265,29 +267,24 @@ const ProductCardItem: React.FC<{ product: Product; stock: number; shippingMode:
 
     useEffect(() => { setInputImportPrice(product.importPrice); }, [product.importPrice]);
 
+    const top3Warehouses = warehouses.slice(0, 3);
+
     return (
         <div className={`bg-white border-2 border-slate-200 rounded-xl p-3 hover:shadow-xl transition-all duration-200 flex flex-col justify-between relative group hover:border-primary ${isPOS ? 'h-full' : ''}`}>
             {product.isCombo && (
                 <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-br-lg font-black z-10 uppercase shadow-sm">COMBO</div>
             )}
-            {stock <= 0 && shippingMode === 'shipped' && (<div className="absolute top-0 right-0 bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded-bl-lg font-bold z-10 uppercase">HẾT</div>)}
             <div className="mb-2 mt-3 flex justify-between items-start">
                 <div className="flex-1">
-                    <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1">{product.name}</div>
-                    {warehouses && calculateEffectiveStock ? (
-                        <div className="flex flex-wrap gap-x-2 gap-y-1 text-[9px] text-neutral font-bold">
-                            {warehouses.slice(0, 3).map(w => {
-                                const wStock = calculateEffectiveStock(product, w.id);
-                                return (
-                                    <span key={w.id} className="whitespace-nowrap">
-                                        {w.name}: <span className={`${wStock <= 0 ? 'text-red-600' : 'text-primary'}`}>{wStock}</span>
-                                    </span>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="text-[10px] text-neutral font-bold">Tồn kho: <span className={`${stock <= 0 ? 'text-red-600' : 'text-primary'}`}>{stock}</span></div>
-                    )}
+                    <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1" title={product.name}>{product.name}</div>
+                    <div className="grid grid-cols-3 gap-1 text-[9px] text-neutral font-bold mt-1">
+                        {top3Warehouses.map(w => (
+                            <div key={w.id} className="text-center">
+                                <div className="text-[8px] text-slate-400 uppercase truncate">{w.name}</div>
+                                <div className="text-primary">{(detailedInventory[product.id]?.[w.id] || 0)}</div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 {isAdmin && !product.isCombo && (
                     <div className="flex gap-1 ml-1">
@@ -307,6 +304,15 @@ const ProductCardItem: React.FC<{ product: Product; stock: number; shippingMode:
                                 title="Chuyển kho"
                             >
                                 <ArrowRightLeft size={14}/>
+                            </button>
+                        )}
+                        {onCompare && (
+                            <button 
+                                onClick={() => onCompare(product)} 
+                                className="p-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-sm"
+                                title="So sánh giá nhập"
+                            >
+                                <TrendingDown size={14}/>
                             </button>
                         )}
                     </div>
@@ -338,7 +344,7 @@ const ProductCardItem: React.FC<{ product: Product; stock: number; shippingMode:
                     {isAdmin && (<button onClick={() => onUpdatePrice?.(product.id, inputPrice)} className="p-1 bg-slate-800 text-white rounded"><Save size={16}/></button>)}
                 </div>
             </div>
-            <div className="flex space-x-2"><input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg text-center font-black ${shippingMode === 'shipped' && inputQty > stock ? 'border-red-500' : 'border-slate-200'}`} /><button onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice)} className="flex-1 py-2 bg-primary text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center gap-1"><Plus size={14}/> THÊM</button></div>
+            <div className="flex space-x-2"><input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg text-center font-black ${shippingMode === 'shipped' && inputQty > (detailedInventory[product.id]?.[warehouses.find(w => w.name === 'Ngoài CH')?.id || ''] || 0) ? 'border-red-500' : 'border-slate-200'}`} /><button onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice)} className="flex-1 py-2 bg-primary text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center gap-1"><Plus size={14}/> THÊM</button></div>
         </div>
     );
 };
@@ -367,6 +373,15 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const customerDropdownRef = useRef<HTMLDivElement>(null);
   const [selectedShipperId, setSelectedShipperId] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+
+  useEffect(() => {
+    if (warehouses.length > 0 && !selectedWarehouseId) {
+      const ngoaiCH = warehouses.find(w => w.name === 'Ngoài CH');
+      if (ngoaiCH) {
+        setSelectedWarehouseId(ngoaiCH.id);
+      }
+    }
+  }, [warehouses, selectedWarehouseId]);
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('');
   const [shippingMode, setShippingMode] = useState<'shipped' | 'pending' | 'order'>('shipped');
   const [shippingPayer, setShippingPayer] = useState<'shop' | 'customer'>('customer');
@@ -383,14 +398,18 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   
   const [selectedSaleDetail, setSelectedSaleDetail] = useState<Sale | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedSaleEdit, setSelectedSaleEdit] = useState<Sale | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedSaleEdit, setSelectedSaleEdit] = useState<Sale | null>(null);
+  const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+  const [selectedLedgerProductId, setSelectedLedgerProductId] = useState<string | null>(null);
 
   // New states for Quick Actions
   const [isQuickImportOpen, setIsQuickImportOpen] = useState(false);
   const [selectedQuickImportProduct, setSelectedQuickImportProduct] = useState<Product | null>(null);
   const [isQuickTransferOpen, setIsQuickTransferOpen] = useState(false);
   const [selectedQuickTransferProduct, setSelectedQuickTransferProduct] = useState<Product | null>(null);
+  const [isPriceComparisonOpen, setIsPriceComparisonOpen] = useState(false);
+  const [selectedPriceComparisonProduct, setSelectedPriceComparisonProduct] = useState<Product | null>(null);
 
   const isAdmin = userRole === 'admin';
 
@@ -408,31 +427,18 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (warehouses.length > 0 && !selectedWarehouseId) {
-      const ngoaiCh = warehouses.find(w => w.name === 'Ngoài CH');
-      if (ngoaiCh) {
-        setSelectedWarehouseId(ngoaiCh.id);
-      }
-    }
-  }, [warehouses, selectedWarehouseId]);
-
-  // CẬP NHẬT Logic: Lấy giá bán gần nhất cho khách hàng sỉ - Lấy tối đa 50 đơn hàng gần nhất
+  // CẬP NHẬT Logic: Lấy giá bán gần nhất cho khách hàng sỉ và Lấy ĐVVC đã gởi lần trước
   useEffect(() => {
     if (!selectedCustomerId) {
       setWholesalePrices({});
+      setSelectedShipperId('');
       setIndexErrorUrl(null);
       return;
     }
 
     const customer = customers.find(c => c.id === selectedCustomerId);
-    if (customer?.type !== 'wholesale') {
-      setWholesalePrices({});
-      setIndexErrorUrl(null);
-      return;
-    }
 
-    // Truy vấn 50 đơn hàng gần nhất của khách này để bao phủ được nhiều sản phẩm hơn
+    // Truy vấn 50 đơn hàng gần nhất của khách này
     const q = query(
       collection(db, "sales"),
       where("customerId", "==", selectedCustomerId),
@@ -443,17 +449,31 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setIndexErrorUrl(null);
       if (!snapshot.empty) {
-        const prices: Record<string, number> = {};
-        // Duyệt ngược từ cũ nhất đến mới nhất trong snapshot để giá đơn mới nhất ghi đè lên giá cũ
-        for (let i = snapshot.docs.length - 1; i >= 0; i--) {
-            const saleData = snapshot.docs[i].data() as Sale;
-            saleData.items.forEach(item => {
-                prices[item.productId] = item.price;
-            });
+        // Tự động load ĐVVC lần trước
+        const lastShippedSale = snapshot.docs.find(doc => doc.data().shipperId);
+        if (lastShippedSale) {
+            setSelectedShipperId(lastShippedSale.data().shipperId);
+        } else {
+            setSelectedShipperId('');
         }
-        setWholesalePrices(prices);
+
+        // Cập nhật giá bán sỉ gần nhất
+        if (customer?.type === 'wholesale') {
+            const prices: Record<string, number> = {};
+            // Duyệt ngược từ cũ nhất đến mới nhất trong snapshot để giá đơn mới nhất ghi đè lên giá cũ
+            for (let i = snapshot.docs.length - 1; i >= 0; i--) {
+                const saleData = snapshot.docs[i].data() as Sale;
+                saleData.items.forEach(item => {
+                    prices[item.productId] = item.price;
+                });
+            }
+            setWholesalePrices(prices);
+        } else {
+            setWholesalePrices({});
+        }
       } else {
         setWholesalePrices({});
+        setSelectedShipperId(''); // Không có lịch sử thì clear ĐVVC
       }
     }, (err: any) => {
         console.error("Lỗi lấy giá sỉ gần nhất:", err);
@@ -491,11 +511,18 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   };
 
   const handleCheckout = async () => {
-      if (cart.length === 0 || !selectedWarehouseId || (!isDebt && !selectedPaymentMethodId)) { setToast({ message: "Thiếu thông tin kho xuất hoặc thanh toán.", type: 'error' }); return; }
+      console.log("handleCheckout called", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId });
+      if (cart.length === 0 || !selectedWarehouseId || (!isDebt && !selectedPaymentMethodId)) { 
+          console.warn("Checkout validation failed", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId });
+          setToast({ message: "Thiếu thông tin kho xuất hoặc thanh toán.", type: 'error' }); 
+          return; 
+      }
       setIsProcessing(true);
       try {
+          console.log("Starting transaction...");
           await runTransaction(db, async (transaction) => {
               const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
+              console.log("Transaction logic executed");
               const total = itemTotal + shippingFee;
               const customerName = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId)?.name : (customerSearchTerm || 'Khách vãng lai');
               const paymentMethod = paymentMethods.find(p => p.id === selectedPaymentMethodId);
@@ -511,7 +538,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
               if (!isDebt && selectedPaymentMethodId) {
                   accountRef = doc(db, 'paymentMethods', selectedPaymentMethodId);
                   const accSnap = await transaction.get(accountRef);
-                  if (accSnap.exists()) currentBal = accSnap.data().balance || 0;
+                  if (accSnap.exists()) currentBal = (accSnap.data() as any).balance || 0;
               }
 
               const saleRef = doc(collection(db, 'sales'));
@@ -526,6 +553,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                     importPrice: i.currentImportPrice || 0, 
                     isCombo: i.isCombo || false 
                 })), 
+                productIds: cart.map(i => i.productId),
                 total, 
                 shippingFee,
                 amountPaid: isDebt ? 0 : total, 
@@ -607,7 +635,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                   }
               }
           });
-          setCart([]); setIsDebt(false); setIssueInvoice(false); setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setSelectedPaymentMethodId(''); setSelectedShipperId(''); setShippingFee(0); setSaleDate(getTodayString()); setToast({ message: "Thanh toán thành công (Kho đã trừ)!", type: 'success' });
+          setCart([]); setIsDebt(false); setIssueInvoice(false); setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setSelectedPaymentMethodId(''); setSelectedShipperId(''); setShippingFee(0); setSaleDate(getTodayString()); setShippingMode('shipped'); setToast({ message: "Thanh toán thành công (Kho đã trừ)!", type: 'success' });
       } catch (e: any) { console.error(e); alert("Lỗi khi thanh toán: " + e.message); } finally { setIsProcessing(false); }
   };
 
@@ -664,7 +692,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                   accRef = doc(db, 'paymentMethods', data.paymentMethodId);
                   const accSnap = await transaction.get(accRef);
                   if (accSnap.exists()) {
-                      currentBal = accSnap.data().balance || 0;
+                      currentBal = (accSnap.data() as any).balance || 0;
                   }
               }
 
@@ -677,6 +705,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                       importPrice: data.importPrice,
                       isCombo: !!selectedQuickImportProduct.isCombo
                   }],
+                  productIds: [selectedQuickImportProduct.id],
                   total,
                   supplierId: data.supplierId,
                   supplierName: supplier?.name || 'N/A',
@@ -732,39 +761,58 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
   const handleQuickTransfer = async (details: { productId: string; fromWarehouseId: string; toWarehouseId: string; quantity: number; }) => {
     try {
-      const batch = writeBatch(db);
-      const fromInventoryRef = doc(db, 'products', details.productId, 'inventory', details.fromWarehouseId);
-      const toInventoryRef = doc(db, 'products', details.productId, 'inventory', details.toWarehouseId);
       const toWarehouse = warehouses.find(w => w.id === details.toWarehouseId);
       const fromWarehouse = warehouses.find(w => w.id === details.fromWarehouseId);
       const product = products.find(p => p.id === details.productId);
 
       if (!toWarehouse || !fromWarehouse || !product) throw new Error("Thông tin không hợp lệ");
 
-      batch.update(fromInventoryRef, { stock: increment(-details.quantity) });
-      batch.set(toInventoryRef, {
-        stock: increment(details.quantity),
-        warehouseId: toWarehouse.id,
-        warehouseName: toWarehouse.name
-      }, { merge: true });
+      await runTransaction(db, async (transaction) => {
+          const fromInventoryRef = doc(db, 'products', details.productId, 'inventory', details.fromWarehouseId);
+          const toInventoryRef = doc(db, 'products', details.productId, 'inventory', details.toWarehouseId);
 
-      const transferRef = doc(collection(db, 'warehouseTransfers'));
-      batch.set(transferRef, {
-          productId: product.id, productName: product.name,
-          fromWarehouseId: fromWarehouse.id, fromWarehouseName: fromWarehouse.name,
-          toWarehouseId: toWarehouse.id, toWarehouseName: toWarehouse.name,
-          quantity: details.quantity,
-          createdAt: serverTimestamp(),
-          creatorName: user?.displayName || user?.email || 'N/A'
+          const fromSnap = await transaction.get(fromInventoryRef);
+          const toSnap = await transaction.get(toInventoryRef);
+
+          const stockBeforeFrom = fromSnap.exists() ? fromSnap.data().stock || 0 : 0;
+          const stockBeforeTo = toSnap.exists() ? toSnap.data().stock || 0 : 0;
+
+          if (stockBeforeFrom < details.quantity) throw new Error("Kho nguồn không đủ số lượng để chuyển");
+
+          const stockAfterFrom = stockBeforeFrom - details.quantity;
+          const stockAfterTo = stockBeforeTo + details.quantity;
+
+          transaction.update(fromInventoryRef, { stock: stockAfterFrom });
+          transaction.set(toInventoryRef, {
+              stock: stockAfterTo,
+              warehouseId: toWarehouse.id,
+              warehouseName: toWarehouse.name
+          }, { merge: true });
+
+          const transferRef = doc(collection(db, 'warehouseTransfers'));
+          transaction.set(transferRef, {
+              productId: product.id, productName: product.name,
+              fromWarehouseId: fromWarehouse.id, fromWarehouseName: fromWarehouse.name,
+              toWarehouseId: toWarehouse.id, toWarehouseName: toWarehouse.name,
+              quantity: details.quantity,
+              stockBeforeFrom,
+              stockAfterFrom,
+              stockBeforeTo,
+              stockAfterTo,
+              createdAt: serverTimestamp(),
+              creatorName: user?.displayName || user?.email || 'N/A'
+          });
       });
 
-      await batch.commit();
       setToast({ message: "Chuyển kho thành công!", type: 'success' });
       setIsQuickTransferOpen(false);
-    } catch (e) { alert("Lỗi chuyển kho."); }
+    } catch (e: any) { 
+      console.error(e);
+      alert(`Lỗi chuyển kho: ${e.message}`); 
+    }
   };
 
-  const filteredProducts = useMemo(() => products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (searchTerm === '' && (shippingMode === 'shipped' ? calculateEffectiveStock(p, selectedWarehouseId) > 0 : true))), [products, searchTerm, detailedInventory, selectedWarehouseId, shippingMode]);
+  const filteredProducts = useMemo(() => products.filter(p => (p.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || (searchTerm === '' && (shippingMode === 'shipped' ? calculateEffectiveStock(p, selectedWarehouseId) > 0 : true))), [products, searchTerm, detailedInventory, selectedWarehouseId, shippingMode]);
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredProducts, currentPage, pageSize]);
   const totals = useMemo(() => {
     const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
@@ -778,7 +826,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const summaryToday = useMemo(() => {
     let revenue = 0; let profit = 0;
     todaySales.forEach(sale => {
-        revenue += sale.total;
+        revenue += (sale.total || 0);
         const saleProfit = sale.items?.reduce((acc, it) => acc + (it.price - (it.importPrice || 0)) * it.quantity, 0) || 0;
         profit += saleProfit;
     });
@@ -804,6 +852,32 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           shippers={shippers} 
           products={products} 
         />
+        {isLedgerModalOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[250] p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border-4 border-slate-800">
+                    <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+                        <h2 className="text-xl font-black uppercase tracking-tighter flex items-center">
+                            <History className="mr-2" size={24} />
+                            Truy vết biến động kho
+                        </h2>
+                        <button onClick={() => setIsLedgerModalOpen(false)} className="hover:bg-slate-700 p-2 rounded-full transition">
+                            <X size={24} />
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+                        <InventoryLedger initialProductId={selectedLedgerProductId || 'all'} />
+                    </div>
+                    <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
+                        <button 
+                            onClick={() => setIsLedgerModalOpen(false)}
+                            className="px-6 py-2 bg-slate-800 text-white rounded-xl font-black text-xs uppercase hover:bg-slate-700 transition shadow-lg"
+                        >
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
         {isProductModalOpen && <ProductModal product={null} manufacturers={manufacturers} allProductsForCombo={products} onClose={() => setIsProductModalOpen(false)} onSave={async (d) => { await addDoc(collection(db, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); }} existingNames={products.map(p => p.name)} />}
         {isCustomerModalOpen && <CustomerModal customer={null} onClose={() => setIsCustomerModalOpen(false)} onSave={handleSaveCustomer} existingCustomers={customers} />}
         {isShipperModalOpen && <ShipperModal shipper={null} onClose={() => setIsShipperModalOpen(false)} onSave={handleSaveShipper} existingNames={shippers.map(s => s.name)} />}
@@ -833,6 +907,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
             }, {} as any)}
             initialData={selectedQuickTransferProduct ? { productId: selectedQuickTransferProduct.id, fromWarehouseId: selectedWarehouseId } : null}
             onTransfer={handleQuickTransfer}
+        />
+
+        <PriceComparisonModal 
+            isOpen={isPriceComparisonOpen} 
+            onClose={() => setIsPriceComparisonOpen(false)} 
+            product={selectedPriceComparisonProduct} 
         />
 
         <div className={`flex flex-col lg:flex-row gap-4 flex-1`}>
@@ -867,7 +947,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
-                                <div className="relative flex gap-1" ref={customerDropdownRef}><div className="relative flex-1"><User className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><input type="text" placeholder="Tìm khách..." value={customerSearchTerm} onChange={e => { setCustomerSearchTerm(e.target.value); setCustomerDropdownOpen(true); }} onFocus={() => { if (customerSearchTerm === 'Khách vãng lai') { setCustomerSearchTerm(''); setSelectedCustomerId(''); } setCustomerDropdownOpen(true); }} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black outline-none" />{isCustomerDropdownOpen && customerSearchTerm && (<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto"><button onClick={() => { setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b font-black text-blue-700">KHÁCH VÃNG LAI</button>{customers.filter(c => c.name.toLowerCase().includes(customerSearchTerm.toLowerCase())).slice(0,5).map(c => (<button key={c.id} onClick={() => { setSelectedCustomerId(c.id); setCustomerSearchTerm(c.name); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b flex justify-between font-black text-black"><span>{c.name}</span><span>{c.phone}</span></button>))}</div>)}</div><button onClick={() => setIsCustomerModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border hover:bg-green-600 transition"><Plus size={18}/></button></div>
+                                <div className="relative flex gap-1" ref={customerDropdownRef}><div className="relative flex-1"><User className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><input type="text" placeholder="Tìm khách..." value={customerSearchTerm} onChange={e => { setCustomerSearchTerm(e.target.value); setCustomerDropdownOpen(true); }} onFocus={() => { if (customerSearchTerm === 'Khách vãng lai') { setCustomerSearchTerm(''); setSelectedCustomerId(''); } setCustomerDropdownOpen(true); }} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black outline-none" />{isCustomerDropdownOpen && customerSearchTerm && (<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto"><button onClick={() => { setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b font-black text-blue-700">KHÁCH VÃNG LAI</button>{customers.filter(c => (c.name || '').toLowerCase().includes((customerSearchTerm || '').toLowerCase())).slice(0,5).map(c => (<button key={c.id} onClick={() => { setSelectedCustomerId(c.id); setCustomerSearchTerm(c.name); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b flex justify-between font-black text-black"><span>{c.name}</span><span>{c.phone}</span></button>))}</div>)}</div><button onClick={() => setIsCustomerModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border hover:bg-green-600 transition"><Plus size={18}/></button></div>
                                 <div className="relative"><Archive className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedWarehouseId} onChange={e => setSelectedWarehouseId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary appearance-none"><option value="">Kho xuất...</option>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
                                 <div className="relative flex gap-1"><div className="relative flex-1"><Truck className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedShipperId} onChange={e => setSelectedShipperId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary appearance-none"><option value="">ĐVVC...</option>{shippers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div><button onClick={() => setIsShipperModalOpen(true)} className="p-2 bg-blue-100 text-blue-600 rounded-lg border hover:bg-blue-600 transition"><Plus size={18}/></button></div>
                                 <div className="relative"><CreditCard className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedPaymentMethodId} onChange={e => setSelectedPaymentMethodId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary appearance-none" disabled={isDebt}><option value="">PTTT...</option>{paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
@@ -902,7 +982,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 </button>
                             )}
                         </div>
-                        <div className={`grid gap-2 content-start overflow-y-auto ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ProductCardItem key={p.id} product={p} stock={calculateEffectiveStock(p, selectedWarehouseId)} shippingMode={shippingMode} onAdd={addToCart} onQuickImport={(prod) => { setSelectedQuickImportProduct(prod); setIsQuickImportOpen(true); }} onTransfer={(prod) => { setSelectedQuickTransferProduct(prod); setIsQuickTransferOpen(true); }} onUpdatePrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{sellingPrice:pr})} onUpdateImportPrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{importPrice:pr})} lastSoldPrice={wholesalePrices[p.id]} isPOS={isFullscreen} isAdmin={isAdmin} warehouses={warehouses} calculateEffectiveStock={calculateEffectiveStock} />)) }</div>
+                        <div className={`grid gap-2 content-start overflow-y-auto ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ProductCardItem key={p.id} product={p} detailedInventory={detailedInventory} warehouses={warehouses} shippingMode={shippingMode} onAdd={addToCart} onQuickImport={(prod) => { setSelectedQuickImportProduct(prod); setIsQuickImportOpen(true); }} onTransfer={(prod) => { setSelectedQuickTransferProduct(prod); setIsQuickTransferOpen(true); }} onUpdatePrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{sellingPrice:pr})} onUpdateImportPrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{importPrice:pr})} lastSoldPrice={wholesalePrices[p.id]} isPOS={isFullscreen} isAdmin={isAdmin} onCompare={(p) => { setSelectedPriceComparisonProduct(p); setIsPriceComparisonOpen(true); }} />)) }</div>
                         <div className="mt-3 flex justify-between items-center border-t border-slate-100 pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
                     </div>
                 </div>
@@ -995,34 +1075,34 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                             </div>
                         </div>
                     )})}
-                  </div>
-                  <div className="p-3 bg-white flex-shrink-0 shadow-sm border-t border-slate-200">
-                      <div className="grid grid-cols-2 gap-4 mb-3">
-                        <div className="space-y-1">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Phí vận chuyển</span>
-                            <div className="relative">
-                                <NumericInput 
-                                    value={shippingFee} 
-                                    onChange={setShippingFee}
-                                    className="w-full px-3 py-2 border-2 border-slate-800 rounded-xl font-black text-lg text-right focus:ring-2 focus:ring-primary outline-none text-white bg-slate-800 shadow-inner"
-                                />
-                                <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-                            </div>
+                    <div className="p-3 bg-white flex-shrink-0 shadow-sm border-t border-slate-200">
+                        <div className="grid grid-cols-2 gap-4 mb-3">
+                          <div className="space-y-1">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Phí vận chuyển</span>
+                              <div className="relative">
+                                  <NumericInput 
+                                      value={shippingFee} 
+                                      onChange={setShippingFee}
+                                      className="w-full px-3 py-2 border-2 border-slate-800 rounded-xl font-black text-lg text-right focus:ring-2 focus:ring-primary outline-none text-white bg-slate-800 shadow-inner"
+                                  />
+                                  <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                              </div>
+                          </div>
+                          <div className="text-right flex flex-col justify-end">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng cộng (Đơn + Ship)</span>
+                              <span className="font-black text-primary leading-none text-3xl">{formatNumber(totals.revenue)}<span className="text-xs ml-0.5 font-black">₫</span></span>
+                          </div>
                         </div>
-                        <div className="text-right flex flex-col justify-end">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng cộng (Đơn + Ship)</span>
-                            <span className="font-black text-primary leading-none text-3xl">{formatNumber(totals.revenue)}<span className="text-xs ml-0.5 font-black">₫</span></span>
-                        </div>
-                      </div>
-                      <button onClick={handleCheckout} disabled={isProcessing || cart.length === 0} className="w-full py-4 bg-white border-2 border-blue-600 text-blue-600 rounded-2xl font-black text-lg shadow-lg active:scale-95 disabled:bg-slate-200 flex items-center justify-center uppercase">
-                          {isProcessing ? <Loader className="animate-spin mr-2" size={20}/> : <Banknote className="mr-2" size={24}/>}
-                          {isDebt 
-                              ? 'Xác nhận nợ' 
-                              : `Hoàn tất đơn ${paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name || ''}`
-                          }
-                      </button>
+                        <button onClick={handleCheckout} disabled={isProcessing || cart.length === 0} className="w-full py-4 bg-white border-2 border-blue-600 text-blue-600 rounded-2xl font-black text-lg shadow-lg active:scale-95 disabled:bg-slate-200 flex items-center justify-center uppercase">
+                            {isProcessing ? <Loader className="animate-spin mr-2" size={20}/> : <Banknote className="mr-2" size={24}/>}
+                            {isDebt 
+                                ? 'Xác nhận nợ' 
+                                : `Hoàn tất đơn ${paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name || ''}`
+                            }
+                        </button>
+                    </div>
                   </div>
-                  <div className="p-3 bg-slate-100 border-t-4 border-slate-800 flex-1 overflow-y-auto pb-20 h-1/3">
+                  <div className="p-3 bg-slate-100 border-t-4 border-slate-800 flex-1 overflow-y-auto pb-20">
                       <div className="space-y-3">
                           <div className="bg-slate-900 p-3 rounded-xl border-2 border-slate-800 shadow-lg flex justify-between items-center text-white mb-2 sticky top-0 z-10">
                               <div className="flex flex-col">
@@ -1045,8 +1125,18 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                 <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase shadow-sm ${shipColor}`}>{shipLabel}</span>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
-                                                <button onClick={() => setSelectedSaleEdit(sale) || setIsEditModalOpen(true)} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>
-                                                <button onClick={() => setSelectedSaleDetail(sale) || setIsDetailModalOpen(true)} className="p-1 bg-white/20 rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
+                                                <button onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>
+                                                <button onClick={() => { setSelectedSaleDetail(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
+                                                <button 
+                                                    onClick={() => {
+                                                        setSelectedLedgerProductId('all');
+                                                        setIsLedgerModalOpen(true);
+                                                    }} 
+                                                    className="p-1 bg-white/20 rounded hover:bg-purple-500 transition" 
+                                                    title="Truy vết tồn kho"
+                                                >
+                                                    <History size={12}/>
+                                                </button>
                                                 <span className="text-sm font-black text-yellow-400 ml-1">{formatNumber(sale.total)} ₫</span>
                                             </div>
                                         </div>

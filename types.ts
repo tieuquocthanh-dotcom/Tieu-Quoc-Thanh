@@ -52,7 +52,9 @@ export interface GoodsReceipt {
   notes?: string;
   hasInvoice?: boolean;
   total?: number;
+  productIds?: string[];
   paidAt?: Timestamp;
+  paymentHistory?: any[];
   creatorName?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -63,7 +65,7 @@ export interface GoodsReceiptItem {
   productName: string;
   quantity: number;
   importPrice: number;
-  totalPrice: number;
+  totalPrice?: number;
   isCombo?: boolean;
 }
 
@@ -88,6 +90,7 @@ export interface Sale {
   status?: string;
   issueInvoice?: boolean;
   total?: number;
+  productIds?: string[];
   notes?: string;
   note?: string;
   creatorName?: string;
@@ -156,15 +159,24 @@ export interface ChinaImport {
   shippingFeeVN: number;
   shippingFeeExtra: number;
   currencyExchangeFee?: number;
-  items: {
-    productId: string;
-    productName: string;
-    quantity: number;
-    priceCNY: number;
-  }[];
-  status: 'pending' | 'completed';
+  items: ChinaImportItem[];
+  status: ChinaImportStatus;
   createdAt: Timestamp;
+  importDate?: Timestamp;
+  note?: string;
+  totalCostCNY?: number;
+  totalCostVND?: number;
 }
+
+export interface ChinaImportItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  priceCNY: number;
+  totalCNY?: number;
+}
+
+export type ChinaImportStatus = 'ordered' | 'placed' | 'paid' | 'at_vn' | 'received_full' | 'received_missing';
 
 export interface PaymentHistoryEntry {
   id: string;

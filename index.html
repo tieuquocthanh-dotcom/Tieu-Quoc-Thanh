@@ -2,42 +2,16 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="theme-color" content="#1D4ED8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
     <title>Quản Lý Bán Hàng & Kho</title>
-    <script>
-      try {
-        const originalFetch = window.fetch;
-        Object.defineProperty(window, 'fetch', {
-          get: function() { return originalFetch; },
-          set: function(val) { 
-            console.warn('Prevented overwriting window.fetch'); 
-          },
-          configurable: true
-        });
-      } catch (e) {
-        console.error(e);
-      }
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              'primary': '#1D4ED8',
-              'primary-hover': '#2563EB',
-              'secondary': '#F97316',
-              'secondary-hover': '#FB923C',
-              'light': '#F8FAFC',
-              'dark': '#0F172A',
-              'neutral': '#64748B',
-            },
-          },
-        },
-      }
-    </script>
-    <link rel="stylesheet" href="/index.css">
-  </head>
-  <body class="bg-slate-100">
+</head>
+  <body class="bg-slate-100" style="font-family: sans-serif;">
     <div id="root"></div>
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <script type="module" src="/main.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

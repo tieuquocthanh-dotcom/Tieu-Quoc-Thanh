@@ -6,6 +6,7 @@ import { formatNumber } from '../utils/formatting';
 import { doc, writeBatch, increment, getDoc, collection, query, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import ConfirmationModal from './ConfirmationModal';
+import * as XLSX from 'xlsx';
 
 interface SaleDetailModalProps {
   isOpen: boolean;
@@ -123,7 +124,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
             <div class="totals">
               <div class="total-row">
                 <span>Tiền hàng:</span>
-                <span>${formatNumber(sale.total - (sale.shippingFee || 0))}</span>
+                <span>${formatNumber((sale.total || 0) - (sale.shippingFee || 0))}</span>
               </div>
               ${sale.shippingFee ? `
                 <div class="total-row">
@@ -133,7 +134,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
               ` : ''}
               <div class="total-row grand-total">
                 <span>TỔNG CỘNG:</span>
-                <span>${formatNumber(sale.total)} VNĐ</span>
+                <span>${formatNumber(sale.total || 0)} VNĐ</span>
               </div>
               <div class="total-row">
                 <span>Đã thanh toán:</span>
@@ -220,6 +221,51 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
 
   const remainingDebt = Math.max(0, (sale.total ?? 0) - (sale.amountPaid || 0));
 
+  const exportDetailToExcel = () => {
+    if (!sale || !sale.items) return;
+    const dataToExport = sale.items.map((item, index) => ({
+      STT: index + 1,
+      "Tên món": item.productName,
+      "Loại": item.isCombo ? "COMBO" : "Lẻ",
+      "Số lượng": item.quantity,
+      "Đơn giá (VNĐ)": item.price,
+      "Thành tiền (VNĐ)": item.quantity * item.price,
+      "Phương thức thanh toán": sale.paymentMethodName || 'N/A',
+      "Đơn vị vận chuyển": sale.shipperName || 'N/A',
+    }));
+
+    // Add row for shipping fee if exists
+    if (sale.shippingFee && sale.shippingFee > 0) {
+      dataToExport.push({
+        STT: "" as any,
+        "Tên món": "Phí vận chuyển:" as any,
+        "Loại": "" as any,
+        "Số lượng": "" as any,
+        "Đơn giá (VNĐ)": "" as any,
+        "Thành tiền (VNĐ)": sale.shippingFee,
+        "Phương thức thanh toán": "" as any,
+        "Đơn vị vận chuyển": "" as any,
+      });
+    }
+
+    // Add extra row for summary
+    dataToExport.push({
+      STT: "" as any,
+      "Tên món": "TỔNG CỘNG:" as any,
+      "Loại": "" as any,
+      "Số lượng": sale.items.reduce((sum, i) => sum + i.quantity, 0) as any,
+      "Đơn giá (VNĐ)": "" as any,
+      "Thành tiền (VNĐ)": sale.total || 0,
+      "Phương thức thanh toán": "" as any,
+      "Đơn vị vận chuyển": "" as any,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "ChiTietBanHang");
+    XLSX.writeFile(wb, `Chi_Tiet_Ban_Hang_${sale.id.substring(0, 8)}.xlsx`);
+  };
+
   return (
     <>
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
@@ -228,7 +274,12 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                 <h2 className="text-lg font-black uppercase tracking-tighter flex items-center">
                     <FileText className="mr-3 text-primary" size={20} /> Đơn hàng #{sale.id.substring(0, 8)}
                 </h2>
-                <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X size={28} /></button>
+                <div className="flex flex-row items-center space-x-2">
+                    <button onClick={exportDetailToExcel} className="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center shadow-sm">
+                        <Printer size={14} className="mr-1" /> Xuất Excel
+                    </button>
+                    <button onClick={onClose} className="text-white/50 hover:text-white transition-colors"><X size={28} /></button>
+                </div>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">

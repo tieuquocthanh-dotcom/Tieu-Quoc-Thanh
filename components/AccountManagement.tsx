@@ -93,6 +93,87 @@ const EditLogModal: React.FC<{
     );
 };
 
+// --- MODAL CHỈNH SỬA SỐ DƯ TÀI KHOẢN ---
+const EditBalanceModal: React.FC<{
+    isOpen: boolean;
+    account: PaymentMethod | null;
+    onClose: () => void;
+    onConfirm: (newBalance: number, note: string) => void;
+    isSaving: boolean;
+}> = ({ isOpen, account, onClose, onConfirm, isSaving }) => {
+    const [newBalance, setNewBalance] = useState<number>(0);
+    const [note, setNote] = useState<string>('');
+
+    useEffect(() => {
+        if (isOpen && account) {
+            setNewBalance(account.balance || 0);
+            setNote('Điều chỉnh số dư tài khoản');
+        }
+    }, [isOpen, account]);
+
+    if (!isOpen || !account) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border-4 border-slate-800 overflow-hidden">
+                <div className="p-4 flex justify-between items-center text-white font-black uppercase text-sm bg-orange-600">
+                    <div className="flex items-center">
+                        <Edit className="mr-2" size={20}/>
+                        Điều chỉnh số dư
+                    </div>
+                    <button onClick={onClose} className="hover:opacity-70 transition"><X size={24}/></button>
+                </div>
+                
+                <div className="p-6 space-y-4 bg-slate-50">
+                    <div className="p-3 bg-white rounded-xl border-2 border-slate-200">
+                        <p className="text-[10px] font-black text-slate-400 uppercase">Tài khoản</p>
+                        <p className="text-lg font-black text-slate-800 uppercase">{account.name}</p>
+                        <div className="mt-2 flex justify-between items-center border-t pt-2">
+                             <span className="text-[10px] font-black text-slate-400 uppercase">Số dư hiện tại:</span>
+                             <span className="font-black text-slate-500">{formatNumber(account.balance || 0)} ₫</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số dư mới</label>
+                        <input 
+                            type="text"
+                            inputMode="numeric"
+                            autoFocus
+                            value={formatNumber(newBalance)} 
+                            onChange={e => setNewBalance(parseNumber(e.target.value))}
+                            onFocus={e => e.target.select()}
+                            className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Lý do điều chỉnh</label>
+                        <textarea 
+                            value={note}
+                            onChange={e => setNote(e.target.value)}
+                            rows={3}
+                            className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl font-bold text-sm focus:ring-2 focus:ring-primary outline-none bg-white shadow-sm text-black"
+                        />
+                    </div>
+                </div>
+
+                <div className="p-4 bg-white border-t border-slate-200 flex gap-3">
+                    <button onClick={onClose} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition">Hủy</button>
+                    <button 
+                        onClick={() => onConfirm(newBalance, note)}
+                        disabled={isSaving}
+                        className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-black text-xs uppercase shadow-lg transition active:scale-95 flex items-center justify-center"
+                    >
+                        {isSaving ? <Loader className="animate-spin mr-2" size={18}/> : <Save className="mr-2" size={18}/>}
+                        Lưu số dư mới
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const TransactionModal: React.FC<{
     isOpen: boolean;
     type: 'deposit' | 'withdraw';
@@ -644,67 +725,57 @@ const HistoryModal: React.FC<{
     );
 };
 
-const EditBalanceModal: React.FC<{
+const AddAccountModal: React.FC<{
     isOpen: boolean;
-    account: PaymentMethod | null;
     onClose: () => void;
-    onConfirm: (newBalance: number, note: string) => void;
+    onConfirm: (name: string, initialBalance: number) => void;
     isSaving: boolean;
-}> = ({ isOpen, account, onClose, onConfirm, isSaving }) => {
-    const [balance, setBalance] = useState<number>(0);
-    const [note, setNote] = useState<string>('');
+}> = ({ isOpen, onClose, onConfirm, isSaving }) => {
+    const [name, setName] = useState('');
+    const [initialBalance, setInitialBalance] = useState(0);
 
     useEffect(() => {
-        if (isOpen && account) {
-            setBalance(account.balance || 0);
-            setNote('');
+        if (isOpen) {
+            setName('');
+            setInitialBalance(0);
         }
-    }, [isOpen, account]);
+    }, [isOpen]);
 
-    if (!isOpen || !account) return null;
+    if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border-4 border-slate-800 flex flex-col overflow-hidden">
-                <div className="p-4 flex justify-between items-center text-white font-black uppercase text-sm bg-blue-600">
+                <div className="p-4 flex justify-between items-center text-white font-black uppercase text-sm bg-primary">
                     <div className="flex items-center">
-                        <Edit className="mr-2" size={20}/>
-                        Điều chỉnh số dư
+                        <PlusCircle className="mr-2" size={20}/>
+                        Thêm tài khoản mới
                     </div>
                     <button onClick={onClose} className="hover:opacity-70 transition"><X size={24}/></button>
                 </div>
                 
                 <div className="p-6 space-y-4 bg-slate-50">
-                    <div className="p-3 bg-white rounded-xl border-2 border-slate-200">
-                        <p className="text-[10px] font-black text-slate-400 uppercase">Tài khoản</p>
-                        <p className="text-lg font-black text-slate-800 uppercase">{account.name}</p>
-                        <div className="mt-2 flex justify-between items-center border-t pt-2">
-                             <span className="text-[10px] font-black text-slate-400 uppercase">Số dư hiện tại:</span>
-                             <span className="font-black text-primary">{formatNumber(account.balance || 0)} ₫</span>
-                        </div>
-                    </div>
-
                     <div>
-                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số dư mới</label>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Tên tài khoản / Ngân hàng</label>
                         <input 
                             type="text"
-                            inputMode="numeric"
                             autoFocus
-                            value={formatNumber(balance)} 
-                            onChange={e => setBalance(parseNumber(e.target.value))}
-                            onFocus={e => e.target.select()}
-                            className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
+                            value={name} 
+                            onChange={e => setName(e.target.value)}
+                            placeholder="Ví dụ: Techcombank, Tiền mặt..."
+                            className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl font-bold text-sm focus:ring-2 focus:ring-primary outline-none bg-white text-black"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Ghi chú (Note)</label>
-                        <textarea 
-                            value={note}
-                            onChange={e => setNote(e.target.value)}
-                            rows={3}
-                            placeholder="Nhập lý do điều chỉnh (tùy chọn)..."
-                            className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl font-bold text-sm focus:ring-2 focus:ring-primary outline-none bg-white shadow-sm text-black"
+                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số dư ban đầu</label>
+                        <input 
+                            type="text"
+                            inputMode="numeric"
+                            value={formatNumber(initialBalance)} 
+                            onChange={e => setInitialBalance(parseNumber(e.target.value))}
+                            onFocus={e => e.target.select()}
+                            className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
                         />
                     </div>
                 </div>
@@ -712,12 +783,12 @@ const EditBalanceModal: React.FC<{
                 <div className="p-4 bg-white border-t border-slate-200 flex gap-3">
                     <button onClick={onClose} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition">Hủy</button>
                     <button 
-                        onClick={() => onConfirm(balance, note)}
-                        disabled={isSaving || balance < 0}
-                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow-lg transition active:scale-95 flex items-center justify-center hover:bg-blue-700"
+                        onClick={() => onConfirm(name, initialBalance)}
+                        disabled={isSaving || !name.trim()}
+                        className="flex-1 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg transition active:scale-95 flex items-center justify-center disabled:bg-slate-300"
                     >
                         {isSaving ? <Loader className="animate-spin mr-2" size={18}/> : <Save className="mr-2" size={18}/>}
-                        Lưu số dư
+                        Lưu tài khoản
                     </button>
                 </div>
             </div>
@@ -738,9 +809,10 @@ const AccountManagement: React.FC = () => {
   const [modalType, setModalType] = useState<'deposit' | 'withdraw'>('deposit');
   const [selectedAccount, setSelectedAccount] = useState<PaymentMethod | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditBalanceModalOpen, setIsEditBalanceModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [isEditBalanceModalOpen, setIsEditBalanceModalOpen] = useState(false);
+  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -804,6 +876,45 @@ const AccountManagement: React.FC = () => {
   const handleOpenEditBalance = (account: PaymentMethod) => {
       setSelectedAccount(account);
       setIsEditBalanceModalOpen(true);
+  };
+
+  const handleEditBalanceConfirm = async (newBalance: number, note: string) => {
+    if (!selectedAccount) return;
+    setIsSaving(true);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const accRef = doc(db, 'paymentMethods', selectedAccount.id);
+            const accSnap = await transaction.get(accRef);
+            if (!accSnap.exists()) throw "Account not found";
+
+            const oldBalance = accSnap.data().balance || 0;
+            const diff = newBalance - oldBalance;
+
+            if (diff === 0) return; // No change
+
+            transaction.update(accRef, { balance: newBalance });
+
+            const logRef = doc(collection(db, 'paymentLogs'));
+            transaction.set(logRef, {
+                paymentMethodId: selectedAccount.id,
+                paymentMethodName: selectedAccount.name,
+                type: diff > 0 ? 'deposit' : 'withdraw',
+                amount: Math.abs(diff),
+                balanceAfter: newBalance,
+                note: `[ĐIỀU CHỈNH SỐ DƯ] ${note}`,
+                createdAt: serverTimestamp(),
+                createdBy: auth.currentUser?.uid || null,
+                creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A'
+            });
+        });
+
+        setIsEditBalanceModalOpen(false);
+    } catch (err) {
+      console.error("Lỗi điều chỉnh số dư:", err);
+      alert("Đã xảy ra lỗi khi điều chỉnh số dư.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleTransactionConfirm = async (amount: number, note: string) => {
@@ -906,43 +1017,37 @@ const AccountManagement: React.FC = () => {
       }
   };
 
-  const handleEditBalanceConfirm = async (newBalance: number, note: string) => {
-    if (!selectedAccount) return;
-    setIsSaving(true);
-    try {
-        await runTransaction(db, async (transaction) => {
-            const accRef = doc(db, 'paymentMethods', selectedAccount.id);
-            const accSnap = await transaction.get(accRef);
-            if (!accSnap.exists()) throw "Account not found";
+  const handleAddAccountConfirm = async (name: string, initialBalance: number) => {
+      setIsSaving(true);
+      try {
+          const docRef = await addDoc(collection(db, 'paymentMethods'), {
+              name: name.trim(),
+              balance: initialBalance,
+              createdAt: serverTimestamp()
+          });
 
-            const currentBalance = accSnap.data().balance || 0;
-            const difference = newBalance - currentBalance;
-            
-            if (difference === 0) return; // No change
+          if (initialBalance !== 0) {
+              await addDoc(collection(db, 'paymentLogs'), {
+                  paymentMethodId: docRef.id,
+                  paymentMethodName: name.trim(),
+                  type: 'deposit',
+                  amount: initialBalance,
+                  balanceAfter: initialBalance,
+                  note: 'Số dư khởi tạo tài khoản',
+                  createdAt: serverTimestamp(),
+                  createdBy: auth.currentUser?.uid || null,
+                  creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A'
+              });
+          }
 
-            transaction.update(accRef, { balance: newBalance });
-
-            const logRef = doc(collection(db, 'paymentLogs'));
-            transaction.set(logRef, {
-                paymentMethodId: selectedAccount.id,
-                paymentMethodName: selectedAccount.name,
-                type: difference > 0 ? 'deposit' : 'withdraw',
-                amount: Math.abs(difference),
-                balanceAfter: newBalance,
-                note: note || `Điều chỉnh số dư thủ công (Cũ: ${formatNumber(currentBalance)} ₫, Mới: ${formatNumber(newBalance)} ₫)`,
-                createdAt: serverTimestamp(),
-                createdBy: auth.currentUser?.uid || null,
-                creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A'
-            });
-        });
-
-        setIsEditBalanceModalOpen(false);
-    } catch (err) {
-      console.error("Lỗi điều chỉnh số dư:", err);
-      alert("Đã xảy ra lỗi khi điều chỉnh số dư.");
-    } finally {
-      setIsSaving(false);
-    }
+          setIsAddAccountModalOpen(false);
+          alert("Đã thêm tài khoản mới thành công.");
+      } catch (err) {
+          console.error("Lỗi thêm tài khoản:", err);
+          alert("Đã xảy ra lỗi khi thêm tài khoản.");
+      } finally {
+          setIsSaving(false);
+      }
   };
 
   const totalBalance = useMemo(() => {
@@ -968,18 +1073,25 @@ const AccountManagement: React.FC = () => {
         onConfirm={handleTransferConfirm}
       />
 
-      <EditBalanceModal
-        isOpen={isEditBalanceModalOpen}
-        account={selectedAccount}
-        isSaving={isSaving}
-        onClose={() => setIsEditBalanceModalOpen(false)}
-        onConfirm={handleEditBalanceConfirm}
-      />
-
       <HistoryModal 
         isOpen={isHistoryModalOpen}
         account={selectedAccount}
         onClose={() => setIsHistoryModalOpen(false)}
+      />
+
+      <EditBalanceModal 
+        isOpen={isEditBalanceModalOpen}
+        account={selectedAccount}
+        onClose={() => setIsEditBalanceModalOpen(false)}
+        onConfirm={handleEditBalanceConfirm}
+        isSaving={isSaving}
+      />
+
+      <AddAccountModal 
+        isOpen={isAddAccountModalOpen}
+        onClose={() => setIsAddAccountModalOpen(false)}
+        onConfirm={handleAddAccountConfirm}
+        isSaving={isSaving}
       />
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
@@ -1019,6 +1131,12 @@ const AccountManagement: React.FC = () => {
                 className="px-4 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase hover:bg-blue-700 transition flex items-center shadow-lg active:scale-95"
             >
                 <ArrowRightLeft size={16} className="mr-2"/> Chuyển khoản
+            </button>
+            <button 
+                onClick={() => setIsAddAccountModalOpen(true)}
+                className="px-4 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase hover:bg-primary-hover transition flex items-center shadow-lg active:scale-95"
+            >
+                <PlusCircle size={16} className="mr-2"/> Thêm tài khoản
             </button>
           </div>
           <div className="flex items-center text-[10px] text-blue-600 font-black uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-full border border-blue-100">
@@ -1095,10 +1213,10 @@ const AccountManagement: React.FC = () => {
                           </button>
                           <button 
                             onClick={() => handleOpenEditBalance(item)}
-                            className="px-4 py-2 bg-blue-50 text-blue-600 border-2 border-blue-600 rounded-xl font-black text-[10px] uppercase hover:bg-blue-600 hover:text-white transition flex items-center shadow-sm active:scale-95"
+                            className="p-2 bg-orange-100 text-orange-600 rounded-xl hover:bg-orange-600 hover:text-white transition shadow-sm active:scale-95 flex items-center justify-center border border-orange-200"
+                            title="Điều chỉnh số dư"
                           >
-                            <Edit size={14} className="mr-1.5" />
-                            Sửa số dư
+                            <Edit size={16} />
                           </button>
                         </div>
                     </td>

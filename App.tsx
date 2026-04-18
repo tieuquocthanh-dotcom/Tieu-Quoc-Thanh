@@ -3,12 +3,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, onSnapshot as onDocSnapshot } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from './services/firebase';
-// import FirebaseSetupGuide from './components/FirebaseSetupGuide';
+import FirebaseSetupGuide from './components/FirebaseSetupGuide';
 import ProductManagement from './components/ProductManagement';
 import SalesTerminal from './components/SalesTerminal';
-// import Dashboard from './components/Dashboard';
+import Dashboard from './components/Dashboard';
 // import ManufacturerManagement from './components/ManufacturerManagement';
-// import SupplierManagement from './components/SupplierManagement';
+import SupplierManagement from './components/SupplierManagement';
 // import WarehouseManagement from './components/WarehouseManagement';
 // import CustomerManagement from './components/CustomerManagement';
 // import ShippingManagement from './components/ShippingManagement';
@@ -16,21 +16,21 @@ import SalesTerminal from './components/SalesTerminal';
 import AccountManagement from './components/AccountManagement';
 import GoodsReceipt from './components/GoodsReceipt';
 import InventoryMatrix from './components/InventoryMatrix';
-// import ShipmentManagement from './components/ShipmentManagement';
-// import InventoryAlerts from './components/InventoryAlerts';
-// import OutsideStockAlerts from './components/OutsideStockAlerts'; 
+import ShipmentManagement from './components/ShipmentManagement';
+import InventoryAlerts from './components/InventoryAlerts';
+import OutsideStockAlerts from './components/OutsideStockAlerts'; 
 import DebtManagement from './components/DebtManagement';
-// import QuotationManagement from './components/QuotationManagement';
+import QuotationManagement from './components/QuotationManagement';
 import Login from './components/Login';
 // import UserManagement from './components/UserManagement';
-// import LandingPage from './components/LandingPage';
-// import ChinaImportManagement from './components/ChinaImportManagement';
+import LandingPage from './components/LandingPage';
+import ChinaImportManagement from './components/ChinaImportManagement';
 import ProductAnalytics from './components/ProductAnalytics';
 // import SupplierAnalytics from './components/SupplierAnalytics';
-// import InventoryLedger from './components/InventoryLedger';
-// import PriceComparison from './components/PriceComparison';
+import InventoryLedger from './components/InventoryLedger';
+import PriceComparison from './components/PriceComparison';
 // import SupplierPaymentHistory from './components/SupplierPaymentHistory';
-// import PlannedOrderManagement from './components/PlannedOrderManagement';
+import PlannedOrderManagement from './components/PlannedOrderManagement';
 // import NoteManagement from './components/NoteManagement';
 // import SavingsManagement from './components/SavingsManagement';
 import { Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank } from 'lucide-react';
@@ -100,7 +100,12 @@ const App: React.FC = () => {
                   }
               } else {
                   // Mặc định là staff nếu không tìm thấy dữ liệu user trong Firestore
-                  setUserRole('staff');
+                  // Ngoại trừ tài khoản admin chính
+                  if (user.email === 'tieuquocthanh@gmail.com') {
+                      setUserRole('admin');
+                  } else {
+                      setUserRole('staff');
+                  }
               }
               setAuthLoading(false);
           }, (err) => {
@@ -147,38 +152,38 @@ const App: React.FC = () => {
   };
 
   const renderView = () => {
-    // if (view === 'home') return <LandingPage onNavigate={navigateTo} user={user} userRole={userRole} />;
+    if (view === 'home') return <LandingPage onNavigate={navigateTo} user={user} userRole={userRole} />;
     if (view === 'login') return <Login onBack={() => setView('home')} />;
-    // if (view === 'setup') return <FirebaseSetupGuide />;
+    if (view === 'setup') return <FirebaseSetupGuide />;
 
     if (!user) return <Login />;
 
     switch (view) {
-      // case 'dashboard': return <Dashboard />;
+      case 'dashboard': return <Dashboard />;
       case 'products': return <ProductManagement userRole={userRole} />;
       case 'sales': return <SalesTerminal userRole={userRole} user={user} />;
       case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} />;
       // case 'manufacturers': return <ManufacturerManagement />;
-      // case 'suppliers': return <SupplierManagement />;
+      case 'suppliers': return <SupplierManagement />;
       // case 'customers': return <CustomerManagement />;
       // case 'warehouses': return <WarehouseManagement />;
-      case 'inventoryMatrix': return <InventoryMatrix user={user} onNavigate={navigateTo} />;
-      // case 'shipmentManagement': return <ShipmentManagement userRole={userRole} />;
-      // case 'inventoryAlerts': return <InventoryAlerts />;
-      // case 'outsideStockAlerts': return <OutsideStockAlerts />;
+      case 'inventoryMatrix': return <InventoryMatrix user={user} />;
+      case 'shipmentManagement': return <ShipmentManagement userRole={userRole} />;
+      case 'inventoryAlerts': return <InventoryAlerts />;
+      case 'outsideStockAlerts': return <OutsideStockAlerts />;
       case 'debtManagement': return <DebtManagement />;
       // case 'shippers': return <ShippingManagement />;
       // case 'paymentMethods': return <PaymentMethodManagement />;
       case 'accounts': return <AccountManagement />;
       // case 'users': return <UserManagement />;
-      // case 'quotations': return <QuotationManagement />;
-      // case 'chinaImport': return <ChinaImportManagement />;
+      case 'quotations': return <QuotationManagement />;
+      case 'chinaImport': return <ChinaImportManagement />;
       case 'productAnalytics': return <ProductAnalytics />;
       // case 'supplierAnalytics': return <SupplierAnalytics />;
-      // case 'inventoryLedger': return <InventoryLedger userRole={userRole} />;
-      // case 'priceComparison': return <PriceComparison />;
+      case 'inventoryLedger': return <InventoryLedger userRole={userRole} />;
+      case 'priceComparison': return <PriceComparison />;
       // case 'supplierPaymentHistory': return <SupplierPaymentHistory />;
-      // case 'plannedOrders': return <PlannedOrderManagement user={user} />;
+      case 'plannedOrders': return <PlannedOrderManagement user={user} />;
       // case 'notes': return <NoteManagement user={user} />;
       // case 'savings': return <SavingsManagement user={user} />;
       default: return <SalesTerminal userRole={userRole} user={user} />;
@@ -287,38 +292,38 @@ const App: React.FC = () => {
 
                                 <div className="my-1 h-px bg-slate-100"></div>
                                 <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Mua Hàng</div>
-                                {/* <SettingsItem targetView="plannedOrders" icon={<ClipboardList size={16}/>} label="Dự kiến đặt hàng" /> */}
-                                {/* <SettingsItem targetView="chinaImport" icon={<Plane size={16}/>} label="Nhập Hàng TQ" /> */}
+                                <SettingsItem targetView="plannedOrders" icon={<ClipboardList size={16}/>} label="Dự kiến đặt hàng" />
+                                <SettingsItem targetView="chinaImport" icon={<Plane size={16}/>} label="Nhập Hàng TQ" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
                                 <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Truy Vết & Báo Cáo</div>
-                                {/* <SettingsItem targetView="supplierPaymentHistory" icon={<CheckCheck size={16}/>} label="Truy Vết Trả Tiền NCC" /> */}
-                                {/* <SettingsItem targetView="priceComparison" icon={<BarChart2 size={16}/>} label="So Sánh Giá Nhập" /> */}
-                                {/* <SettingsItem targetView="inventoryLedger" icon={<History size={16}/>} label="Truy Vết Tồn Kho" /> */}
+                                <SettingsItem targetView="supplierPaymentHistory" icon={<CheckCheck size={16}/>} label="Truy Vết Trả Tiền NCC" />
+                                <SettingsItem targetView="priceComparison" icon={<BarChart2 size={16}/>} label="So Sánh Giá Nhập" />
+                                <SettingsItem targetView="inventoryLedger" icon={<History size={16}/>} label="Truy Vết Tồn Kho" />
                                 <SettingsItem targetView="productAnalytics" icon={<BarChart3 size={16}/>} label="Hiệu Quả Sản Phẩm" />
-                                {/* <SettingsItem targetView="supplierAnalytics" icon={<PieChart size={16}/>} label="Nhập Hàng Theo NCC" /> */}
+                                <SettingsItem targetView="supplierAnalytics" icon={<PieChart size={16}/>} label="Nhập Hàng Theo NCC" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
                                 <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Hàng Hóa & Đối Tác</div>
                                 <SettingsItem targetView="products" icon={<Package size={16}/>} label="Sản Phẩm" />
-                                {/* <SettingsItem targetView="quotations" icon={<FileText size={16}/>} label="Quản Lý Báo Giá" /> */}
-                                {/* <SettingsItem targetView="customers" icon={<Contact size={16}/>} label="Khách Hàng" /> */}
+                                <SettingsItem targetView="quotations" icon={<FileText size={16}/>} label="Quản Lý Báo Giá" />
+                                <SettingsItem targetView="customers" icon={<Contact size={16}/>} label="Khách Hàng" />
                                 <SettingsItem targetView="suppliers" icon={<Users size={16}/>} label="Nhà Cung Cấp" />
-                                {/* <SettingsItem targetView="warehouses" icon={<Warehouse size={16}/>} label="Quản Lý Kho" /> */}
-                                {/* <SettingsItem targetView="shippers" icon={<Truck size={16}/>} label="Đơn Vị Vận Chuyển" /> */}
+                                <SettingsItem targetView="warehouses" icon={<Warehouse size={16}/>} label="Quản Lý Kho" />
+                                <SettingsItem targetView="shippers" icon={<Truck size={16}/>} label="Đơn Vị Vận Chuyển" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
                                 <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Quản Lý</div>
-                                {/* <SettingsItem targetView="shipmentManagement" icon={<Send size={16}/>} label="Quản Lý Vận Đơn" /> */}
-                                {/* <SettingsItem targetView="inventoryAlerts" icon={<AlertTriangle size={16}/>} label="Cảnh Báo Tồn Kho" /> */}
-                                {/* <SettingsItem targetView="outsideStockAlerts" icon={<Bell size={16}/>} label="Cảnh Báo Kho Ngoài" /> */}
-                                {/* <SettingsItem targetView="notes" icon={<StickyNote size={16}/>} label="Ghi chú hệ thống" /> */}
+                                <SettingsItem targetView="shipmentManagement" icon={<Send size={16}/>} label="Quản Lý Vận Đơn" />
+                                <SettingsItem targetView="inventoryAlerts" icon={<AlertTriangle size={16}/>} label="Cảnh Báo Tồn Kho" />
+                                <SettingsItem targetView="outsideStockAlerts" icon={<Bell size={16}/>} label="Cảnh Báo Kho Ngoài" />
+                                <SettingsItem targetView="notes" icon={<StickyNote size={16}/>} label="Ghi chú hệ thống" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
                                 <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Cấu Hình</div>
-                                {/* <SettingsItem targetView="users" icon={<UserCircle size={16}/>} label="Quản Lý Người Dùng" /> */}
-                                {/* <SettingsItem targetView="manufacturers" icon={<Building size={16}/>} label="Hãng Sản Xuất" /> */}
-                                {/* <SettingsItem targetView="paymentMethods" icon={<CreditCard size={16}/>} label="Phương Thức TT" /> */}
+                                <SettingsItem targetView="users" icon={<UserCircle size={16}/>} label="Quản Lý Người Dùng" />
+                                <SettingsItem targetView="manufacturers" icon={<Building size={16}/>} label="Hãng Sản Xuất" />
+                                <SettingsItem targetView="paymentMethods" icon={<CreditCard size={16}/>} label="Phương Thức TT" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
                                 <button onClick={handleLogout} className="w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50">

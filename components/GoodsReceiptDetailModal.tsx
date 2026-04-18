@@ -6,6 +6,7 @@ import { formatNumber, parseNumber } from '../utils/formatting';
 import { doc, writeBatch, increment, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import ConfirmationModal from './ConfirmationModal';
+import * as XLSX from 'xlsx';
 
 interface GoodsReceiptDetailModalProps {
   isOpen: boolean;
@@ -40,18 +41,117 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
     if (amountPaid > 0 && amountPaid > totalAmountInHistory) {
         const diff = amountPaid - totalAmountInHistory;
         history.unshift({
-            date: receipt.createdAt,
+            createdAt: receipt.createdAt,
             amount: diff,
             note: 'Thanh toán khi tạo phiếu'
         });
     }
 
-    return history.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+    return history.sort((a, b) => (b.createdAt?.toMillis() || b.date?.toMillis() || 0) - (a.createdAt?.toMillis() || a.date?.toMillis() || 0));
   }, [receipt]);
 
   if (!isOpen || !receipt) return null;
 
-  const remainingDebt = Math.max(0, receipt.total - (receipt.amountPaid || 0));
+  const remainingDebt = Math.max(0, (receipt.total || 0) - (receipt.amountPaid || 0));
+
+  const handlePrint = () => {
+    if (!receipt) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>In Phiếu Nhập #${receipt.id.substring(0, 8)}</title>
+          <style>
+            @page { size: A6; margin: 5mm; }
+            body { font-family: 'Arial', sans-serif; font-size: 9pt; line-height: 1.2; color: #000; margin: 0; padding: 0; }
+            .container { width: 100%; }
+            .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 3mm; margin-bottom: 3mm; }
+            .title { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 0; }
+            .order-id { font-size: 8pt; margin-top: 1mm; font-weight: bold; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 1mm; font-size: 8.5pt; }
+            .customer-info { margin-bottom: 3mm; border-bottom: 1px dashed #ccc; padding-bottom: 2mm; }
+            table { width: 100%; border-collapse: collapse; margin-top: 1mm; }
+            th { border-bottom: 1px solid #000; text-align: left; font-size: 8pt; padding: 1mm 0; }
+            td { padding: 1.5mm 0; font-size: 8.5pt; vertical-align: top; border-bottom: 1px solid #eee; }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            .totals { margin-top: 3mm; border-top: 1px solid #000; padding-top: 2mm; }
+            .total-row { display: flex; justify-content: space-between; padding: 0.5mm 0; }
+            .grand-total { font-weight: bold; font-size: 10pt; padding-top: 1mm; border-top: 1px dashed #000; margin-top: 1mm; }
+            .footer { margin-top: 6mm; text-align: center; font-style: italic; font-size: 7.5pt; border-top: 1px solid #eee; padding-top: 2mm; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <p class="title">PHIẾU NHẬP HÀNG</p>
+              <div class="order-id">Mã phiếu: #${receipt.id.substring(0, 8).toUpperCase()}</div>
+              <div style="font-size: 8pt; margin-top: 1mm;">Ngày: ${receipt.createdAt?.toDate?.()?.toLocaleString('vi-VN') || 'N/A'}</div>
+            </div>
+
+            <div class="customer-info">
+              <div class="info-row">
+                <span>Nhà CC:</span>
+                <span style="font-weight: bold;">${receipt.supplierName || 'Nhà cung cấp không tên'}</span>
+              </div>
+              <div class="info-row">
+                <span>Hình thức:</span>
+                <span>${receipt.paymentMethodName || (receipt.paymentStatus === 'debt' ? 'Ghi nợ' : 'Tiền mặt')}</span>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 50%">Sản phẩm</th>
+                  <th style="width: 10%" class="text-center">SL</th>
+                  <th style="width: 20%" class="text-right">Giá</th>
+                  <th style="width: 20%" class="text-right">T.Tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${receipt.items.map(item => `
+                  <tr>
+                    <td>${item.productName}${item.isCombo ? ' (Combo)' : ''}</td>
+                    <td class="text-center">${item.quantity}</td>
+                    <td class="text-right">${isAdmin ? formatNumber(item.importPrice) : '***'}</td>
+                    <td class="text-right">${isAdmin ? formatNumber(item.quantity * item.importPrice) : '***'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="totals">
+              <div class="total-row grand-total">
+                <span>TỔNG CỘNG:</span>
+                <span>${isAdmin ? formatNumber(receipt.total || 0) + ' VNĐ' : '***'}</span>
+              </div>
+              <div class="total-row">
+                <span>Đã thanh toán:</span>
+                <span>${isAdmin ? formatNumber(receipt.amountPaid || 0) : '***'}</span>
+              </div>
+              <div class="total-row" style="font-weight: bold;">
+                <span>Còn nợ:</span>
+                <span>${isAdmin ? formatNumber(remainingDebt) : '***'}</span>
+              </div>
+            </div>
+
+            <div class="footer">
+              <p>Phiếu nhập kho nội bộ.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
+  };
 
   const confirmDeleteReceipt = async () => {
     setIsProcessing(true);
@@ -93,6 +193,33 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
     }
   };
 
+  const exportDetailToExcel = () => {
+    if (!receipt || !receipt.items) return;
+    const dataToExport = receipt.items.map((item, index) => ({
+      STT: index + 1,
+      "Tên món": item.productName,
+      "Loại": item.isCombo ? "COMBO" : "Lẻ",
+      "Số lượng": item.quantity,
+      ...(isAdmin ? { "Đơn giá (VNĐ)": item.importPrice } : {}),
+      ...(isAdmin ? { "Thành tiền (VNĐ)": item.quantity * item.importPrice } : {})
+    }));
+
+    // Add extra row for summary
+    dataToExport.push({
+      STT: "" as any,
+      "Tên món": "TỔNG CỘNG" as any,
+      "Loại": "" as any,
+      "Số lượng": receipt.items.reduce((sum, i) => sum + i.quantity, 0),
+      ...(isAdmin ? { "Đơn giá (VNĐ)": "" as any } : {}),
+      ...(isAdmin ? { "Thành tiền (VNĐ)": receipt.total || 0 } : {})
+    });
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "ChiTietNhapHang");
+    XLSX.writeFile(wb, `Chi_Tiet_Nhap_Hang_${receipt.id.substring(0, 8)}.xlsx`);
+  };
+
   return (
     <>
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
@@ -101,7 +228,17 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
           <h2 className="text-xl font-black text-dark flex items-center uppercase tracking-tighter">
             <FileText className="mr-3 text-primary" /> Chi Tiết Phiếu Nhập
           </h2>
-          <button onClick={onClose} className="p-2 text-neutral hover:bg-slate-100 rounded-full"><X size={24} /></button>
+          <div className="flex items-center space-x-2">
+              <button onClick={handlePrint} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded text-xs font-bold transition shadow-sm flex items-center">
+                  <Printer size={14} className="mr-1" />
+                  In đơn hàng
+              </button>
+              <button onClick={exportDetailToExcel} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold transition shadow-sm flex items-center">
+                  <Printer size={14} className="mr-1" />
+                  Xuất Excel
+              </button>
+              <button onClick={onClose} className="p-2 text-neutral hover:bg-slate-100 rounded-full"><X size={24} /></button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
@@ -183,7 +320,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                                 fullPaymentHistory.map((payment, idx) => (
                                     <tr key={idx} className="hover:bg-slate-50">
                                         <td className="p-3 text-[11px] font-bold text-slate-600">
-                                            {payment.date?.toDate().toLocaleString('vi-VN')}
+                                            {(payment as any).createdAt?.toDate().toLocaleString('vi-VN') || (payment as any).date?.toDate().toLocaleString('vi-VN')}
                                         </td>
                                         <td className="p-3 text-[11px] font-black text-slate-800 uppercase">
                                             {payment.note || 'Thanh toán trực tiếp'}

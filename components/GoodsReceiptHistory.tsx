@@ -1,14 +1,16 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, limit, where, Timestamp, doc, serverTimestamp, getDocs, runTransaction } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, serverTimestamp, getDocs, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { GoodsReceipt, Supplier, PaymentMethod, Warehouse, Product } from '../types';
 // Fixed: Added Users to the list of icons imported from lucide-react
-import { Loader, XCircle, Search, ListFilter, Check, Minus, RefreshCw, Undo, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, FileText as FileTextIcon, Edit, Calendar as CalendarIcon, Package, X, Eye, Tag, Users, CreditCard } from 'lucide-react';
+import { Loader, XCircle, Search, ListFilter, Check, Minus, RefreshCw, Undo, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, FileText as FileTextIcon, Edit, Calendar as CalendarIcon, Package, X, Eye, Tag, Users, CreditCard, History } from 'lucide-react';
 import Pagination from './Pagination';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
+import InventoryLedger from './InventoryLedger';
 import { formatNumber } from '../utils/formatting';
+import * as XLSX from 'xlsx';
 
 const getInitialEndDate = () => new Date().toISOString().split('T')[0];
 const getInitialStartDate = () => {
@@ -55,6 +57,8 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [receiptToEdit, setReceiptToEdit] = useState<GoodsReceipt | null>(null);
+  const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+  const [selectedLedgerProductId, setSelectedLedgerProductId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const isAdmin = userRole === 'admin';
@@ -90,6 +94,9 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
 
   useEffect(() => {
     setLoading(true);
+    setTimeout(() => {
+        setLoading(true);
+    }, 0);
     const q = query(collection(db, "goodsReceipts"), orderBy("createdAt", "desc"), limit(500));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setAllReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoodsReceipt)));
@@ -268,12 +275,65 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
     setCurrentPage(1);
   };
 
-  const totalAmountDisplayed = useMemo(() => filteredReceipts.reduce((acc, curr) => acc + curr.total, 0), [filteredReceipts]);
+  const totalAmountDisplayed = useMemo(() => filteredReceipts.reduce((acc, curr) => acc + (curr.total || 0), 0), [filteredReceipts]);
+
+  const exportListToExcel = () => {
+    if (filteredReceipts.length === 0) {
+      alert("Không có dữ liệu để xuất!");
+      return;
+    }
+    const dataToExport = filteredReceipts.map((receipt, index) => ({
+      STT: index + 1,
+      "Mã phiếu": receipt.id.substring(0, 8).toUpperCase(),
+      "Thời gian": receipt.createdAt?.toDate().toLocaleString('vi-VN'),
+      "Nhà cung cấp": receipt.supplierName || 'N/A',
+      "Kho nhập": receipt.warehouseName || 'N/A',
+      "Tổng tiền (VNĐ)": receipt.total || 0,
+      "Trạng thái": receipt.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Công nợ',
+      "Đã trả (VNĐ)": receipt.amountPaid || 0,
+      "Hóa đơn đỏ": receipt.hasInvoice ? 'Có' : 'Không',
+      "Ghi chú": receipt.paymentStatus === 'paid' && !receipt.amountPaid && receipt.total > 0 ? "Chuyển từ Nợ" : "",
+      "Phương thức thanh toán": receipt.paymentMethodName || 'N/A',
+      "Người tạo": receipt.creatorName || 'N/A'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "LichSuNhapHang");
+    XLSX.writeFile(wb, `Lich_Su_Nhap_Hang_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md space-y-6">
       <GoodsReceiptDetailModal receipt={selectedReceipt} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
       <GoodsReceiptEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} receipt={receiptToEdit} suppliers={suppliers} paymentMethods={paymentMethods} warehouses={warehouses} products={products} />
+
+      {isLedgerModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border-4 border-slate-800">
+                  <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+                      <h2 className="text-xl font-black uppercase tracking-tighter flex items-center">
+                          <History className="mr-2" size={24} />
+                          Truy vết biến động kho
+                      </h2>
+                      <button onClick={() => setIsLedgerModalOpen(false)} className="hover:bg-slate-700 p-2 rounded-full transition">
+                          <X size={24} />
+                      </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+                      <InventoryLedger initialProductId={selectedLedgerProductId || 'all'} />
+                  </div>
+                  <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
+                      <button 
+                          onClick={() => setIsLedgerModalOpen(false)}
+                          className="px-6 py-2 bg-slate-800 text-white rounded-xl font-black text-xs uppercase hover:bg-slate-700 transition shadow-lg"
+                      >
+                          Đóng
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* FILTER PANEL */}
       <div className="space-y-4">
@@ -349,12 +409,19 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
       </div>
 
       {isAdmin && filteredReceipts.length > 0 && (
-          <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-xl flex items-center justify-between shadow-sm">
+          <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-xl flex items-center justify-between shadow-sm flex-wrap gap-4">
               <div className="flex items-center text-blue-800">
                   <DollarSign className="mr-2" size={24}/>
                   <span className="font-black uppercase text-sm tracking-tight">Tổng chi nhập hàng (Kỳ này):</span>
+                  <span className="text-2xl font-black text-blue-700 ml-4">{formatNumber(totalAmountDisplayed)} ₫</span>
               </div>
-              <span className="text-2xl font-black text-blue-700">{formatNumber(totalAmountDisplayed)} ₫</span>
+              <button 
+                  onClick={exportListToExcel} 
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition flex items-center"
+              >
+                  <FileTextIcon size={16} className="mr-2" />
+                  Xuất Excel
+              </button>
           </div>
       )}
 
@@ -433,6 +500,18 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                             ))}
                             <button onClick={() => openEditModal(receipt)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="Chỉnh sửa"><Edit size={18} /></button>
                             <button onClick={() => openDetailModal(receipt)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition" title="Xem chi tiết"><Eye size={18} /></button>
+                            <button 
+                                onClick={() => {
+                                    // If multiple products, we can't pre-filter easily without a specific product selection
+                                    // But we can open the ledger and let the user choose
+                                    setSelectedLedgerProductId('all');
+                                    setIsLedgerModalOpen(true);
+                                }} 
+                                className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition" 
+                                title="Truy vết tồn kho"
+                            >
+                                <History size={18} />
+                            </button>
                         </div>
                       </td>
                     </tr>
@@ -449,6 +528,33 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
         onPageChange={setCurrentPage} 
         onPageSizeChange={handlePageSizeChange} 
       />
+
+      {isLedgerModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border-4 border-slate-800">
+                  <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+                      <h2 className="text-xl font-black uppercase tracking-tighter flex items-center">
+                          <History className="mr-2" size={24} />
+                          Truy vết biến động kho
+                      </h2>
+                      <button onClick={() => setIsLedgerModalOpen(false)} className="hover:bg-slate-700 p-2 rounded-full transition">
+                          <X size={24} />
+                      </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+                      <InventoryLedger initialProductId={selectedLedgerProductId || 'all'} />
+                  </div>
+                  <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
+                      <button 
+                          onClick={() => setIsLedgerModalOpen(false)}
+                          className="px-6 py-2 bg-slate-800 text-white rounded-xl font-black text-xs uppercase hover:bg-slate-700 transition shadow-lg"
+                      >
+                          Đóng
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

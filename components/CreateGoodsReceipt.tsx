@@ -7,6 +7,8 @@ import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, P
 import { formatNumber, parseNumber } from '../utils/formatting';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
+import PriceComparisonModal from './PriceComparisonModal';
+import InventoryLedger from './InventoryLedger';
 import { ProductModal } from './ProductManagement';
 import { SupplierModal } from './SupplierManagement';
 import { User } from 'firebase/auth';
@@ -80,12 +82,14 @@ interface ReceiptItem extends GoodsReceiptItem {
 const ImportProductCard: React.FC<{
     product: Product;
     lastSupplierPrice?: number; 
+    detailedInventory: Record<string, Record<string, number>>;
+    warehouses: Warehouse[];
     onAdd: (product: Product, quantity: number, importPrice: number) => void;
     onUpdateImportPrice?: (productId: string, price: number) => Promise<void>;
+    onCompare?: (product: Product) => void;
+    onTrace?: (product: Product) => void;
     userRole: 'admin' | 'staff' | null;
-    warehouses?: Warehouse[];
-    calculateEffectiveStock?: (product: Product, warehouseId: string) => number;
-}> = ({ product, lastSupplierPrice, onAdd, onUpdateImportPrice, userRole, warehouses, calculateEffectiveStock }) => {
+}> = ({ product, lastSupplierPrice, detailedInventory, warehouses, onAdd, onUpdateImportPrice, onCompare, onTrace, userRole }) => {
     const initialPrice = lastSupplierPrice !== undefined ? lastSupplierPrice : product.importPrice;
     const [inputQty, setInputQty] = useState(1);
     const [inputImportPrice, setInputImportPrice] = useState(initialPrice);
@@ -104,6 +108,10 @@ const ImportProductCard: React.FC<{
         }
     };
 
+    // Get inventory for the first 3 warehouses
+    const productInventory = detailedInventory[product.id] || {};
+    const topWarehouses = warehouses.slice(0, 3);
+
     return (
         <div className="bg-white border-2 border-slate-200 rounded-xl p-3 hover:shadow-xl transition-all duration-200 flex flex-col justify-between relative group hover:border-primary h-full">
             {product.isCombo && (
@@ -111,18 +119,16 @@ const ImportProductCard: React.FC<{
             )}
             <div className="mb-2 mt-3">
                 <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1" title={product.name}>{product.name}</div>
-                {warehouses && calculateEffectiveStock && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                        {warehouses.slice(0, 3).map(w => {
-                            const wStock = calculateEffectiveStock(product, w.id);
-                            return (
-                                <span key={w.id} className="text-[9px] font-black uppercase bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
-                                    {w.name}: <span className={wStock > 0 ? "text-blue-600" : "text-red-500"}>{wStock}</span>
-                                </span>
-                            );
-                        })}
-                    </div>
-                )}
+                
+                {/* Inventory display for 3 warehouses */}
+                <div className="flex flex-wrap gap-2 mb-2">
+                    {topWarehouses.map(w => (
+                        <div key={w.id} className="flex items-center bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                            <span className="text-[8px] font-bold text-slate-400 uppercase mr-1 truncate max-w-[40px]">{w.name}:</span>
+                            <span className="text-[10px] font-black text-red-600">{productInventory[w.id] || 0}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
             <div className="space-y-1 mb-3">
                 <div className="flex items-center gap-1">
@@ -134,21 +140,37 @@ const ImportProductCard: React.FC<{
                         />
                         <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-[9px] font-black ${lastSupplierPrice !== undefined ? 'text-blue-600' : 'text-white/70'}`}>VỐN</span>
                     </div>
-                    {isAdmin && (
+                    <div className="flex flex-col gap-1">
+                        {isAdmin && (
+                            <button 
+                                onClick={handleSaveBasePrice} 
+                                disabled={isSaving}
+                                className={`p-1.5 rounded-lg transition-all shadow-sm flex items-center justify-center ${lastSupplierPrice !== undefined ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-800 text-white hover:bg-black'}`}
+                                title="Lưu thành giá nhập gốc của sản phẩm"
+                            >
+                                {isSaving ? <Loader size={14} className="animate-spin"/> : <Save size={14}/>}
+                            </button>
+                        )}
                         <button 
-                            onClick={handleSaveBasePrice} 
-                            disabled={isSaving}
-                            className={`p-2 rounded-lg transition-all shadow-sm flex items-center justify-center ${lastSupplierPrice !== undefined ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-800 text-white hover:bg-black'}`}
-                            title="Lưu thành giá nhập gốc của sản phẩm"
+                            onClick={() => onCompare?.(product)}
+                            className="p-1.5 bg-orange-100 text-orange-600 rounded-lg border border-orange-200 hover:bg-orange-600 hover:text-white transition shadow-sm flex items-center justify-center"
+                            title="So sánh giá nhập"
                         >
-                            {isSaving ? <Loader size={16} className="animate-spin"/> : <Save size={16}/>}
+                            <TrendingUp size={14}/>
                         </button>
-                    )}
+                        <button 
+                            onClick={() => onTrace?.(product)}
+                            className="p-1.5 bg-purple-100 text-purple-600 rounded-lg border border-purple-200 hover:bg-purple-600 hover:text-white transition shadow-sm flex items-center justify-center"
+                            title="Truy vết tồn kho"
+                        >
+                            <History size={14}/>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div className="flex space-x-2">
                 <input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg outline-none text-center font-black focus:border-primary border-slate-200" min="1" />
-                <button onClick={() => onAdd(product, inputQty, inputImportPrice) || setInputQty(1)} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white text-[10px] font-black rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center uppercase tracking-tighter"><Plus size={14} className="mr-1"/> Nhập</button>
+                <button onClick={() => { onAdd(product, inputQty, inputImportPrice); setInputQty(1); }} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white text-[10px] font-black rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center uppercase tracking-tighter"><Plus size={14} className="mr-1"/> Nhập</button>
             </div>
         </div>
     );
@@ -160,9 +182,9 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [manufacturers, setManufacturers] = useState<any[]>([]);
+  const [detailedInventory, setDetailedInventory] = useState<Record<string, Record<string, number>>>({});
   const [receipt, setReceipt] = useState<ReceiptItem[]>([]);
   const [todayReceipts, setTodayReceipts] = useState<GoodsReceipt[]>([]);
-  const [detailedInventory, setDetailedInventory] = useState<Record<string, Record<string, number>>>({});
   
   // Nguồn dữ liệu nhập thêm
   const [plannedOrders, setPlannedOrders] = useState<PlannedOrder[]>([]);
@@ -194,6 +216,10 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [isPriceComparisonOpen, setIsPriceComparisonOpen] = useState(false);
+  const [selectedPriceComparisonProduct, setSelectedPriceComparisonProduct] = useState<Product | null>(null);
+  const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+  const [selectedLedgerProductId, setSelectedLedgerProductId] = useState<string | null>(null);
   const isAdmin = userRole === 'admin';
 
   useEffect(() => {
@@ -202,8 +228,21 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     onSnapshot(query(collection(db, "warehouses"), orderBy("name")), (snap) => setWarehouses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Warehouse))));
     onSnapshot(query(collection(db, "paymentMethods"), orderBy("name")), (snap) => setPaymentMethods(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentMethod))));
     onSnapshot(query(collection(db, "manufacturers"), orderBy("name")), (snap) => setManufacturers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-    onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => { const data: Record<string, Record<string, number>> = {}; snapshot.forEach(doc => { const d = doc.data(); const pid = doc.ref.parent.parent?.id; if (pid && d.warehouseId) { if (!data[pid]) data[pid] = {}; data[pid][d.warehouseId] = d.stock || 0; } }); setDetailedInventory(data); });
     
+    // Inventory listener
+    onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => { 
+        const data: Record<string, Record<string, number>> = {}; 
+        snapshot.forEach(doc => { 
+            const d = doc.data() as { warehouseId: string; stock: number }; 
+            const pid = doc.ref.parent.parent?.id; 
+            if (pid && d.warehouseId) { 
+                if (!data[pid]) data[pid] = {}; 
+                data[pid][d.warehouseId] = d.stock || 0; 
+            } 
+        }); 
+        setDetailedInventory(data); 
+    });
+
     // Tải các đơn nguồn
     onSnapshot(query(collection(db, "plannedOrders"), where("status", "==", "pending")), (snap) => setPlannedOrders(snap.docs.map(d => ({id: d.id, ...d.data()} as PlannedOrder))));
     
@@ -264,18 +303,14 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
       } else if (type === 'china') {
           const imp = chinaImports.find(o => o.id === id);
           if (imp) {
-              const totalQty = imp.items.reduce((a, b) => a + b.quantity, 0);
-              const extraFeesVND = (imp.shippingFeeCN * imp.exchangeRate) + imp.shippingFeeVN + imp.shippingFeeExtra + (imp.currencyExchangeFee || 0);
-              const feePerItem = totalQty > 0 ? extraFeesVND / totalQty : 0;
-
               const items: ReceiptItem[] = imp.items.map(i => {
                   const p = products.find(prod => prod.id === i.productId);
-                  const actualPriceVND = Math.round((i.priceCNY * imp.exchangeRate) + feePerItem);
+                  const basePriceVND = Math.round(i.priceCNY * imp.exchangeRate);
                   return {
                       productId: i.productId,
                       productName: i.productName,
                       quantity: i.quantity,
-                      importPrice: actualPriceVND,
+                      importPrice: basePriceVND,
                       originalImportPrice: p?.importPrice || 0,
                       updateImportPrice: false,
                       isCombo: p?.isCombo || false,
@@ -283,7 +318,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                   };
               });
               setReceipt(items);
-              setToast({ message: `Đã tải ${items.length} SP từ đơn TQ (Đã tính phí ship)`, type: 'success' });
+              setToast({ message: `Đã tải ${items.length} SP từ đơn TQ (Giá gốc)`, type: 'success' });
           }
       }
   };
@@ -330,7 +365,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
           if (paymentStatus === 'paid' && selectedPaymentMethodId) {
               accountRef = doc(db, 'paymentMethods', selectedPaymentMethodId);
               const accSnap = await transaction.get(accountRef);
-              if (accSnap.exists()) currentBal = accSnap.data().balance || 0;
+              if (accSnap.exists()) currentBal = (accSnap.data() as any).balance || 0;
           }
 
           const receiptRef = doc(collection(db, 'goodsReceipts'));
@@ -342,6 +377,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
               importPrice: importPrice || 0, 
               isCombo: !!isCombo 
             })), 
+            productIds: receipt.map(i => i.productId),
             total, 
             supplierId: selSup.id, 
             supplierName: selSup.name, 
@@ -407,17 +443,6 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
         console.error(e);
         setToast({ message: "Lỗi khi tạo sản phẩm.", type: 'error' });
     }
-  };
-
-  const calculateEffectiveStock = (product: Product, warehouseId: string) => {
-      if (!warehouseId) return 0;
-      if (!product.isCombo) return detailedInventory[product.id]?.[warehouseId] || 0;
-      if (!product.comboItems || product.comboItems.length === 0) return 0;
-      const stocks = product.comboItems.map(item => {
-          const itemStock = detailedInventory[item.productId]?.[warehouseId] || 0;
-          return Math.floor(itemStock / item.quantity);
-      });
-      return Math.min(...stocks);
   };
 
   const filteredProducts = useMemo(() => products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())), [products, searchTerm]);
@@ -497,7 +522,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                 </button>
                             )}
                         </div>
-                        <div className={`grid gap-2 content-start ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ImportProductCard key={p.id} product={p} lastSupplierPrice={supplierPriceHistory[p.id]} onAdd={addToReceipt} onUpdateImportPrice={handleUpdateProductImportPrice} userRole={userRole} warehouses={warehouses} calculateEffectiveStock={calculateEffectiveStock} />)) }</div>
+                        <div className={`grid gap-2 content-start ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ImportProductCard key={p.id} product={p} lastSupplierPrice={supplierPriceHistory[p.id]} detailedInventory={detailedInventory} warehouses={warehouses} onAdd={addToReceipt} onUpdateImportPrice={handleUpdateProductImportPrice} onCompare={(prod) => { setSelectedPriceComparisonProduct(prod); setIsPriceComparisonOpen(true); }} onTrace={(prod) => { setSelectedLedgerProductId(prod.id); setIsLedgerModalOpen(true); }} userRole={userRole} />)) }</div>
                         <div className="mt-3 flex justify-between items-center border-t pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
                     </div>
                 </div>
@@ -557,8 +582,8 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                 {r.hasInvoice && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded font-black uppercase shadow-sm">HĐ ĐỎ</span>}
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
-                                                <button onClick={() => setSelectedReceiptEdit(r) || setIsEditModalOpen(true)} className="p-1 bg-white/20 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
-                                                <button onClick={() => setSelectedReceiptDetail(r) || setIsDetailModalOpen(true)} className="p-1 bg-white/20 text-white rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
+                                                <button onClick={() => { setSelectedReceiptEdit(r); setIsEditModalOpen(true); }} className="p-1 bg-white/20 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
+                                                <button onClick={() => { setSelectedReceiptDetail(r); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 text-white rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
                                                 <span className="text-sm font-black text-yellow-400 ml-1">{formatNumber(r.total)} ₫</span>
                                             </div>
                                         </div>
@@ -596,6 +621,37 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                 </div>
             </div>
         </div>
+        <PriceComparisonModal 
+            isOpen={isPriceComparisonOpen} 
+            onClose={() => setIsPriceComparisonOpen(false)} 
+            product={selectedPriceComparisonProduct} 
+        />
+        {isLedgerModalOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border-4 border-slate-800">
+                    <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+                        <h2 className="text-xl font-black uppercase tracking-tighter flex items-center">
+                            <History className="mr-2" size={24} />
+                            Truy vết biến động kho
+                        </h2>
+                        <button onClick={() => setIsLedgerModalOpen(false)} className="hover:bg-slate-700 p-2 rounded-full transition">
+                            <X size={24} />
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+                        <InventoryLedger initialProductId={selectedLedgerProductId || 'all'} />
+                    </div>
+                    <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
+                        <button 
+                            onClick={() => setIsLedgerModalOpen(false)}
+                            className="px-6 py-2 bg-slate-800 text-white rounded-xl font-black text-xs uppercase hover:bg-slate-700 transition shadow-lg"
+                        >
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 };
