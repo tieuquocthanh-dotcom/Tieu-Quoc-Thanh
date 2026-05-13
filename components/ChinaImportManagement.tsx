@@ -29,6 +29,35 @@ const StatusBadge: React.FC<{ status?: ChinaImportStatus }> = ({ status }) => {
     );
 };
 
+// --- DECIMAL INPUT COMPONENT ---
+const DecimalInput: React.FC<{
+    value: string;
+    onChange: (val: string) => void;
+    className?: string;
+    placeholder?: string;
+}> = ({ value, onChange, className, placeholder }) => {
+    const [isFocused, setIsFocused] = useState(false);
+    const displayValue = isFocused ? value : (value === '' ? '' : formatNumber(parseNumber(value)));
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/[^0-9.,]/g, '');
+        onChange(raw);
+    };
+
+    return (
+        <input
+            type="text"
+            inputMode="decimal"
+            placeholder={placeholder}
+            value={displayValue}
+            onChange={handleChange}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            className={className}
+        />
+    );
+};
+
 // --- DETAIL MODAL COMPONENT ---
 const ChinaImportDetailModal: React.FC<{
     importData: ChinaImport | null;
@@ -146,15 +175,15 @@ const EditImportModal: React.FC<{
     // Autocomplete states for adding new items
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedProductId, setSelectedProductId] = useState('');
-    const [quantity, setQuantity] = useState<number | string>(1);
-    const [priceCNY, setPriceCNY] = useState<number | string>(0);
+    const [quantity, setQuantity] = useState<string>('1');
+    const [priceCNY, setPriceCNY] = useState<string>('0');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     
     // Inline Edit States for table items
     const [inlineEditingIndex, setInlineEditingIndex] = useState<number | null>(null);
-    const [inlineQty, setInlineQty] = useState<number | string>(0);
-    const [inlinePrice, setInlinePrice] = useState<number | string>(0);
+    const [inlineQty, setInlineQty] = useState<string>('0');
+    const [inlinePrice, setInlinePrice] = useState<string>('0');
 
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
@@ -176,27 +205,27 @@ const EditImportModal: React.FC<{
     };
 
     const handleAddItem = () => {
-        const qtyNum = Number(quantity);
-        const priceNum = Number(priceCNY);
+        const qtyNum = parseNumber(quantity);
+        const priceNum = parseNumber(priceCNY);
         if (!selectedProductId || qtyNum <= 0 || priceNum <= 0) return;
         const product = products.find(p => p.id === selectedProductId);
         if (!product) return;
         
         const newItem = { productId: product.id, productName: product.name, quantity: qtyNum, priceCNY: priceNum, totalCNY: qtyNum * priceNum };
         setCart([...cart, newItem]);
-        setSelectedProductId(''); setSearchTerm(''); setQuantity(1); setPriceCNY(0);
+        setSelectedProductId(''); setSearchTerm(''); setQuantity('1'); setPriceCNY('0');
     };
 
     const handleStartInlineEdit = (index: number) => {
         const item = cart[index];
         setInlineEditingIndex(index);
-        setInlineQty(item.quantity);
-        setInlinePrice(item.priceCNY);
+        setInlineQty(String(item.quantity).replace('.', ','));
+        setInlinePrice(String(item.priceCNY).replace('.', ','));
     };
 
     const handleSaveInlineEdit = (index: number) => {
-        const qty = Number(inlineQty);
-        const price = Number(inlinePrice);
+        const qty = parseNumber(inlineQty);
+        const price = parseNumber(inlinePrice);
         if (qty <= 0 || price <= 0) return;
 
         const newCart = [...cart];
@@ -266,8 +295,8 @@ const EditImportModal: React.FC<{
                                             </div>
                                         )}
                                     </div>
-                                    <input type="number" placeholder="SL" className="w-16 px-2 py-2 border bg-white text-black border-slate-300 rounded-lg text-sm text-center font-bold" value={quantity} onChange={e => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}/>
-                                    <input type="number" placeholder="Giá ¥" className="w-24 px-2 py-2 border bg-white text-black border-slate-300 rounded-lg text-sm text-center font-bold" value={priceCNY} onChange={e => setPriceCNY(e.target.value === '' ? '' : Number(e.target.value))}/>
+                                    <DecimalInput placeholder="SL" className="w-16 px-2 py-2 border bg-white text-black border-slate-300 rounded-lg text-sm text-center font-bold" value={quantity} onChange={setQuantity}/>
+                                    <DecimalInput placeholder="Giá ¥" className="w-24 px-2 py-2 border bg-white text-black border-slate-300 rounded-lg text-sm text-center font-bold" value={priceCNY} onChange={setPriceCNY}/>
                                     <button onClick={handleAddItem} className="p-2.5 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition shadow-md active:scale-95"><Plus size={20}/></button>
                                 </div>
                             </div>
@@ -291,10 +320,9 @@ const EditImportModal: React.FC<{
                                                     <td className="p-3 text-slate-900 font-bold">{item.productName}</td>
                                                     <td className="p-3 text-center">
                                                         {isEditingThis ? (
-                                                            <input 
-                                                                type="number" 
+                                                            <DecimalInput 
                                                                 value={inlineQty} 
-                                                                onChange={e => setInlineQty(e.target.value === '' ? '' : Number(e.target.value))}
+                                                                onChange={setInlineQty}
                                                                 className="w-16 p-1 border-2 border-orange-400 rounded text-center font-black bg-white text-black"
                                                             />
                                                         ) : (
@@ -303,10 +331,9 @@ const EditImportModal: React.FC<{
                                                     </td>
                                                     <td className="p-3 text-right">
                                                         {isEditingThis ? (
-                                                            <input 
-                                                                type="number" 
+                                                            <DecimalInput 
                                                                 value={inlinePrice} 
-                                                                onChange={e => setInlinePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                                                                onChange={setInlinePrice}
                                                                 className="w-24 p-1 border-2 border-orange-400 rounded text-right font-black bg-white text-black"
                                                             />
                                                         ) : (
@@ -347,23 +374,23 @@ const EditImportModal: React.FC<{
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="col-span-2">
                                     <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Tỷ giá VND/CNY</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(exchangeRate)} onChange={e => setExchangeRate(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-900 text-white font-black text-lg focus:ring-2 focus:ring-primary outline-none shadow-inner"/>
+                                    <DecimalInput value={exchangeRate} onChange={setExchangeRate} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-900 text-white font-black text-lg focus:ring-2 focus:ring-primary outline-none shadow-inner"/>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Ship N.Địa (¥)</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(shippingFeeCN)} onChange={e => setShippingFeeCN(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-100 text-dark font-bold outline-none"/>
+                                    <DecimalInput value={shippingFeeCN} onChange={setShippingFeeCN} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-100 text-dark font-bold outline-none"/>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Ship VN (₫)</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(shippingFeeVN)} onChange={e => setShippingFeeVN(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-100 text-dark font-bold outline-none"/>
+                                    <DecimalInput value={shippingFeeVN} onChange={setShippingFeeVN} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-100 text-dark font-bold outline-none"/>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Phí khác (₫)</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(shippingFeeExtra)} onChange={e => setShippingFeeExtra(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-100 text-dark font-bold outline-none"/>
+                                    <DecimalInput value={shippingFeeExtra} onChange={setShippingFeeExtra} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-100 text-dark font-bold outline-none"/>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Phí đổi tiền (₫)</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(currencyExchangeFee)} onChange={e => setCurrencyExchangeFee(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-100 text-dark font-bold outline-none"/>
+                                    <DecimalInput value={currencyExchangeFee} onChange={setCurrencyExchangeFee} className="w-full p-2 border border-slate-300 rounded-lg bg-slate-100 text-dark font-bold outline-none"/>
                                 </div>
                             </div>
                             <div>
@@ -410,8 +437,8 @@ const ChinaImportManagement: React.FC = () => {
     const [viewingImport, setViewingImport] = useState<ChinaImport | null>(null);
     const [orderName, setOrderName] = useState('');
     const [selectedProductId, setSelectedProductId] = useState('');
-    const [quantity, setQuantity] = useState<number | string>(1);
-    const [priceCNY, setPriceCNY] = useState<number | string>(0);
+    const [quantity, setQuantity] = useState<string>('1');
+    const [priceCNY, setPriceCNY] = useState<string>('0');
     const [cart, setCart] = useState<ChinaImportItem[]>([]);
     const [editingListIndex, setEditingListIndex] = useState<number | null>(null);
     const [exchangeRate, setExchangeRate] = useState('3600');
@@ -526,8 +553,8 @@ const ChinaImportManagement: React.FC = () => {
         const item = cart[index];
         setSelectedProductId(item.productId);
         setSearchTerm(item.productName);
-        setQuantity(item.quantity);
-        setPriceCNY(item.priceCNY);
+        setQuantity(String(item.quantity).replace('.', ','));
+        setPriceCNY(String(item.priceCNY).replace('.', ','));
         setEditingListIndex(index);
     };
 
@@ -539,8 +566,8 @@ const ChinaImportManagement: React.FC = () => {
     };
 
     const handleAddOrUpdateItem = () => {
-        const qtyNum = Number(quantity); 
-        const priceNum = Number(priceCNY);
+        const qtyNum = parseNumber(quantity); 
+        const priceNum = parseNumber(priceCNY);
         if (!selectedProductId || isNaN(qtyNum) || qtyNum <= 0 || isNaN(priceNum) || priceNum <= 0) {
             alert("Vui lòng chọn sản phẩm và nhập số lượng/giá hợp lệ.");
             return;
@@ -556,7 +583,7 @@ const ChinaImportManagement: React.FC = () => {
         } else {
             setCart([...cart, newItem]);
         }
-        setSelectedProductId(''); setSearchTerm(''); setQuantity(1); setPriceCNY(0);
+        setSelectedProductId(''); setSearchTerm(''); setQuantity('1'); setPriceCNY('0');
     };
 
     const handleSave = async () => {
@@ -632,16 +659,16 @@ const ChinaImportManagement: React.FC = () => {
                                 <button onClick={() => setIsProductModalOpen(true)} className="p-2.5 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 transition active:scale-95"><PlusCircle size={20}/></button>
                             </div>
                             <div className="grid grid-cols-3 gap-4">
-                                <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số lượng</label><input type="number" value={quantity} onChange={e => setQuantity(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-black bg-white font-black text-center"/></div>
+                                <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số lượng</label><DecimalInput value={quantity} onChange={setQuantity} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-black bg-white font-black text-center"/></div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Giá nhập (¥)</label>
-                                    <input type="number" value={priceCNY} onChange={e => setPriceCNY(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-black bg-white font-black text-right"/>
+                                    <DecimalInput value={priceCNY} onChange={setPriceCNY} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-black bg-white font-black text-right"/>
                                     {selectedProductId && lastImportPrice !== null && (
                                         <div className="mt-1 text-[10px] font-bold text-right">
                                             <span className="text-slate-500">Lần trước: {formatNumber(lastImportPrice)}¥</span>
-                                            {Number(priceCNY) > 0 && (
-                                                <span className={`ml-1 ${Number(priceCNY) > lastImportPrice ? 'text-red-600' : Number(priceCNY) < lastImportPrice ? 'text-green-600' : 'text-slate-500'}`}>
-                                                    {Number(priceCNY) > lastImportPrice ? `(Mắc hơn ${formatNumber(Number(priceCNY) - lastImportPrice)}¥)` : Number(priceCNY) < lastImportPrice ? `(Rẻ hơn ${formatNumber(lastImportPrice - Number(priceCNY))}¥)` : '(Bằng giá)'}
+                                            {parseNumber(priceCNY) > 0 && (
+                                                <span className={`ml-1 ${parseNumber(priceCNY) > lastImportPrice ? 'text-red-600' : parseNumber(priceCNY) < lastImportPrice ? 'text-green-600' : 'text-slate-500'}`}>
+                                                    {parseNumber(priceCNY) > lastImportPrice ? `(Mắc hơn ${formatNumber(parseNumber(priceCNY) - lastImportPrice)}¥)` : parseNumber(priceCNY) < lastImportPrice ? `(Rẻ hơn ${formatNumber(lastImportPrice - parseNumber(priceCNY))}¥)` : '(Bằng giá)'}
                                                 </span>
                                             )}
                                         </div>
@@ -672,25 +699,25 @@ const ChinaImportManagement: React.FC = () => {
                             <div className="grid grid-cols-3 gap-2">
                                 <div className="col-span-1">
                                     <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Tỷ giá</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(exchangeRate)} onChange={e => setExchangeRate(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg text-right font-black text-sm text-blue-700 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"/>
+                                    <DecimalInput value={exchangeRate} onChange={setExchangeRate} className="w-full p-2 border border-slate-300 rounded-lg text-right font-black text-sm text-blue-700 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner"/>
                                 </div>
                                 <div className="col-span-1">
                                     <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Ship N.Địa (¥)</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(shippingFeeCN)} onChange={e => setShippingFeeCN(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg text-right font-bold text-sm text-black bg-white outline-none"/>
+                                    <DecimalInput value={shippingFeeCN} onChange={setShippingFeeCN} className="w-full p-2 border border-slate-300 rounded-lg text-right font-bold text-sm text-black bg-white outline-none"/>
                                 </div>
                                 <div className="col-span-1">
                                     <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Ship VN (₫)</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(shippingFeeVN)} onChange={e => setShippingFeeVN(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg text-right font-bold text-sm text-black bg-white outline-none"/>
+                                    <DecimalInput value={shippingFeeVN} onChange={setShippingFeeVN} className="w-full p-2 border border-slate-300 rounded-lg text-right font-bold text-sm text-black bg-white outline-none"/>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 block mb-1">Phí khác (₫)</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(shippingFeeExtra)} onChange={e => setShippingFeeExtra(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg text-right font-bold text-sm text-black bg-white outline-none"/>
+                                    <DecimalInput value={shippingFeeExtra} onChange={setShippingFeeExtra} className="w-full p-2 border border-slate-300 rounded-lg text-right font-bold text-sm text-black bg-white outline-none"/>
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 block mb-1">Phí đổi tiền (₫)</label>
-                                    <input type="text" inputMode="numeric" value={formatNumber(currencyExchangeFee)} onChange={e => setCurrencyExchangeFee(String(parseNumber(e.target.value)))} className="w-full p-2 border border-slate-300 rounded-lg text-right font-bold text-sm text-black bg-white outline-none"/>
+                                    <DecimalInput value={currencyExchangeFee} onChange={setCurrencyExchangeFee} className="w-full p-2 border border-slate-300 rounded-lg text-right font-bold text-sm text-black bg-white outline-none"/>
                                 </div>
                             </div>
                             <div><label className="block text-[10px] font-black uppercase text-slate-500 block mb-1">Ghi chú vận đơn</label><textarea rows={2} value={note} onChange={e => setNote(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-black bg-white shadow-sm" placeholder="Mã vận đơn, kho nhận..."></textarea></div>

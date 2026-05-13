@@ -255,10 +255,11 @@ const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () 
     );
 };
 
-const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<string, Record<string, number>>; warehouses: Warehouse[]; shippingMode: string; onAdd: (product: Product, quantity: number, price: number, importPrice: number) => void; onQuickImport?: (product: Product) => void; onTransfer?: (product: Product) => void; onUpdatePrice?: (productId: string, price: number) => Promise<void>; onUpdateImportPrice?: (productId: string, price: number) => Promise<void>; lastSoldPrice?: number; isPOS?: boolean; isAdmin?: boolean; onCompare?: (product: Product) => void; }> = ({ product, detailedInventory, warehouses, shippingMode, onAdd, onQuickImport, onTransfer, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin, onCompare }) => {
+const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<string, Record<string, number>>; warehouses: Warehouse[]; shippingMode: string; onAdd: (product: Product, quantity: number, price: number, importPrice: number, keepSearch?: boolean) => void; onQuickImport?: (product: Product) => void; onTransfer?: (product: Product) => void; onUpdatePrice?: (productId: string, price: number) => Promise<void>; onUpdateImportPrice?: (productId: string, price: number) => Promise<void>; lastSoldPrice?: number; isPOS?: boolean; isAdmin?: boolean; onCompare?: (product: Product) => void; }> = ({ product, detailedInventory, warehouses, shippingMode, onAdd, onQuickImport, onTransfer, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin, onCompare }) => {
     const [inputQty, setInputQty] = useState(1);
     const [inputPrice, setInputPrice] = useState(lastSoldPrice !== undefined ? lastSoldPrice : product.sellingPrice);
     const [inputImportPrice, setInputImportPrice] = useState(product.importPrice);
+    const [isNameExpanded, setIsNameExpanded] = useState(false);
 
     // CẬP NHẬT: Luôn cập nhật giá hiển thị khi lastSoldPrice thay đổi (khi chọn khách hàng khác)
     useEffect(() => { 
@@ -276,7 +277,13 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
             )}
             <div className="mb-2 mt-3 flex justify-between items-start">
                 <div className="flex-1">
-                    <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1" title={product.name}>{product.name}</div>
+                    <div 
+                        className={`font-black text-black leading-tight text-[12px] mb-1 cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'}`} 
+                        title={product.name}
+                        onClick={() => setIsNameExpanded(!isNameExpanded)}
+                    >
+                        {product.name}
+                    </div>
                     <div className="grid grid-cols-3 gap-1 text-[9px] text-neutral font-bold mt-1">
                         {top3Warehouses.map(w => (
                             <div key={w.id} className="text-center">
@@ -344,7 +351,7 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
                     {isAdmin && (<button onClick={() => onUpdatePrice?.(product.id, inputPrice)} className="p-1 bg-slate-800 text-white rounded"><Save size={16}/></button>)}
                 </div>
             </div>
-            <div className="flex space-x-2"><input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg text-center font-black ${shippingMode === 'shipped' && inputQty > (detailedInventory[product.id]?.[warehouses.find(w => w.name === 'Ngoài CH')?.id || ''] || 0) ? 'border-red-500' : 'border-slate-200'}`} /><button onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice)} className="flex-1 py-2 bg-primary text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center gap-1"><Plus size={14}/> THÊM</button></div>
+            <div className="flex space-x-2"><input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg text-center font-black ${shippingMode === 'shipped' && inputQty > (detailedInventory[product.id]?.[warehouses.find(w => w.name === 'Ngoài CH')?.id || ''] || 0) ? 'border-red-500' : 'border-slate-200'}`} /><button onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice, false)} className="flex-1 py-2 bg-primary text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center gap-1"><Plus size={14}/> THÊM</button><button onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice, true)} className="px-3 py-2 bg-slate-800 text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center hover:bg-slate-700 transition" title="Thêm tiếp mặt hàng này (không xóa ô tìm kiếm)"><Plus size={14}/></button></div>
         </div>
     );
 };
@@ -362,6 +369,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [todaySales, setTodaySales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [todaySalesSearchTerm, setTodaySalesSearchTerm] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -388,6 +396,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [shippingFee, setShippingFee] = useState(0); 
   const [saleDate, setSaleDate] = useState(getTodayString()); 
   const [isDebt, setIsDebt] = useState(false);
+  const [amountPaidInput, setAmountPaidInput] = useState<string>(''); // empty means full amount
   const [issueInvoice, setIssueInvoice] = useState(false); 
   const [wholesalePrices, setWholesalePrices] = useState<Record<string, number>>({});
   const [indexErrorUrl, setIndexErrorUrl] = useState<string | null>(null); 
@@ -500,19 +509,23 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
       return Math.min(...stocks);
   };
 
-  const addToCart = (product: Product, quantity: number, price: number, importPrice: number) => {
+  const addToCart = (product: Product, quantity: number, price: number, importPrice: number, keepSearch: boolean = false) => {
     if (!selectedWarehouseId) { setToast({ message: "Vui lòng chọn kho trước để kiểm soát tồn kho!", type: 'error' }); return; }
     const stockInWh = calculateEffectiveStock(product, selectedWarehouseId);
     const existing = cart.find(i => i.productId === product.id);
     if (shippingMode === 'shipped' && (existing?.quantity || 0) + quantity > stockInWh) { setToast({ message: `HẾT HÀNG! (Tồn: ${stockInWh})`, type: 'error' }); return; }
     if (quantity <= 0) return;
     setCart(prev => existing ? prev.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + quantity, price, currentImportPrice: importPrice } : i) : [...prev, { productId: product.id, productName: product.name, quantity, price, stock: stockInWh, invoicedStock: product.totalInvoicedStock || 0, originalImportPrice: product.importPrice, originalSellingPrice: product.sellingPrice, currentImportPrice: importPrice, updateImportPrice: false, updateSellingPrice: false, isCombo: product.isCombo, comboItems: product.comboItems }]);
+    if (!keepSearch) {
+        setSearchTerm('');
+    }
     setToast({ message: "Đã thêm!", type: 'success' });
   };
 
   const handleCheckout = async () => {
-      console.log("handleCheckout called", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId });
-      if (cart.length === 0 || !selectedWarehouseId || (!isDebt && !selectedPaymentMethodId)) { 
+      const actualAmountPaidInput = isDebt ? 0 : (amountPaidInput === '' ? (cart.reduce((a, b) => a + b.price * b.quantity, 0) + shippingFee) : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
+      console.log("handleCheckout called", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId, actualAmountPaidInput });
+      if (cart.length === 0 || !selectedWarehouseId || (actualAmountPaidInput > 0 && !selectedPaymentMethodId)) { 
           console.warn("Checkout validation failed", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId });
           setToast({ message: "Thiếu thông tin kho xuất hoặc thanh toán.", type: 'error' }); 
           return; 
@@ -524,6 +537,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
               const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
               console.log("Transaction logic executed");
               const total = itemTotal + shippingFee;
+              const actualAmountPaid = isDebt ? 0 : (amountPaidInput === '' ? total : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
+              const isPartialDebt = actualAmountPaid < total;
               const customerName = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId)?.name : (customerSearchTerm || 'Khách vãng lai');
               const paymentMethod = paymentMethods.find(p => p.id === selectedPaymentMethodId);
               const selectedWarehouseName = warehouses.find(w => w.id === selectedWarehouseId)?.name || 'N/A';
@@ -535,14 +550,14 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
               let currentBal = 0;
               let accountRef = null;
-              if (!isDebt && selectedPaymentMethodId) {
+              if (actualAmountPaid > 0 && selectedPaymentMethodId) {
                   accountRef = doc(db, 'paymentMethods', selectedPaymentMethodId);
                   const accSnap = await transaction.get(accountRef);
                   if (accSnap.exists()) currentBal = (accSnap.data() as any).balance || 0;
               }
 
               const saleRef = doc(collection(db, 'sales'));
-              const initialPaymentHistory = isDebt ? [] : [{ date: finalCreatedAt, amount: total, note: `Thanh toán đợt đầu qua ${paymentMethod?.name || 'Tiền mặt'}` }];
+              const initialPaymentHistory = actualAmountPaid === 0 ? [] : [{ date: finalCreatedAt, amount: actualAmountPaid, note: `Thanh toán qua ${paymentMethod?.name || 'Tiền mặt'}` }];
 
               transaction.set(saleRef, { 
                 items: cart.map(i => ({ 
@@ -556,15 +571,15 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                 productIds: cart.map(i => i.productId),
                 total, 
                 shippingFee,
-                amountPaid: isDebt ? 0 : total, 
+                amountPaid: actualAmountPaid, 
                 paymentHistory: initialPaymentHistory,
                 customerId: selectedCustomerId || null, 
                 customerName: customerName || 'Khách vãng lai', 
                 warehouseId: selectedWarehouseId, 
                 warehouseName: selectedWarehouseName, 
-                paymentMethodId: isDebt ? null : (selectedPaymentMethodId || null), 
-                paymentMethodName: isDebt ? null : (paymentMethod?.name || null), 
-                status: isDebt ? 'debt' : 'paid', 
+                paymentMethodId: actualAmountPaid > 0 ? (selectedPaymentMethodId || null) : null, 
+                paymentMethodName: actualAmountPaid > 0 ? (paymentMethod?.name || null) : null, 
+                status: (actualAmountPaid < total) ? 'debt' : 'paid', 
                 shippingStatus: shippingMode || 'shipped', 
                 shippingPayer: shippingPayer || 'customer', 
                 shipperId: selectedShipperId || null, 
@@ -574,14 +589,14 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                 creatorName: user?.displayName || user?.email || 'POS' 
               });
 
-              if (!isDebt && accountRef) {
-                  const finalBal = currentBal + total;
+              if (actualAmountPaid > 0 && accountRef) {
+                  const finalBal = currentBal + actualAmountPaid;
                   transaction.update(accountRef, { balance: finalBal });
                   transaction.set(doc(collection(db, 'paymentLogs')), { 
                     paymentMethodId: selectedPaymentMethodId, 
                     paymentMethodName: paymentMethod?.name || 'N/A', 
                     type: 'deposit', 
-                    amount: total, 
+                    amount: actualAmountPaid, 
                     balanceAfter: finalBal, 
                     note: `Đơn hàng ${customerName}`, 
                     relatedId: saleRef.id, 
@@ -635,7 +650,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                   }
               }
           });
-          setCart([]); setIsDebt(false); setIssueInvoice(false); setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setSelectedPaymentMethodId(''); setSelectedShipperId(''); setShippingFee(0); setSaleDate(getTodayString()); setShippingMode('shipped'); setToast({ message: "Thanh toán thành công (Kho đã trừ)!", type: 'success' });
+          setCart([]); setIsDebt(false); setAmountPaidInput(''); setIssueInvoice(false); setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setSelectedPaymentMethodId(''); setSelectedShipperId(''); setShippingFee(0); setSaleDate(getTodayString()); setShippingMode('shipped'); setToast({ message: "Thanh toán thành công (Kho đã trừ)!", type: 'success' });
       } catch (e: any) { console.error(e); alert("Lỗi khi thanh toán: " + e.message); } finally { setIsProcessing(false); }
   };
 
@@ -812,7 +827,16 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     }
   };
 
-  const filteredProducts = useMemo(() => products.filter(p => (p.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || (searchTerm === '' && (shippingMode === 'shipped' ? calculateEffectiveStock(p, selectedWarehouseId) > 0 : true))), [products, searchTerm, detailedInventory, selectedWarehouseId, shippingMode]);
+  const filteredProducts = useMemo(() => {
+      return products.filter(p => {
+          if (!searchTerm) {
+              // Khi chưa tìm kiếm: chỉ hiện sản phẩm có tồn kho (nếu là giao ngay)
+              return shippingMode === 'shipped' ? calculateEffectiveStock(p, selectedWarehouseId) > 0 : true;
+          }
+          // Khi có tìm kiếm: lọc theo tên, bất kể số lượng tồn
+          return (p.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+      });
+  }, [products, searchTerm, detailedInventory, selectedWarehouseId, shippingMode]);
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredProducts, currentPage, pageSize]);
   const totals = useMemo(() => {
     const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
@@ -938,19 +962,33 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                         )}
 
                         <div className="bg-slate-50 p-3 rounded-xl border space-y-3 shrink-0">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-black uppercase flex items-center text-blue-600"><Info size={16} className="mr-1"/> Nghiệp vụ</h3>
-                                <div className="flex gap-4">
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 w-full md:w-2/3 lg:w-1/2">
+                                    <h3 className="text-sm font-black uppercase flex items-center text-blue-600 whitespace-nowrap"><Info size={16} className="mr-1 hidden sm:block"/> Nghiệp vụ</h3>
+                                    <div className="relative flex gap-1 flex-1 min-w-[200px]" ref={customerDropdownRef}><div className="relative flex-1"><User className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><input type="text" placeholder="Tìm khách..." value={customerSearchTerm} onChange={e => { setCustomerSearchTerm(e.target.value); setCustomerDropdownOpen(true); }} onFocus={() => { if (customerSearchTerm === 'Khách vãng lai') { setCustomerSearchTerm(''); setSelectedCustomerId(''); } setCustomerDropdownOpen(true); }} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black outline-none border-blue-300 ring-2 ring-blue-50 focus:ring-blue-200 shadow-sm" />{isCustomerDropdownOpen && customerSearchTerm && (<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto"><button onClick={() => { setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b font-black text-blue-700">KHÁCH VÃNG LAI</button>{customers.filter(c => (c.name || '').toLowerCase().includes((customerSearchTerm || '').toLowerCase())).slice(0,5).map(c => (<button key={c.id} onClick={() => { setSelectedCustomerId(c.id); setCustomerSearchTerm(c.name); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b flex justify-between font-black text-black"><span>{c.name}</span><span>{c.phone}</span></button>))}</div>)}</div><button onClick={() => setIsCustomerModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border border-green-300 hover:bg-green-600 hover:text-white transition shadow-sm"><Plus size={18}/></button></div>
+                                </div>
+                                <div className="flex gap-4 md:shrink-0 w-full md:w-auto justify-end">
                                     <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={shippingPayer === 'customer'} onChange={e => setShippingPayer(e.target.checked ? 'customer' : 'shop')} className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-0" /><span className="text-xs font-black uppercase text-blue-600">Khách ship</span></label>
                                     <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={issueInvoice} onChange={e => setIssueInvoice(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-0" /><span className="text-xs font-black uppercase text-blue-600">Hóa đơn</span></label>
                                     <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={isDebt} onChange={e => setIsDebt(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-red-600 focus:ring-0" /><span className="text-xs font-black uppercase text-red-600">Ghi nợ</span></label>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
-                                <div className="relative flex gap-1" ref={customerDropdownRef}><div className="relative flex-1"><User className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><input type="text" placeholder="Tìm khách..." value={customerSearchTerm} onChange={e => { setCustomerSearchTerm(e.target.value); setCustomerDropdownOpen(true); }} onFocus={() => { if (customerSearchTerm === 'Khách vãng lai') { setCustomerSearchTerm(''); setSelectedCustomerId(''); } setCustomerDropdownOpen(true); }} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black outline-none" />{isCustomerDropdownOpen && customerSearchTerm && (<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto"><button onClick={() => { setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b font-black text-blue-700">KHÁCH VÃNG LAI</button>{customers.filter(c => (c.name || '').toLowerCase().includes((customerSearchTerm || '').toLowerCase())).slice(0,5).map(c => (<button key={c.id} onClick={() => { setSelectedCustomerId(c.id); setCustomerSearchTerm(c.name); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b flex justify-between font-black text-black"><span>{c.name}</span><span>{c.phone}</span></button>))}</div>)}</div><button onClick={() => setIsCustomerModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border hover:bg-green-600 transition"><Plus size={18}/></button></div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
                                 <div className="relative"><Archive className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedWarehouseId} onChange={e => setSelectedWarehouseId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary appearance-none"><option value="">Kho xuất...</option>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
                                 <div className="relative flex gap-1"><div className="relative flex-1"><Truck className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedShipperId} onChange={e => setSelectedShipperId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary appearance-none"><option value="">ĐVVC...</option>{shippers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div><button onClick={() => setIsShipperModalOpen(true)} className="p-2 bg-blue-100 text-blue-600 rounded-lg border hover:bg-blue-600 transition"><Plus size={18}/></button></div>
                                 <div className="relative"><CreditCard className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedPaymentMethodId} onChange={e => setSelectedPaymentMethodId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary appearance-none" disabled={isDebt}><option value="">PTTT...</option>{paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+                                <div className="relative">
+                                    <Banknote className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/>
+                                    <input 
+                                        type="text" 
+                                        placeholder={`Trọn gói`}
+                                        value={amountPaidInput} 
+                                        title={`Khách thanh toán. Mặc định là thanh toán toàn bộ: ${formatNumber(totals.revenue)}₫`}
+                                        onChange={e => { setIsDebt(false); setAmountPaidInput(e.target.value ? formatNumber(parseInt(e.target.value.replace(/[^\d]/g, '') || '0')) : ''); }}
+                                        className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none disabled:opacity-50 text-red-600 placeholder:text-slate-400" 
+                                        disabled={isDebt}
+                                    />
+                                </div>
                                 <div className="relative"><Layers className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={shippingMode} onChange={e => setShippingMode(e.target.value as any)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black outline-none"><option value="shipped">Đã giao hàng</option><option value="pending">Chờ gởi</option><option value="order">Đặt hàng</option></select></div>
                                 <div className="relative">
                                     <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/>
@@ -969,13 +1007,15 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={20}/>
                                 <input type="text" placeholder="GÕ TÊN SẢN PHẨM ĐỂ BÁN..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-yellow-50 border-4 border-slate-800 rounded-2xl focus:border-primary outline-none font-black text-base text-black shadow-[4px_4px_0px_#0f172a]" />
                             </div>
-                            <button 
-                                onClick={() => setIsProductModalOpen(true)} 
-                                className="px-4 py-3 bg-green-600 text-white rounded-2xl flex items-center hover:bg-green-700 transition shadow-md font-black text-xs uppercase"
-                                title="Tạo sản phẩm mới nhanh"
-                            >
-                                <PlusCircle size={16} className="mr-2"/> TẠO SP
-                            </button>
+                            {isAdmin && (
+                                <button 
+                                    onClick={() => setIsProductModalOpen(true)} 
+                                    className="px-4 py-3 bg-green-600 text-white rounded-2xl flex items-center hover:bg-green-700 transition shadow-md font-black text-xs uppercase"
+                                    title="Tạo sản phẩm mới nhanh"
+                                >
+                                    <PlusCircle size={16} className="mr-2"/> TẠO SP
+                                </button>
+                            )}
                             {!isFullscreen && (
                                 <button onClick={() => setIsFullscreen(true)} className="px-4 py-3 bg-slate-800 text-white rounded-2xl flex items-center hover:bg-black transition shadow-md font-black text-xs uppercase">
                                     <Maximize2 size={16} className="mr-2"/> POS
@@ -988,7 +1028,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                 </div>
             </div>
             <div className={`flex flex-col ${isFullscreen ? 'lg:w-[35%]' : 'lg:w-2/5'}`}>
-                <div className="bg-white rounded-2xl shadow-xl flex-1 flex flex-col border-2 border-slate-800 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-xl flex flex-col border-2 border-slate-800 overflow-hidden flex-shrink-0 transition-all duration-300">
                     <div className="bg-slate-800 p-3 text-white flex justify-between items-center flex-shrink-0">
                         <h2 className="text-sm font-black flex items-center tracking-tighter uppercase"><ShoppingCart className="mr-1.5" size={18}/> Giỏ hàng</h2>
                         <div className="flex gap-2">
@@ -1000,7 +1040,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                             <span className="bg-primary px-2 py-0.5 rounded-full text-[10px] font-black border border-blue-700">{cart.length} SP</span>
                         </div>
                     </div>
-                    <div className="p-2 space-y-1 bg-white border-b-2 border-slate-200 overflow-y-auto flex-1">
+                    <div className="p-2 space-y-1 bg-white border-b-2 border-slate-200 overflow-y-auto max-h-[300vh]">
                     {cart.length === 0 ? <div className="h-20 flex flex-col items-center justify-center opacity-20"><ShoppingCart size={40} className="mb-2 text-black"/><p className="font-black text-[9px] text-black uppercase">Giỏ hàng trống</p></div> : cart.map((item, idx) => {
                         const profit = (item.price - item.currentImportPrice) * item.quantity;
                         return (
@@ -1095,10 +1135,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                         </div>
                         <button onClick={handleCheckout} disabled={isProcessing || cart.length === 0} className="w-full py-4 bg-white border-2 border-blue-600 text-blue-600 rounded-2xl font-black text-lg shadow-lg active:scale-95 disabled:bg-slate-200 flex items-center justify-center uppercase">
                             {isProcessing ? <Loader className="animate-spin mr-2" size={20}/> : <Banknote className="mr-2" size={24}/>}
-                            {isDebt 
-                                ? 'Xác nhận nợ' 
-                                : `Hoàn tất đơn ${paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name || ''}`
-                            }
+                            {(() => {
+                                const btnActualPaid = isDebt ? 0 : (amountPaidInput === '' ? totals.revenue : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
+                                if (isDebt || btnActualPaid === 0) return 'Ghi nợ 100%';
+                                if (btnActualPaid < totals.revenue) return `Trả trước ${formatNumber(btnActualPaid)} ₫`;
+                                return `Hoàn tất đơn ${paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name || ''}`.trim();
+                            })()}
                         </button>
                     </div>
                   </div>
@@ -1111,9 +1153,29 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                               </div>
                               <div className="text-right"><span className="text-[11px] font-black text-slate-400 uppercase tracking-tighter block">Doanh thu hôm nay</span><span className="text-2xl font-black text-yellow-400">{formatNumber(summaryToday.revenue)} ₫</span></div>
                           </div>
-                          {todaySales.map(sale => {
+                          
+                          <div className="relative mb-2">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                              <input 
+                                  type="text" 
+                                  placeholder="Tìm đơn hàng theo tên SP, KH, sdt..." 
+                                  value={todaySalesSearchTerm}
+                                  onChange={e => setTodaySalesSearchTerm(e.target.value)}
+                                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-black focus:border-primary focus:outline-none"
+                              />
+                          </div>
+
+                          {todaySales.filter(sale => {
+                              const searchLower = todaySalesSearchTerm.toLowerCase();
+                              if (!searchLower) return true;
+                              return (
+                                  (sale.customerName && sale.customerName.toLowerCase().includes(searchLower)) ||
+                                  ((sale as any).customerPhone && (sale as any).customerPhone.toLowerCase().includes(searchLower)) ||
+                                  (sale.items && sale.items.some(item => item.productName && item.productName.toLowerCase().includes(searchLower)))
+                              );
+                          }).map(sale => {
                               const totalProfit = sale.items?.reduce((acc, it) => acc + (it.price - (it.importPrice || 0)) * it.quantity, 0) || 0;
-                              let shipLabel = "Đã giao"; let shipColor = "bg-green-600 text-white";
+                              let shipLabel = "Đã giao"; let shipColor = "bg-blue-600 text-white";
                               if (sale.shippingStatus === 'pending') { shipLabel = "Chờ gởi"; shipColor = "bg-slate-200 text-red-600"; }
                               else if (sale.shippingStatus === 'order') { shipLabel = "Đặt hàng"; shipColor = "bg-red-600 text-white"; }
                               return (
@@ -1144,7 +1206,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                             {sale.shipperName && <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><Truck size={10} className="mr-1"/> {sale.shipperName}</span>}
                                             <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {sale.paymentMethodName || 'Nợ/TM'}</span>
                                             {sale.status === 'debt' && <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-red-600 text-white animate-pulse">CÒN NỢ</span>}
-                                            {isAdmin && <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-blue-600 text-white shadow-sm">LN ĐƠN: {formatNumber(totalProfit)}</span>}
+                                            {isAdmin && <span className="px-2 py-0.5 rounded text-[12px] font-black uppercase bg-green-600 text-white shadow-sm tracking-wide">LN ĐƠN: {formatNumber(totalProfit)}</span>}
                                         </div>
                                     </div>
                                     <div className="p-2.5 space-y-2 bg-white">

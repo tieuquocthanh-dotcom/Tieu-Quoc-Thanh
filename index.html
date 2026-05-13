@@ -9,6 +9,39 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="format-detection" content="telephone=no" />
     <title>Quản Lý Bán Hàng & Kho</title>
+    <script>
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        var div = document.createElement('div');
+        div.style.position = 'fixed';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.width = '100%';
+        div.style.background = 'red';
+        div.style.color = 'white';
+        div.style.padding = '10px';
+        div.style.zIndex = '9999';
+        div.style.fontSize = '10px';
+        div.style.wordBreak = 'break-all';
+        div.innerText = 'Lỗi hệ thống: ' + msg + ' tại ' + url + ':' + lineNo + ':' + columnNo;
+        document.body.appendChild(div);
+        return false;
+      };
+      window.onunhandledrejection = function(event) {
+        var div = document.createElement('div');
+        div.style.position = 'fixed';
+        div.style.top = '50px';
+        div.style.left = '0';
+        div.style.width = '100%';
+        div.style.background = 'orange';
+        div.style.color = 'black';
+        div.style.padding = '10px';
+        div.style.zIndex = '9999';
+        div.style.fontSize = '10px';
+        div.style.wordBreak = 'break-all';
+        div.innerText = 'Lỗi Promise: ' + event.reason;
+        document.body.appendChild(div);
+      };
+    </script>
 </head>
   <body class="bg-slate-100" style="font-family: sans-serif;">
     <div id="root"></div>

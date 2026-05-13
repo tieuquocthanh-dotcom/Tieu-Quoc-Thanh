@@ -638,9 +638,9 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                                 };
 
                                 return (
-                                    <td key={wh.id} className="p-3 text-slate-900 border border-slate-200 text-center font-black text-sm relative group">
+                                    <td key={wh.id} className="p-3 text-slate-900 border border-slate-200 text-center font-black text-sm">
                                         <div className="mb-1">{stock}</div>
-                                        <div className="flex justify-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-1 left-0 right-0 bg-white/80 py-0.5">
+                                        <div className="flex justify-center flex-wrap gap-1 mt-1">
                                             <button 
                                                 onClick={() => handleOpenEditModal(item)} 
                                                 className="p-1 text-blue-600 hover:bg-blue-100 rounded transition" 

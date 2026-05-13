@@ -7,12 +7,12 @@ import FirebaseSetupGuide from './components/FirebaseSetupGuide';
 import ProductManagement from './components/ProductManagement';
 import SalesTerminal from './components/SalesTerminal';
 import Dashboard from './components/Dashboard';
-// import ManufacturerManagement from './components/ManufacturerManagement';
+import ManufacturerManagement from './components/ManufacturerManagement';
 import SupplierManagement from './components/SupplierManagement';
 // import WarehouseManagement from './components/WarehouseManagement';
 // import CustomerManagement from './components/CustomerManagement';
 // import ShippingManagement from './components/ShippingManagement';
-// import PaymentMethodManagement from './components/PaymentMethodManagement';
+import PaymentMethodManagement from './components/PaymentMethodManagement';
 import AccountManagement from './components/AccountManagement';
 import GoodsReceipt from './components/GoodsReceipt';
 import InventoryMatrix from './components/InventoryMatrix';
@@ -22,25 +22,31 @@ import OutsideStockAlerts from './components/OutsideStockAlerts';
 import DebtManagement from './components/DebtManagement';
 import QuotationManagement from './components/QuotationManagement';
 import Login from './components/Login';
-// import UserManagement from './components/UserManagement';
+import UserManagement from './components/UserManagement';
 import LandingPage from './components/LandingPage';
 import ChinaImportManagement from './components/ChinaImportManagement';
 import ProductAnalytics from './components/ProductAnalytics';
-// import SupplierAnalytics from './components/SupplierAnalytics';
+import SupplierAnalytics from './components/SupplierAnalytics';
+import CustomerAnalytics from './components/CustomerAnalytics';
 import InventoryLedger from './components/InventoryLedger';
 import PriceComparison from './components/PriceComparison';
 // import SupplierPaymentHistory from './components/SupplierPaymentHistory';
 import PlannedOrderManagement from './components/PlannedOrderManagement';
-// import NoteManagement from './components/NoteManagement';
+import NoteManagement from './components/NoteManagement';
 // import SavingsManagement from './components/SavingsManagement';
 import { Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank } from 'lucide-react';
 
-type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings';
+type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>(() => {
+    try {
       const savedView = localStorage.getItem('currentView');
       return (savedView && savedView !== 'login') ? (savedView as View) : 'home';
+    } catch (e) {
+      console.warn('LocalStorage access failed:', e);
+      return 'home';
+    }
   });
 
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -52,12 +58,24 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-      if (view !== 'login' && view !== 'setup') {
-          localStorage.setItem('currentView', view);
+    if (view !== 'login' && view !== 'setup') {
+      try {
+        localStorage.setItem('currentView', view);
+      } catch (e) {
+        console.warn('LocalStorage write failed:', e);
       }
+    }
   }, [view]);
 
   useEffect(() => {
+    // Safety timeout to ensure app loads even if Firebase hangs
+    const timeout = setTimeout(() => {
+      if (authLoading) {
+        console.warn('Auth loading timeout reach, forcing load...');
+        setAuthLoading(false);
+      }
+    }, 6000);
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (!currentUser) {
@@ -66,15 +84,22 @@ const App: React.FC = () => {
       }
     });
 
-    if (isFirebaseConfigured && !sessionStorage.getItem('firebaseConnected')) {
-      setShowSuccessToast(true);
-      sessionStorage.setItem('firebaseConnected', 'true');
-      setTimeout(() => {
-        setShowSuccessToast(false);
-      }, 5000);
+    try {
+      if (isFirebaseConfigured && !sessionStorage.getItem('firebaseConnected')) {
+        setShowSuccessToast(true);
+        sessionStorage.setItem('firebaseConnected', 'true');
+        setTimeout(() => {
+          setShowSuccessToast(false);
+        }, 5000);
+      }
+    } catch (e) {
+      console.warn('SessionStorage access failed:', e);
     }
     
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   // Lấy vai trò người dùng từ Firestore
@@ -91,7 +116,7 @@ const App: React.FC = () => {
                       'warehouses', 'shippers', 'paymentMethods', 'accounts', 'inventoryMatrix', 
                       'shipmentManagement', 'inventoryAlerts', 'outsideStockAlerts', 
                       'debtManagement', 'users', 'quotations', 'chinaImport', 
-                      'productAnalytics', 'supplierAnalytics', 'inventoryLedger', 
+                      'productAnalytics', 'supplierAnalytics', 'customerAnalytics', 'inventoryLedger', 
                       'priceComparison', 'supplierPaymentHistory', 'plannedOrders', 'notes', 'savings'
                   ];
                   
@@ -118,7 +143,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
       if (user && view === 'login') {
-          const lastView = localStorage.getItem('currentView') as View;
+          let lastView: View | null = null;
+          try {
+              lastView = localStorage.getItem('currentView') as View;
+          } catch (e) {
+              console.warn('LocalStorage access failed:', e);
+          }
           setView(lastView && lastView !== 'login' ? lastView : 'home');
       }
   }, [user, view]);
@@ -137,7 +167,11 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
       await signOut(auth);
-      localStorage.removeItem('currentView');
+      try {
+          localStorage.removeItem('currentView');
+      } catch (e) {
+          console.warn('LocalStorage remove failed:', e);
+      }
       setView('home');
       setIsSettingsOpen(false);
       alert("Đã đăng xuất thành công.");
@@ -163,7 +197,7 @@ const App: React.FC = () => {
       case 'products': return <ProductManagement userRole={userRole} />;
       case 'sales': return <SalesTerminal userRole={userRole} user={user} />;
       case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} />;
-      // case 'manufacturers': return <ManufacturerManagement />;
+      case 'manufacturers': return <ManufacturerManagement />;
       case 'suppliers': return <SupplierManagement />;
       // case 'customers': return <CustomerManagement />;
       // case 'warehouses': return <WarehouseManagement />;
@@ -173,18 +207,19 @@ const App: React.FC = () => {
       case 'outsideStockAlerts': return <OutsideStockAlerts />;
       case 'debtManagement': return <DebtManagement />;
       // case 'shippers': return <ShippingManagement />;
-      // case 'paymentMethods': return <PaymentMethodManagement />;
+      case 'paymentMethods': return <PaymentMethodManagement />;
       case 'accounts': return <AccountManagement />;
-      // case 'users': return <UserManagement />;
+      case 'users': return <UserManagement />;
       case 'quotations': return <QuotationManagement />;
       case 'chinaImport': return <ChinaImportManagement />;
       case 'productAnalytics': return <ProductAnalytics />;
-      // case 'supplierAnalytics': return <SupplierAnalytics />;
+      case 'supplierAnalytics': return <SupplierAnalytics />;
+      case 'customerAnalytics': return <CustomerAnalytics />;
       case 'inventoryLedger': return <InventoryLedger userRole={userRole} />;
       case 'priceComparison': return <PriceComparison />;
       // case 'supplierPaymentHistory': return <SupplierPaymentHistory />;
       case 'plannedOrders': return <PlannedOrderManagement user={user} />;
-      // case 'notes': return <NoteManagement user={user} />;
+      case 'notes': return <NoteManagement user={user} />;
       // case 'savings': return <SavingsManagement user={user} />;
       default: return <SalesTerminal userRole={userRole} user={user} />;
     }
@@ -302,6 +337,7 @@ const App: React.FC = () => {
                                 <SettingsItem targetView="inventoryLedger" icon={<History size={16}/>} label="Truy Vết Tồn Kho" />
                                 <SettingsItem targetView="productAnalytics" icon={<BarChart3 size={16}/>} label="Hiệu Quả Sản Phẩm" />
                                 <SettingsItem targetView="supplierAnalytics" icon={<PieChart size={16}/>} label="Nhập Hàng Theo NCC" />
+                                <SettingsItem targetView="customerAnalytics" icon={<PieChart size={16}/>} label="Bán Hàng Theo Khách Hàng" />
                                 
                                 <div className="my-1 h-px bg-slate-100"></div>
                                 <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Hàng Hóa & Đối Tác</div>

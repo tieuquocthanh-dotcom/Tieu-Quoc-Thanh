@@ -7,7 +7,7 @@ import { PlusCircle, Edit, Trash2, XCircle, Loader, Package, Search, Upload, Dow
 import Pagination from './Pagination';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import ConfirmationModal from './ConfirmationModal';
-// import { ManufacturerModal } from './ManufacturerManagement';
+import { ManufacturerModal } from './ManufacturerManagement';
 // import ProductLifecycle from './ProductLifecycle';
 import * as XLSX from 'xlsx';
 
@@ -241,14 +241,14 @@ export const ProductModal: React.FC<{
       </div>
     </div>
     
-    {/* {isManuModalOpen && (
+    {isManuModalOpen && (
         <ManufacturerModal 
             manufacturer={null} 
             onClose={() => setIsManuModalOpen(false)} 
             onSave={handleCreateManufacturer}
             existingNames={manufacturers.map(m => m.name)}
         />
-    )} */}
+    )}
     </>
   );
 };

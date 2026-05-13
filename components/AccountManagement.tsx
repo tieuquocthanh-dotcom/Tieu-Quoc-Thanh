@@ -813,6 +813,8 @@ const AccountManagement: React.FC = () => {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
+  const [latestLogs, setLatestLogs] = useState<Record<string, PaymentLog>>({});
+  const [globalLatestLog, setGlobalLatestLog] = useState<PaymentLog | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -823,6 +825,26 @@ const AccountManagement: React.FC = () => {
       setLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const qLogs = query(collection(db, 'paymentLogs'), orderBy('createdAt', 'desc'), limit(500));
+    const unsubscribeLogs = onSnapshot(qLogs, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentLog));
+      if (logs.length > 0) {
+          setGlobalLatestLog(logs[0]);
+      } else {
+          setGlobalLatestLog(null);
+      }
+      const latest: Record<string, PaymentLog> = {};
+      for (const log of logs) {
+         if (!latest[log.paymentMethodId] && log.createdAt) {
+             latest[log.paymentMethodId] = log;
+         }
+      }
+      setLatestLogs(latest);
+    });
+    return () => unsubscribeLogs();
   }, []);
 
   const sortedAndFilteredAccounts = useMemo(() => {
@@ -1109,6 +1131,18 @@ const AccountManagement: React.FC = () => {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Tổng Số Tiền Hệ Thống</p>
             <p className="text-3xl font-black text-white tracking-tighter">{formatNumber(totalBalance)} <span className="text-primary text-sm font-black italic">₫</span></p>
+            {globalLatestLog && (
+                <div className="mt-2">
+                    <p className="text-xs font-black uppercase tracking-widest text-red-500">
+                        Cập nhật: {globalLatestLog.createdAt?.toDate().toLocaleString('vi-VN')}
+                    </p>
+                    {globalLatestLog.note && (
+                        <p className="text-xs mt-0.5 truncate max-w-sm text-slate-400">
+                            {globalLatestLog.note.split('_')[0]}
+                        </p>
+                    )}
+                </div>
+            )}
           </div>
         </div>
       </div>
@@ -1193,7 +1227,19 @@ const AccountManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="p-5 text-right">
-                        <span className="text-2xl font-black text-slate-900 tracking-tighter">{formatNumber(item.balance || 0)} ₫</span>
+                        <span className="text-2xl font-black text-slate-900 tracking-tighter block">{formatNumber(item.balance || 0)} ₫</span>
+                        {latestLogs[item.id] && (
+                            <div className="mt-2 flex flex-col items-end text-right">
+                                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 px-2 py-0.5 rounded">
+                                    Cập nhật: {latestLogs[item.id].createdAt?.toDate().toLocaleString('vi-VN')}
+                                </span>
+                                {latestLogs[item.id].note && (
+                                    <span className="text-xs font-medium text-slate-500 mt-1 max-w-[250px] truncate" title={latestLogs[item.id].note}>
+                                        {latestLogs[item.id].note.split('_')[0]}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </td>
                     <td className="p-5 text-center">
                         <div className="flex justify-center space-x-3">
