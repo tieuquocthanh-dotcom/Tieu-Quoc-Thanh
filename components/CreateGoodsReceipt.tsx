@@ -4,7 +4,7 @@ import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderB
 import { db, auth } from '../services/firebase';
 import { Product, Supplier, GoodsReceiptItem, Warehouse, PaymentMethod, Manufacturer, GoodsReceipt, PlannedOrder, ChinaImport } from '../types';
 import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck } from 'lucide-react';
-import { formatNumber, parseNumber } from '../utils/formatting';
+import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
 import PriceComparisonModal from './PriceComparisonModal';
@@ -14,7 +14,7 @@ import { SupplierModal } from './SupplierManagement';
 import { User } from 'firebase/auth';
 
 // Add missing getTodayString helper function
-const getTodayString = () => new Date().toISOString().split('T')[0];
+const getTodayString = () => getLocalYYYYMMDD();
 
 const NumericInput: React.FC<{
     value: number;
@@ -189,6 +189,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   // Nguồn dữ liệu nhập thêm
   const [plannedOrders, setPlannedOrders] = useState<PlannedOrder[]>([]);
   const [chinaImports, setChinaImports] = useState<ChinaImport[]>([]);
+  const [sourceOrderDetails, setSourceOrderDetails] = useState<{type: 'planned'|'china', id: string} | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -246,8 +247,8 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     // Tải các đơn nguồn
     onSnapshot(query(collection(db, "plannedOrders"), where("status", "==", "pending")), (snap) => setPlannedOrders(snap.docs.map(d => ({id: d.id, ...d.data()} as PlannedOrder))));
     
-    // CẬP NHẬT: Chỉ lấy các đơn hàng Trung Quốc đã thanh toán (status === 'paid') để làm nguồn nhập hàng
-    onSnapshot(query(collection(db, "chinaImports"), where("status", "==", "paid")), (snap) => setChinaImports(snap.docs.map(d => ({id: d.id, ...d.data()} as ChinaImport))));
+    // CẬP NHẬT: Lấy các đơn hàng Trung Quốc ở trạng thái đã thanh toán hoặc đang nhập hàng (để có thể nhập)
+    onSnapshot(query(collection(db, "chinaImports"), where("status", "in", ["paid", "importing"])), (snap) => setChinaImports(snap.docs.map(d => ({id: d.id, ...d.data()} as ChinaImport))));
 
     const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
     onSnapshot(query(collection(db, "goodsReceipts"), where("createdAt", ">=", Timestamp.fromDate(startOfToday)), orderBy("createdAt", "desc")), (snap) => setTodayReceipts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoodsReceipt))));
@@ -298,11 +299,34 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                   };
               });
               setReceipt(items);
+              setSourceOrderDetails({ type: 'planned', id });
               setToast({ message: `Đã tải ${items.length} SP từ đơn dự kiến`, type: 'success' });
           }
       } else if (type === 'china') {
           const imp = chinaImports.find(o => o.id === id);
           if (imp) {
+              const tqSupplier = suppliers.find(s => s.name.toLowerCase().includes('trung quốc'));
+              if (tqSupplier) {
+                  setSelectedSupplierId(tqSupplier.id);
+                  setSupplierSearchTerm(tqSupplier.name);
+              } else {
+                  setSelectedSupplierId('');
+                  setSupplierSearchTerm('Trung Quốc');
+              }
+
+              const cashPayment = paymentMethods.find(p => p.name.toLowerCase().includes('tiền mặt'));
+              if (cashPayment) {
+                  setSelectedPaymentMethodId(cashPayment.id);
+                  setPaymentStatus('paid');
+              } else {
+                  setSelectedPaymentMethodId('');
+              }
+
+              const externalWarehouse = warehouses.find(w => w.name.toLowerCase().includes('ngoài ch') || w.name.toLowerCase().includes('ngoài cửa hàng'));
+              if (externalWarehouse) {
+                  setSelectedWarehouseId(externalWarehouse.id);
+              }
+
               const items: ReceiptItem[] = imp.items.map(i => {
                   const p = products.find(prod => prod.id === i.productId);
                   const basePriceVND = Math.round(i.priceCNY * imp.exchangeRate);
@@ -318,6 +342,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                   };
               });
               setReceipt(items);
+              setSourceOrderDetails({ type: 'china', id });
               setToast({ message: `Đã tải ${items.length} SP từ đơn TQ (Giá gốc)`, type: 'success' });
           }
       }
@@ -421,10 +446,20 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                 transaction.set(invRef, { stock: increment(item.quantity), warehouseId: selWh.id, warehouseName: selWh.name }, { merge: true });
                 if (hasInvoice) transaction.update(doc(db, 'products', item.productId), { totalInvoicedStock: increment(item.quantity) });
             }
-            if (item.updateImportPrice && isAdmin) transaction.update(doc(db, 'products', item.productId), { importPrice: item.importPrice });
+            if (isAdmin && (item.updateImportPrice || (item.originalImportPrice !== undefined && item.importPrice > item.originalImportPrice))) {
+                transaction.update(doc(db, 'products', item.productId), { importPrice: item.importPrice });
+            }
+          }
+
+          if (sourceOrderDetails) {
+              if (sourceOrderDetails.type === 'planned') {
+                  transaction.update(doc(db, 'plannedOrders', sourceOrderDetails.id), { status: 'completed' });
+              } else if (sourceOrderDetails.type === 'china') {
+                  transaction.update(doc(db, 'chinaImports', sourceOrderDetails.id), { status: 'imported' });
+              }
           }
       });
-      setReceipt([]); setSelectedSupplierId(''); setSupplierSearchTerm(''); 
+      setReceipt([]); setSelectedSupplierId(''); setSupplierSearchTerm(''); setSourceOrderDetails(null);
       setToast({ message: `Nhập hàng thành công! (${paymentStatus === 'debt' ? 'Ghi nợ NCC' : 'Đã thanh toán'})`, type: 'success' });
     } catch (err: any) { 
         console.error(err); 

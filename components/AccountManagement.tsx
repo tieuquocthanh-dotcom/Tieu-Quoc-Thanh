@@ -948,7 +948,7 @@ const AccountManagement: React.FC = () => {
             const accSnap = await transaction.get(accRef);
             if (!accSnap.exists()) throw "Account not found";
 
-            const currentBalance = accSnap.data().balance || 0;
+            const currentBalance = Number(accSnap.data().balance) || 0;
             const isDeposit = modalType === 'deposit';
             const finalBalance = isDeposit ? currentBalance + amount : currentBalance - amount;
 
@@ -988,8 +988,8 @@ const AccountManagement: React.FC = () => {
 
               if (!fromSnap.exists() || !toSnap.exists()) throw "One or more accounts not found";
 
-              const fromBal = fromSnap.data().balance || 0;
-              const toBal = toSnap.data().balance || 0;
+              const fromBal = Number(fromSnap.data().balance) || 0;
+              const toBal = Number(toSnap.data().balance) || 0;
               const fromName = fromSnap.data().name;
               const toName = toSnap.data().name;
 

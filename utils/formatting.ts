@@ -10,3 +10,11 @@ export const parseNumber = (str: string): number => {
   const val = parseFloat(str.replace(/\./g, '').replace(/,/g, '.'));
   return isNaN(val) ? 0 : val;
 };
+
+export const getLocalYYYYMMDD = (date?: Date): string => {
+  const d = date || new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};

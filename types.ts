@@ -176,7 +176,7 @@ export interface ChinaImportItem {
   totalCNY?: number;
 }
 
-export type ChinaImportStatus = 'ordered' | 'placed' | 'paid' | 'at_vn' | 'received_full' | 'received_missing';
+export type ChinaImportStatus = 'ordered' | 'placed' | 'paid' | 'importing' | 'imported';
 
 export interface PaymentHistoryEntry {
   id: string;

@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 // CẢNH BÁO QUAN TRỌNG:
 // 1. Dán cấu hình Firebase của bạn vào đây.
@@ -22,9 +22,18 @@ export const isFirebaseConfigured = true;
 // Khởi tạo Firebase
 const app = initializeApp(firebaseConfig);
 
-// Khởi tạo Cloud Firestore và lấy tham chiếu đến dịch vụ
-export const db = getFirestore(app);
+// Khởi tạo Cloud Firestore với bộ nhớ cache ngoại tuyến (Offline Persistence) 
+// giúp ứng dụng tải nhanh hơn trên điện thoại và tiết kiệm băng thông
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
+});
 
-// Khởi tạo Authentication và export
+// Khởi tạo Authentication và thiết lập lưu trữ session cố định
 export const auth = getAuth(app);
+
+// Đảm bảo session không bị mất trên Safari bằng cách set explicitly
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error("Lỗi cấu hình lưu trữ đăng nhập:", error);
+});
+
 export const googleProvider = new GoogleAuthProvider();

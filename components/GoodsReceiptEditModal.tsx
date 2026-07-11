@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GoodsReceipt, Supplier, PaymentMethod, Warehouse, Product, GoodsReceiptItem } from '../types';
-import { X, Save, Edit3, CreditCard, FileCheck2, Wallet, AlertCircle, Loader, Users, Package, ShoppingBag, Trash2, Minus, Plus, Coins, Banknote, Calendar } from 'lucide-react';
+import { X, Save, Edit3, CreditCard, FileCheck2, Wallet, AlertCircle, Loader, Users, Package, ShoppingBag, Trash2, Minus, Plus, Coins, Banknote, Calendar, Search } from 'lucide-react';
 import { doc, serverTimestamp, runTransaction, collection, Timestamp, increment, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
-import { formatNumber, parseNumber } from '../utils/formatting';
+import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 
 interface GoodsReceiptEditModalProps {
   isOpen: boolean;
@@ -72,6 +72,10 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
 
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (isOpen && receipt) {
       setSupplierId(receipt.supplierId || '');
@@ -81,7 +85,7 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
       setHasInvoice(receipt.hasInvoice || false);
       if (receipt.createdAt) {
         const date = receipt.createdAt.toDate();
-        setReceiptDate(date.toISOString().split('T')[0]);
+        setReceiptDate(getLocalYYYYMMDD(date));
       }
       setEditedItems(receipt.items ? JSON.parse(JSON.stringify(receipt.items)) : []);
     }
@@ -97,17 +101,44 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
     return suppliers.filter(s => (s.name || '').toLowerCase().includes(lower)).slice(0, 10);
   }, [suppliers, supplierSearchTerm]);
 
+  const filteredProducts = useMemo(() => {
+    if (!productSearchTerm) return products.slice(0, 10);
+    const lower = productSearchTerm.toLowerCase();
+    return products.filter(p => (p.name || '').toLowerCase().includes(lower)).slice(0, 10);
+  }, [products, productSearchTerm]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(event.target as Node)) {
         setIsSupplierDropdownOpen(false);
       }
+      if (productDropdownRef.current && !productDropdownRef.current.contains(event.target as Node)) {
+        setIsProductDropdownOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [supplierSearchTerm]);
+  }, [supplierSearchTerm, productSearchTerm]);
 
   if (!isOpen || !receipt) return null;
+
+  const handleAddProduct = (product: Product) => {
+    // Kiem tra xem san pham da co trong phieu chua
+    const existingIndex = editedItems.findIndex(i => i.productId === product.id);
+    if (existingIndex >= 0) {
+      updateItem(existingIndex, { quantity: editedItems[existingIndex].quantity + 1 });
+    } else {
+      setEditedItems([...editedItems, {
+        productId: product.id,
+        productName: product.name,
+        quantity: 1,
+        importPrice: product.importPrice || 0,
+        isCombo: !!product.isCombo,
+      }]);
+    }
+    setProductSearchTerm('');
+    setIsProductDropdownOpen(false);
+  };
 
   const updateItem = (index: number, updates: Partial<GoodsReceiptItem>) => {
     const newItems = [...editedItems];
@@ -171,27 +202,23 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
         selectedDateObj.setHours(oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
         const finalCreatedAt = Timestamp.fromDate(selectedDateObj);
 
+        const inventoryDiffs: Record<string, number> = {};
+        const invoiceDiffs: Record<string, number> = {};
+        const importPriceUpdates: Record<string, number> = {};
+
         // 1. Cân bằng tồn kho (Hoàn tác cũ, áp dụng mới)
         // Reverse Old
         for (const oldItem of oldData.items) {
             const productData = productDocs[oldItem.productId];
             if (oldItem.isCombo && productData?.comboItems) {
-                productData.comboItems.forEach((cItem: any) => {
+                for (const cItem of productData.comboItems) {
                     const totalDeduct = cItem.quantity * oldItem.quantity;
-                    transaction.set(doc(db, 'products', cItem.productId, 'inventory', oldData.warehouseId), {
-                        stock: increment(-totalDeduct)
-                    }, { merge: true });
-                    if (oldData.hasInvoice) {
-                        transaction.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-totalDeduct) });
-                    }
-                });
-            } else {
-                transaction.set(doc(db, 'products', oldItem.productId, 'inventory', oldData.warehouseId), {
-                    stock: increment(-oldItem.quantity)
-                }, { merge: true });
-                if (oldData.hasInvoice) {
-                    transaction.update(doc(db, 'products', oldItem.productId), { totalInvoicedStock: increment(-oldItem.quantity) });
+                    inventoryDiffs[cItem.productId] = (inventoryDiffs[cItem.productId] || 0) - totalDeduct;
+                    if (oldData.hasInvoice) invoiceDiffs[cItem.productId] = (invoiceDiffs[cItem.productId] || 0) - totalDeduct;
                 }
+            } else {
+                inventoryDiffs[oldItem.productId] = (inventoryDiffs[oldItem.productId] || 0) - oldItem.quantity;
+                if (oldData.hasInvoice) invoiceDiffs[oldItem.productId] = (invoiceDiffs[oldItem.productId] || 0) - oldItem.quantity;
             }
         }
 
@@ -199,22 +226,41 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
         for (const newItem of editedItems) {
             const productData = productDocs[newItem.productId];
             if (newItem.isCombo && productData?.comboItems) {
-                productData.comboItems.forEach((cItem: any) => {
+                for (const cItem of productData.comboItems) {
                     const totalAdd = cItem.quantity * newItem.quantity;
-                    transaction.set(doc(db, 'products', cItem.productId, 'inventory', oldData.warehouseId), {
-                        stock: increment(totalAdd)
-                    }, { merge: true });
-                    if (hasInvoice) {
-                        transaction.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(totalAdd) });
-                    }
-                });
-            } else {
-                transaction.set(doc(db, 'products', newItem.productId, 'inventory', oldData.warehouseId), {
-                    stock: increment(newItem.quantity)
-                }, { merge: true });
-                if (hasInvoice) {
-                    transaction.update(doc(db, 'products', newItem.productId), { totalInvoicedStock: increment(newItem.quantity) });
+                    inventoryDiffs[cItem.productId] = (inventoryDiffs[cItem.productId] || 0) + totalAdd;
+                    if (hasInvoice) invoiceDiffs[cItem.productId] = (invoiceDiffs[cItem.productId] || 0) + totalAdd;
                 }
+            } else {
+                inventoryDiffs[newItem.productId] = (inventoryDiffs[newItem.productId] || 0) + newItem.quantity;
+                if (hasInvoice) invoiceDiffs[newItem.productId] = (invoiceDiffs[newItem.productId] || 0) + newItem.quantity;
+            }
+            if (productData) {
+                const originalImportPrice = productData.importPrice || 0;
+                if (newItem.importPrice > originalImportPrice) {
+                    importPriceUpdates[newItem.productId] = Math.max(importPriceUpdates[newItem.productId] || 0, newItem.importPrice);
+                }
+            }
+        }
+
+        for (const [pid, diff] of Object.entries(inventoryDiffs)) {
+            if (diff !== 0) {
+                const invRef = doc(db, 'products', pid, 'inventory', oldData.warehouseId);
+                transaction.set(invRef, { stock: increment(diff) }, { merge: true });
+            }
+        }
+
+        const allUpdatePids = new Set([...Object.keys(invoiceDiffs), ...Object.keys(importPriceUpdates)]);
+        for (const pid of allUpdatePids) {
+            const updates: any = {};
+            if (invoiceDiffs[pid] !== undefined && invoiceDiffs[pid] !== 0) {
+                updates.totalInvoicedStock = increment(invoiceDiffs[pid]);
+            }
+            if (importPriceUpdates[pid] !== undefined) {
+                updates.importPrice = importPriceUpdates[pid];
+            }
+            if (Object.keys(updates).length > 0) {
+                transaction.update(doc(db, 'products', pid), updates);
             }
         }
 
@@ -418,6 +464,37 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                             <ShoppingBag className="mr-2" size={16} /> Danh sách sản phẩm nhập
                         </h4>
                         <span className="bg-primary px-2 py-0.5 rounded-full text-[10px] font-black">{editedItems.length} SP</span>
+                    </div>
+
+                    <div className="p-3 border-b border-slate-200 bg-slate-50">
+                        <div className="relative" ref={productDropdownRef}>
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                                type="text"
+                                value={productSearchTerm}
+                                onChange={(e) => {
+                                    setProductSearchTerm(e.target.value);
+                                    setIsProductDropdownOpen(true);
+                                }}
+                                onFocus={() => setIsProductDropdownOpen(true)}
+                                placeholder="Gõ tên sản phẩm để thêm vào đơn hàng..."
+                                className="w-full pl-10 pr-3 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold text-slate-900 bg-white"
+                            />
+                            {isProductDropdownOpen && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
+                                    {filteredProducts.map(p => (
+                                        <button
+                                            key={p.id}
+                                            onClick={() => handleAddProduct(p)}
+                                            className="w-full text-left px-4 py-2 text-slate-900 hover:bg-blue-50 border-b last:border-0 font-bold text-xs flex justify-between items-center"
+                                        >
+                                            <div className="font-bold">{p.name}</div>
+                                            <div className="text-[10px] text-slate-500 whitespace-nowrap ml-2">Giá nhập: {formatNumber(p.importPrice || 0)} ₫</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[500px]">

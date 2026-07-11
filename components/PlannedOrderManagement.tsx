@@ -20,8 +20,8 @@ const STATUS_CONFIG: Record<PlannedOrderStatus, { label: string, color: string, 
     received_missing: { label: 'Nhận thiếu hàng', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertCircle }
 };
 
-const StatusBadge: React.FC<{ status?: PlannedOrderStatus }> = ({ status }) => {
-    const config = STATUS_CONFIG[status || 'pending'];
+const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
+    const config = STATUS_CONFIG[(status as PlannedOrderStatus) || 'pending'] || STATUS_CONFIG['pending'];
     const Icon = config.icon;
     return (
         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase border ${config.color}`}>

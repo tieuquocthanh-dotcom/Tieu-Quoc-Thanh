@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Sale, Customer } from '../types';
-import { Loader, PieChart, TrendingUp, Calendar, Search, ArrowUp, ArrowDown, ArrowUpDown, Users, DollarSign } from 'lucide-react';
+import { Loader, PieChart, TrendingUp, Calendar, Search, ArrowUp, ArrowDown, ArrowUpDown, Users, DollarSign, Eye, X, Package } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 
 interface CustomerStats {
     customerId: string;
     customerName: string;
+    customerPhone?: string;
     totalSalesAmount: number;
     totalAmountPaid: number;
     totalDebt: number;
@@ -42,6 +43,7 @@ const CustomerAnalytics: React.FC = () => {
     });
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+    const [selectedCustomerForItems, setSelectedCustomerForItems] = useState<CustomerStats | null>(null);
 
     // Fetch initial data
     useEffect(() => {
@@ -85,6 +87,7 @@ const CustomerAnalytics: React.FC = () => {
             statsMap.set(c.id, {
                 customerId: c.id,
                 customerName: c.name,
+                customerPhone: c.phone || '',
                 totalSalesAmount: 0,
                 totalAmountPaid: 0,
                 totalDebt: 0,
@@ -129,7 +132,8 @@ const CustomerAnalytics: React.FC = () => {
         if (searchTerm) {
             const lowerSearch = searchTerm.toLowerCase();
             result = result.filter(s => 
-                s.customerName.toLowerCase().includes(lowerSearch)
+                s.customerName.toLowerCase().includes(lowerSearch) || 
+                (s.customerPhone && s.customerPhone.toLowerCase().includes(lowerSearch))
             );
         }
 
@@ -177,6 +181,13 @@ const CustomerAnalytics: React.FC = () => {
     }, [totalPages, currentPage]);
 
     const currentData = processedData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+    const selectedCustomerSales = useMemo(() => {
+        if (!selectedCustomerForItems) return [];
+        return sales
+            .filter(s => s.customerId === selectedCustomerForItems.customerId)
+            .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+    }, [selectedCustomerForItems, sales]);
 
     return (
         <div className="space-y-4">
@@ -266,6 +277,7 @@ const CustomerAnalytics: React.FC = () => {
                                     <th className="px-4 py-3 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('customerName')}>
                                         <div className="flex items-center">Khách Hàng {getSortIcon('customerName')}</div>
                                     </th>
+                                    <th className="px-4 py-3 text-center">Số điện thoại</th>
                                     <th className="px-4 py-3 text-center">Số hóa đơn</th>
                                     <th className="px-4 py-3 text-right cursor-pointer hover:bg-slate-100" onClick={() => handleSort('totalSalesAmount')}>
                                         <div className="flex items-center justify-end">Tổng Mua {getSortIcon('totalSalesAmount')}</div>
@@ -276,22 +288,33 @@ const CustomerAnalytics: React.FC = () => {
                                     <th className="px-4 py-3 text-right cursor-pointer hover:bg-slate-100" onClick={() => handleSort('totalDebt')}>
                                         <div className="flex items-center justify-end text-red-600">Nợ Phải Thu {getSortIcon('totalDebt')}</div>
                                     </th>
+                                    <th className="px-4 py-3 text-center w-24">Chi tiết</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {currentData.length > 0 ? currentData.map((stats) => (
                                     <tr key={stats.customerId} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-4 py-3 font-semibold text-slate-800">{stats.customerName}</td>
+                                        <td className="px-4 py-3 text-center text-slate-600 font-mono text-sm">{stats.customerPhone || '-'}</td>
                                         <td className="px-4 py-3 text-center text-slate-500 font-medium">
                                             <span className="bg-slate-100 px-2 py-0.5 rounded-full text-xs font-bold">{stats.salesCount}</span>
                                         </td>
                                         <td className="px-4 py-3 text-right font-black text-slate-700">{formatNumber(stats.totalSalesAmount)} ₫</td>
                                         <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatNumber(stats.totalAmountPaid)} ₫</td>
                                         <td className="px-4 py-3 text-right font-black text-red-600">{formatNumber(stats.totalDebt)} ₫</td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button 
+                                                onClick={() => setSelectedCustomerForItems(stats)}
+                                                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-colors"
+                                                title="Xem các mặt hàng đã mua"
+                                            >
+                                                <Eye size={16} />
+                                            </button>
+                                        </td>
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-8 text-center text-slate-500 font-medium">
+                                        <td colSpan={6} className="px-4 py-8 text-center text-slate-500 font-medium">
                                             Không tìm thấy khách hàng nào phù hợp.
                                         </td>
                                     </tr>
@@ -308,6 +331,70 @@ const CustomerAnalytics: React.FC = () => {
                             onPageSizeChange={setPageSize}
                         />
                     )}
+                </div>
+            )}
+
+            {/* Modal hiển thị mặt hàng đã mua */}
+            {selectedCustomerForItems && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+                            <h3 className="font-bold text-slate-800 flex items-center">
+                                <Package className="mr-2 text-primary" size={20} />
+                                Chi Tiết Hàng Hóa Của: {selectedCustomerForItems.customerName}
+                            </h3>
+                            <button onClick={() => setSelectedCustomerForItems(null)} className="p-2 text-slate-400 hover:text-slate-600 bg-white rounded-full hover:bg-slate-200 transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1 bg-slate-50/50">
+                            {selectedCustomerSales.length === 0 ? (
+                                <div className="text-center py-8 text-slate-500 font-medium">Không tìm thấy đơn hàng nào.</div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {selectedCustomerSales.map(sale => (
+                                        <div key={sale.id} className="bg-white border text-sm rounded-xl overflow-hidden shadow-sm">
+                                            <div className="flex justify-between items-center bg-slate-100/50 p-3 border-b">
+                                                <div className="font-bold flex items-center text-slate-700">
+                                                    <Calendar size={14} className="mr-1.5 text-slate-500"/>
+                                                    {sale.createdAt.toDate().toLocaleString('vi-VN')}
+                                                </div>
+                                                <div className="font-black text-primary bg-blue-50 px-2 py-0.5 rounded text-xs">
+                                                    Đơn: {formatNumber(sale.finalAmount || sale.totalAmount || sale.total || 0)} ₫
+                                                </div>
+                                            </div>
+                                            <div className="p-3">
+                                                {(!sale.items || sale.items.length === 0) ? (
+                                                    <div className="text-slate-400 text-xs italic">Không có chi tiết sản phẩm.</div>
+                                                ) : (
+                                                    <table className="w-full text-xs text-left">
+                                                        <thead>
+                                                            <tr className="text-slate-500 border-b">
+                                                                <th className="pb-2 font-semibold">Tên sản phẩm</th>
+                                                                <th className="pb-2 font-semibold text-center">SL</th>
+                                                                <th className="pb-2 font-semibold text-right">Đơn giá</th>
+                                                                <th className="pb-2 font-semibold text-right">Thành tiền</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-50">
+                                                            {sale.items.map((item: any, idx: number) => (
+                                                                <tr key={idx}>
+                                                                    <td className="py-2 font-medium text-slate-700">{item.productName || 'Sản phẩm không tên'}</td>
+                                                                    <td className="py-2 text-center font-bold text-slate-800">{item.quantity}</td>
+                                                                    <td className="py-2 text-right text-slate-600">{formatNumber(item.price || item.sellingPrice || 0)}</td>
+                                                                    <td className="py-2 text-right font-bold text-emerald-600">{formatNumber((item.price || item.sellingPrice || 0) * item.quantity)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

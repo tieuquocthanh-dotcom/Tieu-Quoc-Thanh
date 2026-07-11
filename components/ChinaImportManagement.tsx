@@ -4,7 +4,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimest
 import { db } from '../services/firebase';
 import { Product, ChinaImport, ChinaImportItem, ChinaImportStatus } from '../types';
 import { Plus, Trash2, Save, Search, Calculator, DollarSign, Plane, History, Loader, PlusCircle, Edit, X, Eye, Printer, FileText, Coins, RotateCcw, Check, AlertTriangle, ExternalLink, Truck, PackageCheck, AlertCircle, ShoppingCart, ListFilter } from 'lucide-react';
-import { formatNumber, parseNumber } from '../utils/formatting';
+import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import Pagination from './Pagination';
 import { ProductModal } from './ProductManagement';
 import ConfirmationModal from './ConfirmationModal';
@@ -13,13 +13,18 @@ const STATUS_CONFIG: Record<ChinaImportStatus, { label: string, color: string, i
     ordered: { label: 'Lên đơn', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: FileText },
     placed: { label: 'Đặt hàng', color: 'bg-orange-100 text-orange-700 border-orange-200', icon: ShoppingCart },
     paid: { label: 'Đã chuyển tiền', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: DollarSign },
-    at_vn: { label: 'Về tới VN', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck },
-    received_full: { label: 'Đã nhận đủ', color: 'bg-green-100 text-green-700 border-green-200', icon: PackageCheck },
-    received_missing: { label: 'Nhận thiếu hàng', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertCircle }
+    importing: { label: 'Nhập hàng', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck },
+    imported: { label: 'Đã nhập hàng', color: 'bg-green-100 text-green-700 border-green-200', icon: PackageCheck }
 };
 
-const StatusBadge: React.FC<{ status?: ChinaImportStatus }> = ({ status }) => {
-    const config = STATUS_CONFIG[status || 'ordered'];
+const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
+    let config = STATUS_CONFIG[(status || 'ordered') as ChinaImportStatus];
+    if (!config) {
+        if (status === 'at_vn') config = { label: 'Về tới VN', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck };
+        else if (status === 'received_full') config = { label: 'Đã nhận đủ', color: 'bg-green-100 text-green-700 border-green-200', icon: PackageCheck };
+        else if (status === 'received_missing') config = { label: 'Nhận thiếu hàng', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertCircle };
+        else config = STATUS_CONFIG['ordered'];
+    }
     const Icon = config.icon;
     return (
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${config.color}`}>
@@ -94,7 +99,7 @@ const ChinaImportDetailModal: React.FC<{
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                             <p className="text-xs text-slate-800 uppercase font-bold mb-2">Thông tin chung</p>
-                            <p className="text-sm mb-1 text-slate-700"><span className="font-bold text-black">Ngày nhập:</span> {importData.importDate?.toDate().toLocaleDateString('vi-VN')}</p>
+                            <p className="text-sm mb-1 text-slate-700"><span className="font-bold text-black">Ngày nhập:</span> {(importData.importDate || importData.createdAt)?.toDate() ? getLocalYYYYMMDD((importData.importDate || importData.createdAt)?.toDate()) : 'N/A'}</p>
                             <p className="text-sm mb-1 text-slate-700"><span className="font-bold text-black">Tỷ giá:</span> <span className="font-bold text-blue-700">{formatNumber(importData.exchangeRate)} ₫</span></p>
                             <p className="text-sm italic text-slate-800 mt-2 font-medium">Note: {importData.note || 'Không có'}</p>
                         </div>
@@ -158,10 +163,11 @@ const ChinaImportDetailModal: React.FC<{
 const EditImportModal: React.FC<{
     importData: ChinaImport;
     products: Product[];
+    allImports: ChinaImport[];
     onClose: () => void;
     onSave: (id: string, data: Partial<ChinaImport>) => void;
     onDelete: (id: string) => void;
-}> = ({ importData, products, onClose, onSave, onDelete }) => {
+}> = ({ importData, products, allImports, onClose, onSave, onDelete }) => {
     const [orderName, setOrderName] = useState(importData.orderName || '');
     const [status, setStatus] = useState<ChinaImportStatus>(importData.status || 'ordered');
     const [exchangeRate, setExchangeRate] = useState(importData.exchangeRate.toString());
@@ -202,6 +208,34 @@ const EditImportModal: React.FC<{
         setSelectedProductId(product.id);
         setSearchTerm(product.name);
         setIsDropdownOpen(false);
+
+        let latestPriceCNY = 0;
+        let latestImportDate = 0;
+        
+        allImports.forEach((imp: any) => {
+            let importDateMs = 0;
+            const t = imp.importDate || imp.createdAt;
+            if (t) {
+                if (typeof t.toDate === 'function') importDateMs = t.toDate().getTime();
+                else if (t.seconds) importDateMs = t.seconds * 1000;
+                else if (t instanceof Date) importDateMs = t.getTime();
+            }
+
+            if (Array.isArray(imp.items)) {
+                imp.items.forEach((item: any) => {
+                    if (item.productId === product.id && item.priceCNY > 0 && importDateMs >= latestImportDate) {
+                        latestImportDate = importDateMs;
+                        latestPriceCNY = item.priceCNY;
+                    }
+                });
+            }
+        });
+
+        if (latestPriceCNY > 0) {
+            setPriceCNY(latestPriceCNY.toString().replace('.', ','));
+        } else {
+            setPriceCNY('0');
+        }
     };
 
     const handleAddItem = () => {
@@ -512,13 +546,16 @@ const ChinaImportManagement: React.FC = () => {
         const start = new Date(productHistoryStartDate); start.setHours(0,0,0,0);
         const end = new Date(productHistoryEndDate); end.setHours(23,59,59,999);
         const searchTermLower = productHistorySearch.toLowerCase().trim();
-        return imports.filter(imp => imp.importDate && imp.importDate.toDate() >= start && imp.importDate.toDate() <= end).flatMap(imp => {
+        return imports.filter(imp => {
+            const dateObj = (imp.importDate || imp.createdAt)?.toDate();
+            return dateObj && dateObj >= start && dateObj <= end;
+        }).flatMap(imp => {
             const items = Array.isArray(imp.items) ? imp.items : [];
             const totalQty = items.reduce((a, b) => a + b.quantity, 0);
             const extraFees = (imp.shippingFeeCN * imp.exchangeRate) + imp.shippingFeeVN + imp.shippingFeeExtra + (imp.currencyExchangeFee || 0);
             const feePerItem = totalQty > 0 ? extraFees / totalQty : 0;
             return items.filter(item => !searchTermLower || (item.productName && item.productName.toLowerCase().includes(searchTermLower))).map(item => ({
-                id: imp.id, date: imp.importDate?.toDate() || new Date(), orderName: imp.orderName, productName: item.productName, quantity: item.quantity, priceCNY: item.priceCNY, exchangeRate: imp.exchangeRate, feePerItem, actualPriceVND: (item.priceCNY * imp.exchangeRate) + feePerItem, originalImport: imp
+                id: imp.id, date: (imp.importDate || imp.createdAt)?.toDate() || new Date(), orderName: imp.orderName, productName: item.productName, quantity: item.quantity, priceCNY: item.priceCNY, exchangeRate: imp.exchangeRate, feePerItem, actualPriceVND: (item.priceCNY * imp.exchangeRate) + feePerItem, originalImport: imp
             }));
         }).sort((a,b) => b.date.getTime() - a.date.getTime());
     }, [imports, activeTab, productHistoryStartDate, productHistoryEndDate, productHistorySearch]);
@@ -547,6 +584,34 @@ const ChinaImportManagement: React.FC = () => {
         setSelectedProductId(product.id);
         setSearchTerm(product.name);
         setIsDropdownOpen(false);
+
+        let latestPriceCNY = 0;
+        let latestImportDate = 0;
+        
+        imports.forEach((imp: any) => {
+            let importDateMs = 0;
+            const t = imp.importDate || imp.createdAt;
+            if (t) {
+                if (typeof t.toDate === 'function') importDateMs = t.toDate().getTime();
+                else if (t.seconds) importDateMs = t.seconds * 1000;
+                else if (t instanceof Date) importDateMs = t.getTime();
+            }
+
+            if (Array.isArray(imp.items)) {
+                imp.items.forEach((item: any) => {
+                    if (item.productId === product.id && item.priceCNY > 0 && importDateMs >= latestImportDate) {
+                        latestImportDate = importDateMs;
+                        latestPriceCNY = item.priceCNY;
+                    }
+                });
+            }
+        });
+
+        if (latestPriceCNY > 0) {
+            setPriceCNY(latestPriceCNY.toString().replace('.', ','));
+        } else {
+            setPriceCNY('0');
+        }
     };
 
     const handleEditItemInList = (index: number) => {
@@ -612,7 +677,7 @@ const ChinaImportManagement: React.FC = () => {
     return (
         <div className="h-full flex flex-col">
             {isProductModalOpen && <ProductModal product={null} manufacturers={manufacturers} allProductsForCombo={products} onClose={() => setIsProductModalOpen(false)} onSave={async (d) => { const r = await addDoc(collection(db, 'products'), { ...d, createdAt: serverTimestamp() }); setSelectedProductId(r.id); setSearchTerm(d.name); setIsProductModalOpen(false); }} existingNames={products.map(p => p.name)}/>}
-            {editingImport && <EditImportModal importData={editingImport} products={products} onClose={() => setEditingImport(null)} onSave={async (id, d) => { await updateDoc(doc(db, 'chinaImports', id), d); setEditingImport(null); }} onDelete={async (id) => { await deleteDoc(doc(db, 'chinaImports', id)); setEditingImport(null); }}/>}
+            {editingImport && <EditImportModal importData={editingImport} products={products} allImports={imports} onClose={() => setEditingImport(null)} onSave={async (id, d) => { await updateDoc(doc(db, 'chinaImports', id), d); setEditingImport(null); }} onDelete={async (id) => { await deleteDoc(doc(db, 'chinaImports', id)); setEditingImport(null); }}/>}
             {viewingImport && <ChinaImportDetailModal importData={viewingImport} onClose={() => setViewingImport(null)}/>}
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 flex-shrink-0">
@@ -760,7 +825,7 @@ const ChinaImportManagement: React.FC = () => {
                                     const items = Array.isArray(item.items) ? item.items : [];
                                     return (
                                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{item.importDate?.toDate().toLocaleDateString('vi-VN')}</td>
+                                        <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{(item.importDate || item.createdAt)?.toDate() ? getLocalYYYYMMDD((item.importDate || item.createdAt)?.toDate()) : '...'}</td>
                                         <td className="p-4"><div className="font-black text-black uppercase mb-0.5 tracking-tight">{item.orderName || 'Đơn không tên'}</div><div className="text-[10px] text-slate-500 italic font-medium">Gồm {items.length} SP...</div></td>
                                         <td className="p-4 text-center text-blue-600 font-black">{items.reduce((a, b) => a + b.quantity, 0)}</td>
                                         <td className="p-4 text-right font-black text-red-600 text-base">{formatNumber(item.totalCostCNY)} ¥</td>
@@ -786,7 +851,7 @@ const ChinaImportManagement: React.FC = () => {
                         <tbody className="divide-y divide-slate-100">
                             {flattenedProductHistory.map((item, idx) => (
                                 <tr key={`${item.id}-${idx}`} className="hover:bg-blue-50 transition-colors group">
-                                    <td className="p-3 text-slate-600 font-bold">{item.date.toLocaleDateString('vi-VN')}</td>
+                                    <td className="p-3 text-slate-600 font-bold">{getLocalYYYYMMDD(item.date)}</td>
                                     <td className="p-3"><span className="px-2 py-0.5 bg-slate-100 text-black rounded text-[10px] font-black border border-slate-200 uppercase tracking-tighter">{item.orderName || '...'}</span></td>
                                     <td className="p-3 font-bold text-dark">{item.productName}</td>
                                     <td className="p-3 text-center text-blue-600 font-black">{item.quantity}</td>

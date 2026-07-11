@@ -4,7 +4,7 @@ import { Sale, Customer, PaymentMethod, Shipper, SaleItem, Product } from '../ty
 import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar } from 'lucide-react';
 import { doc, serverTimestamp, runTransaction, collection, Timestamp, increment, getDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
-import { formatNumber, parseNumber } from '../utils/formatting';
+import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 
 interface SaleEditModalProps {
   isOpen: boolean;
@@ -16,7 +16,7 @@ interface SaleEditModalProps {
   products: Product[];
 }
 
-const getTodayString = () => new Date().toISOString().split('T')[0];
+const getTodayString = () => getLocalYYYYMMDD();
 
 const NumericInput: React.FC<{
     value: number;
@@ -70,6 +70,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
   const [saleDate, setSaleDate] = useState(getTodayString()); 
   const [issueInvoice, setIssueInvoice] = useState(false);
   const [editedItems, setEditedItems] = useState<SaleItem[]>([]);
+  const [additionalPayment, setAdditionalPayment] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [wholesalePrices, setWholesalePrices] = useState<Record<string, number>>({});
 
@@ -94,9 +95,10 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
       setShippingMode(sale.shippingStatus || 'none');
       setShippingFee(sale.shippingFee || 0);
       setIssueInvoice(sale.issueInvoice || false);
+      setAdditionalPayment(0);
       setEditedItems(sale.items ? JSON.parse(JSON.stringify(sale.items)) : []);
       if (sale.createdAt) {
-          setSaleDate(sale.createdAt.toDate().toISOString().split('T')[0]);
+          setSaleDate(getLocalYYYYMMDD(sale.createdAt.toDate()));
       } else {
           setSaleDate(getTodayString());
       }
@@ -208,6 +210,15 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
       alert("Đơn hàng không thể để trống sản phẩm.");
       return;
     }
+    if (additionalPayment > 0 && !paymentMethodId) {
+      alert("Vui lòng chọn tài khoản thu tiền cho phần thanh toán thêm.");
+      return;
+    }
+    const maxAllowed = Math.max(0, newTotal - (sale?.amountPaid || 0));
+    if (additionalPayment > 0 && additionalPayment > maxAllowed) {
+        alert("Số tiền thanh toán thêm không được vượt quá số tiền còn nợ.");
+        return;
+    }
     setIsProcessing(true);
     try {
       await runTransaction(db, async (transaction) => {
@@ -229,18 +240,9 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             }
         }
 
-        let oldAccSnap = null;
-        if (oldData.paymentMethodId && oldData.status === 'paid') {
-            oldAccSnap = await transaction.get(doc(db, 'paymentMethods', oldData.paymentMethodId));
-        }
-
         let newAccSnap = null;
-        if (paymentMethodId && paymentStatus === 'paid') {
-            if (paymentMethodId === oldData.paymentMethodId && oldAccSnap) {
-                newAccSnap = oldAccSnap;
-            } else {
-                newAccSnap = await transaction.get(doc(db, 'paymentMethods', paymentMethodId));
-            }
+        if (additionalPayment > 0 && paymentMethodId) {
+            newAccSnap = await transaction.get(doc(db, 'paymentMethods', paymentMethodId));
         }
 
         const selectedDateObj = new Date(saleDate);
@@ -250,23 +252,20 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
 
         const shortId = sale.id.substring(0, 8).toUpperCase();
 
+        const inventoryDiffs: Record<string, number> = {};
+        const invoiceDiffs: Record<string, number> = {};
+
         for (const oldItem of oldData.items) {
             const productData = productDocs[oldItem.productId];
             if (oldItem.isCombo && productData?.comboItems) {
                 for (const cItem of productData.comboItems) {
                     const totalReturn = cItem.quantity * oldItem.quantity;
-                    const invRef = doc(db, 'products', cItem.productId, 'inventory', oldData.warehouseId);
-                    transaction.set(invRef, { stock: increment(totalReturn) }, { merge: true });
-                    if (oldData.issueInvoice) {
-                        transaction.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(totalReturn) });
-                    }
+                    if (oldData.warehouseId) inventoryDiffs[cItem.productId] = (inventoryDiffs[cItem.productId] || 0) + totalReturn;
+                    if (oldData.issueInvoice) invoiceDiffs[cItem.productId] = (invoiceDiffs[cItem.productId] || 0) + totalReturn;
                 }
             } else {
-                const invRef = doc(db, 'products', oldItem.productId, 'inventory', oldData.warehouseId);
-                transaction.set(invRef, { stock: increment(oldItem.quantity) }, { merge: true });
-                if (oldData.issueInvoice) {
-                    transaction.update(doc(db, 'products', oldItem.productId), { totalInvoicedStock: increment(oldItem.quantity) });
-                }
+                if (oldData.warehouseId) inventoryDiffs[oldItem.productId] = (inventoryDiffs[oldItem.productId] || 0) + oldItem.quantity;
+                if (oldData.issueInvoice) invoiceDiffs[oldItem.productId] = (invoiceDiffs[oldItem.productId] || 0) + oldItem.quantity;
             }
         }
 
@@ -275,51 +274,39 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             if (newItem.isCombo && productData?.comboItems) {
                 for (const cItem of productData.comboItems) {
                     const totalDeduct = cItem.quantity * newItem.quantity;
-                    const invRef = doc(db, 'products', cItem.productId, 'inventory', oldData.warehouseId);
-                    transaction.set(invRef, { stock: increment(-totalDeduct) }, { merge: true });
-                    if (issueInvoice) {
-                        transaction.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-totalDeduct) });
-                    }
+                    if (oldData.warehouseId) inventoryDiffs[cItem.productId] = (inventoryDiffs[cItem.productId] || 0) - totalDeduct;
+                    if (issueInvoice) invoiceDiffs[cItem.productId] = (invoiceDiffs[cItem.productId] || 0) - totalDeduct;
                 }
             } else {
-                const invRef = doc(db, 'products', newItem.productId, 'inventory', oldData.warehouseId);
-                transaction.set(invRef, { stock: increment(-newItem.quantity) }, { merge: true });
-                if (issueInvoice) {
-                    transaction.update(doc(db, 'products', newItem.productId), { totalInvoicedStock: increment(-newItem.quantity) });
-                }
+                if (oldData.warehouseId) inventoryDiffs[newItem.productId] = (inventoryDiffs[newItem.productId] || 0) - newItem.quantity;
+                if (issueInvoice) invoiceDiffs[newItem.productId] = (invoiceDiffs[newItem.productId] || 0) - newItem.quantity;
             }
         }
 
-        if (oldAccSnap && oldData.status === 'paid') {
-            const currentBal = oldAccSnap.data()?.balance || 0;
-            const resBal = currentBal - oldData.total;
-            transaction.update(oldAccSnap.ref, { balance: resBal });
-            transaction.set(doc(collection(db, 'paymentLogs')), {
-                paymentMethodId: oldData.paymentMethodId,
-                paymentMethodName: oldData.paymentMethodName || 'N/A',
-                type: 'withdraw',
-                amount: oldData.total,
-                balanceAfter: resBal,
-                note: `Hoàn tiền điều chỉnh đơn hàng #${shortId}`,
-                relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
-            });
+        for (const [pid, diff] of Object.entries(inventoryDiffs)) {
+            if (diff !== 0 && oldData.warehouseId) {
+                const invRef = doc(db, 'products', pid, 'inventory', oldData.warehouseId);
+                transaction.set(invRef, { stock: increment(diff) }, { merge: true });
+            }
         }
 
-        if (newAccSnap && paymentStatus === 'paid') {
-            const snapBal = newAccSnap.data()?.balance || 0;
-            let baseBal = snapBal;
-            if (newAccSnap.id === oldData.paymentMethodId && oldData.status === 'paid') {
-                baseBal -= oldData.total;
+        for (const [pid, diff] of Object.entries(invoiceDiffs)) {
+            if (diff !== 0) {
+                transaction.update(doc(db, 'products', pid), { totalInvoicedStock: increment(diff) });
             }
-            const finalBal = baseBal + newTotal;
+        }
+
+        if (newAccSnap && additionalPayment > 0) {
+            const snapBal = Number(newAccSnap.data()?.balance) || 0;
+            const finalBal = snapBal + additionalPayment;
             transaction.update(newAccSnap.ref, { balance: finalBal });
             transaction.set(doc(collection(db, 'paymentLogs')), {
                 paymentMethodId: paymentMethodId,
                 paymentMethodName: paymentMethods.find(p => p.id === paymentMethodId)?.name || 'N/A',
                 type: 'deposit',
-                amount: newTotal,
+                amount: additionalPayment,
                 balanceAfter: finalBal,
-                note: `Thu tiền đơn hàng #${shortId} sau điều chỉnh`,
+                note: `Thu tiền thêm cho đơn hàng #${shortId}`,
                 relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
             });
         }
@@ -327,6 +314,18 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
         const selectedCustomer = customers.find(c => c.id === customerId);
         const selectedShipper = shippers.find(s => s.id === shipperId);
         const selectedMethod = paymentMethods.find(p => p.id === paymentMethodId);
+
+        const finalAmountPaid = (oldData.amountPaid || 0) + additionalPayment;
+        const newStatus = finalAmountPaid >= newTotal ? 'paid' : 'debt';
+        
+        let newPaymentHistory = oldData.paymentHistory || [];
+        if (additionalPayment > 0) {
+             newPaymentHistory = [...newPaymentHistory, {
+                 date: Timestamp.now(),
+                 amount: additionalPayment,
+                 note: `Thu tiền thêm qua ${selectedMethod?.name || 'N/A'} khi sửa đơn`
+             }];
+        }
 
         transaction.update(saleRef, {
           items: editedItems,
@@ -336,14 +335,15 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
           issueInvoice: issueInvoice,
           customerId: customerId || null,
           customerName: selectedCustomer ? selectedCustomer.name : (custSearch || 'Khách vãng lai'),
-          paymentMethodId: paymentMethodId || null,
-          paymentMethodName: selectedMethod ? selectedMethod.name : null,
+          paymentMethodId: oldData.paymentMethodId || (additionalPayment > 0 ? paymentMethodId : null),
+          paymentMethodName: oldData.paymentMethodName || (additionalPayment > 0 ? (selectedMethod?.name || null) : null),
           shipperId: shipperId || null,
           shipperName: selectedShipper ? selectedShipper.name : null,
-          status: paymentStatus,
+          status: newStatus,
           shippingStatus: shippingMode,
           createdAt: finalCreatedAt, 
-          amountPaid: paymentStatus === 'paid' ? newTotal : 0,
+          amountPaid: finalAmountPaid,
+          paymentHistory: newPaymentHistory,
           updatedAt: serverTimestamp()
         });
       });
@@ -416,21 +416,37 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                         <input type="checkbox" id="edit-issue-invoice" checked={issueInvoice} onChange={e => setIssueInvoice(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-0 mr-3 cursor-pointer" />
                         <label htmlFor="edit-issue-invoice" className="text-xs font-black uppercase text-blue-800 cursor-pointer">Xuất hóa đơn đỏ</label>
                     </div>
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Thanh toán</label>
-                        <select value={paymentStatus} onChange={e => setPaymentStatus(e.target.value as any)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-black text-xs uppercase outline-none text-slate-900 bg-white shadow-sm">
-                            <option value="paid">Đã thanh toán</option>
-                            <option value="debt">Ghi nợ</option>
-                        </select>
-                    </div>
-                    {paymentStatus === 'paid' && (
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Tài khoản thu tiền</label>
-                            <select value={paymentMethodId} onChange={e => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm">
-                                <option value="">-- CHỌN TÀI KHOẢN --</option>
-                                {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                        <div className="flex justify-between items-center text-xs font-black">
+                             <span className="text-slate-500">Đã thanh toán:</span>
+                             <span className="text-emerald-600">{formatNumber(sale?.amountPaid || 0)} ₫</span>
                         </div>
+                        <div className="flex justify-between items-center text-xs font-black">
+                             <span className="text-slate-500">Còn nợ:</span>
+                             <span className="text-red-500">{formatNumber(Math.max(0, newTotal - (sale?.amountPaid || 0)))} ₫</span>
+                        </div>
+                    </div>
+
+                    {(newTotal - (sale?.amountPaid || 0)) > 0 && (
+                        <>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Thanh toán thêm</label>
+                                <div className="flex space-x-2">
+                                    <div className="flex-1">
+                                        <NumericInput value={additionalPayment} onChange={setAdditionalPayment} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg text-right font-black text-sm outline-none text-slate-900 bg-white shadow-sm" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <select value={paymentMethodId} onChange={e => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm h-[40px]">
+                                            <option value="">-- CHỌN TÀI KHOẢN --</option>
+                                            {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            {additionalPayment > 0 && !paymentMethodId && (
+                                <p className="text-red-500 text-xs mt-1 font-bold">Vui lòng chọn tài khoản thu tiền cho phần thanh toán thêm.</p>
+                            )}
+                        </>
                     )}
                     <div>
                         <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Đơn vị vận chuyển</label>

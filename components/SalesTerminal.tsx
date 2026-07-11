@@ -242,7 +242,10 @@ interface CartItem extends SaleItem {
   comboItems?: any[];
 }
 
-const getTodayString = () => new Date().toISOString().split('T')[0];
+const getTodayString = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () => void }> = ({ message, type, onClose }) => {
     useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, [onClose]);
@@ -384,7 +387,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
   useEffect(() => {
     if (warehouses.length > 0 && !selectedWarehouseId) {
-      const ngoaiCH = warehouses.find(w => w.name === 'Ngoài CH');
+      const ngoaiCH = warehouses.find(w => w.name.toLowerCase().includes('ngoài ch') || w.name.toLowerCase().includes('ngoài cửa hàng'));
       if (ngoaiCH) {
         setSelectedWarehouseId(ngoaiCH.id);
       }
@@ -466,6 +469,14 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
             setSelectedShipperId('');
         }
 
+        // Tự động load PTTT lần trước
+        const lastPaidSale = snapshot.docs.find(doc => doc.data().paymentMethodId);
+        if (lastPaidSale) {
+            setSelectedPaymentMethodId(lastPaidSale.data().paymentMethodId);
+        } else {
+            setSelectedPaymentMethodId('');
+        }
+
         // Cập nhật giá bán sỉ gần nhất
         if (customer?.type === 'wholesale') {
             const prices: Record<string, number> = {};
@@ -525,9 +536,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const handleCheckout = async () => {
       const actualAmountPaidInput = isDebt ? 0 : (amountPaidInput === '' ? (cart.reduce((a, b) => a + b.price * b.quantity, 0) + shippingFee) : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
       console.log("handleCheckout called", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId, actualAmountPaidInput });
-      if (cart.length === 0 || !selectedWarehouseId || (actualAmountPaidInput > 0 && !selectedPaymentMethodId)) { 
-          console.warn("Checkout validation failed", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId });
-          setToast({ message: "Thiếu thông tin kho xuất hoặc thanh toán.", type: 'error' }); 
+      if (cart.length === 0 || !selectedWarehouseId || !selectedShipperId || (actualAmountPaidInput > 0 && !selectedPaymentMethodId) || (!selectedCustomerId && !customerSearchTerm.trim())) { 
+          setToast({ message: "Vui lòng chọn đầy đủ Khách hàng, Kho xuất, Đơn vị vận chuyển và Phương thức thanh toán.", type: 'error' }); 
           return; 
       }
       setIsProcessing(true);
@@ -553,7 +563,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
               if (actualAmountPaid > 0 && selectedPaymentMethodId) {
                   accountRef = doc(db, 'paymentMethods', selectedPaymentMethodId);
                   const accSnap = await transaction.get(accountRef);
-                  if (accSnap.exists()) currentBal = (accSnap.data() as any).balance || 0;
+                  if (accSnap.exists()) currentBal = Number((accSnap.data() as any).balance) || 0;
               }
 
               const saleRef = doc(collection(db, 'sales'));
@@ -707,7 +717,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                   accRef = doc(db, 'paymentMethods', data.paymentMethodId);
                   const accSnap = await transaction.get(accRef);
                   if (accSnap.exists()) {
-                      currentBal = (accSnap.data() as any).balance || 0;
+                      currentBal = Number((accSnap.data() as any).balance) || 0;
                   }
               }
 

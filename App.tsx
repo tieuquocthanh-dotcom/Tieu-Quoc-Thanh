@@ -9,9 +9,9 @@ import SalesTerminal from './components/SalesTerminal';
 import Dashboard from './components/Dashboard';
 import ManufacturerManagement from './components/ManufacturerManagement';
 import SupplierManagement from './components/SupplierManagement';
-// import WarehouseManagement from './components/WarehouseManagement';
-// import CustomerManagement from './components/CustomerManagement';
-// import ShippingManagement from './components/ShippingManagement';
+import WarehouseManagement from './components/WarehouseManagement';
+import CustomerManagement from './components/CustomerManagement';
+import ShippingManagement from './components/ShippingManagement';
 import PaymentMethodManagement from './components/PaymentMethodManagement';
 import AccountManagement from './components/AccountManagement';
 import GoodsReceipt from './components/GoodsReceipt';
@@ -30,13 +30,14 @@ import SupplierAnalytics from './components/SupplierAnalytics';
 import CustomerAnalytics from './components/CustomerAnalytics';
 import InventoryLedger from './components/InventoryLedger';
 import PriceComparison from './components/PriceComparison';
-// import SupplierPaymentHistory from './components/SupplierPaymentHistory';
+import SupplierPaymentHistory from './components/SupplierPaymentHistory';
 import PlannedOrderManagement from './components/PlannedOrderManagement';
 import NoteManagement from './components/NoteManagement';
-// import SavingsManagement from './components/SavingsManagement';
-import { Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank } from 'lucide-react';
+import SavingsManagement from './components/SavingsManagement';
+import RestockPredictions from './components/RestockPredictions';
+import { Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch } from 'lucide-react';
 
-type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings';
+type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>(() => {
@@ -199,14 +200,14 @@ const App: React.FC = () => {
       case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} />;
       case 'manufacturers': return <ManufacturerManagement />;
       case 'suppliers': return <SupplierManagement />;
-      // case 'customers': return <CustomerManagement />;
-      // case 'warehouses': return <WarehouseManagement />;
+      case 'customers': return <CustomerManagement />;
+      case 'warehouses': return <WarehouseManagement />;
       case 'inventoryMatrix': return <InventoryMatrix user={user} />;
       case 'shipmentManagement': return <ShipmentManagement userRole={userRole} />;
       case 'inventoryAlerts': return <InventoryAlerts />;
       case 'outsideStockAlerts': return <OutsideStockAlerts />;
       case 'debtManagement': return <DebtManagement />;
-      // case 'shippers': return <ShippingManagement />;
+      case 'shippers': return <ShippingManagement />;
       case 'paymentMethods': return <PaymentMethodManagement />;
       case 'accounts': return <AccountManagement />;
       case 'users': return <UserManagement />;
@@ -217,10 +218,11 @@ const App: React.FC = () => {
       case 'customerAnalytics': return <CustomerAnalytics />;
       case 'inventoryLedger': return <InventoryLedger userRole={userRole} />;
       case 'priceComparison': return <PriceComparison />;
-      // case 'supplierPaymentHistory': return <SupplierPaymentHistory />;
+      case 'supplierPaymentHistory': return <SupplierPaymentHistory />;
       case 'plannedOrders': return <PlannedOrderManagement user={user} />;
       case 'notes': return <NoteManagement user={user} />;
-      // case 'savings': return <SavingsManagement user={user} />;
+      case 'savings': return <SavingsManagement user={user} />;
+      case 'restockPredictions': return <RestockPredictions />;
       default: return <SalesTerminal userRole={userRole} user={user} />;
     }
   };
@@ -277,7 +279,7 @@ const App: React.FC = () => {
 
   if (authLoading) {
       return (
-          <div className="h-screen flex items-center justify-center bg-slate-100">
+          <div className="h-[100dvh] flex items-center justify-center bg-slate-100">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
       )
@@ -286,7 +288,7 @@ const App: React.FC = () => {
   const isAdmin = userRole === 'admin';
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100 font-sans">
+    <div className="flex flex-col h-[100dvh] bg-slate-100 font-sans">
       <header className="w-full bg-white shadow-md p-3 z-20 border-b border-slate-200 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="text-xl font-bold text-primary cursor-pointer flex items-center" onClick={() => setView('home')}>
@@ -327,6 +329,7 @@ const App: React.FC = () => {
 
                                 <div className="my-1 h-px bg-slate-100"></div>
                                 <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">Mua Hàng</div>
+                                <SettingsItem targetView="restockPredictions" icon={<PackageSearch size={16}/>} label="Gợi Ý Nhập Hàng" />
                                 <SettingsItem targetView="plannedOrders" icon={<ClipboardList size={16}/>} label="Dự kiến đặt hàng" />
                                 <SettingsItem targetView="chinaImport" icon={<Plane size={16}/>} label="Nhập Hàng TQ" />
                                 
