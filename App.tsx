@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, onSnapshot as onDocSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot as onDocSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from './services/firebase';
 import FirebaseSetupGuide from './components/FirebaseSetupGuide';
 import ProductManagement from './components/ProductManagement';
@@ -108,9 +108,20 @@ const App: React.FC = () => {
       if (user) {
           const unsubRole = onDocSnapshot(doc(db, "users", user.uid), (docSnap) => {
               if (docSnap.exists()) {
-                  const role = docSnap.data().role as 'admin' | 'staff';
+                  const data = docSnap.data();
+                  const role = data.role as 'admin' | 'staff';
                   setUserRole(role);
                   
+                  // Update provider if missing or update to the actual login method
+                  if (!data.provider || data.provider === 'system') {
+                      const isGoogle = user.providerData.some(p => p.providerId === 'google.com');
+                      if (isGoogle && data.provider !== 'google') {
+                          setDoc(doc(db, "users", user.uid), { provider: 'google' }, { merge: true }).catch(console.error);
+                      } else if (!isGoogle && data.provider !== 'system') {
+                          setDoc(doc(db, "users", user.uid), { provider: 'system' }, { merge: true }).catch(console.error);
+                      }
+                  }
+
                   // Nếu là nhân viên mà đang ở trang cấm, đẩy về trang bán hàng
                   const adminOnlyViews: View[] = [
                       'dashboard', 'products', 'manufacturers', 'suppliers', 'customers', 
@@ -125,12 +136,22 @@ const App: React.FC = () => {
                       setView('sales');
                   }
               } else {
-                  // Mặc định là staff nếu không tìm thấy dữ liệu user trong Firestore
-                  // Ngoại trừ tài khoản admin chính
+                  // Không tự động tạo user mới nữa (theo yêu cầu của bạn)
+                  // Chỉ có tài khoản admin gốc (tieuquocthanh@gmail.com) mới được tự động tạo nếu chưa có
                   if (user.email === 'tieuquocthanh@gmail.com') {
                       setUserRole('admin');
+                      setDoc(doc(db, "users", user.uid), {
+                          email: user.email,
+                          displayName: user.displayName || user.email?.split('@')[0] || '',
+                          role: 'admin',
+                          createdAt: new Date().toISOString(),
+                          provider: 'google'
+                      }).catch(console.error);
                   } else {
-                      setUserRole('staff');
+                      // Nếu user không có trong danh sách được admin tạo, không cho phép truy cập
+                      signOut(auth).then(() => {
+                          alert("Tài khoản của bạn chưa được cấp quyền truy cập. Vui lòng liên hệ Admin để được tạo tài khoản.");
+                      });
                   }
               }
               setAuthLoading(false);
