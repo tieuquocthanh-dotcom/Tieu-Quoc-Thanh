@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Loader, Package, FileText, Calendar, Search } from 'lucide-react';
+import { Loader, Package, FileText, Calendar, Search, User } from 'lucide-react';
 import Pagination from './Pagination';
 import * as XLSX from 'xlsx';
 
@@ -22,7 +22,7 @@ interface TransferRecord {
   creatorName: string;
 }
 
-const TransferHistory: React.FC = () => {
+const TransferHistory: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ userRole }) => {
   const [transfers, setTransfers] = useState<TransferRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -129,7 +129,7 @@ const TransferHistory: React.FC = () => {
                 <th className="px-4 py-3 text-center">Số lượng</th>
                 <th className="px-4 py-3">Từ kho</th>
                 <th className="px-4 py-3">Đến kho</th>
-                <th className="px-4 py-3">Người chuyển</th>
+                {userRole === 'admin' && <th className="px-4 py-3">Người chuyển</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -157,9 +157,13 @@ const TransferHistory: React.FC = () => {
                         <div className="text-xs text-slate-500 font-medium">SL: {t.stockBeforeTo} &rarr; {t.stockAfterTo}</div>
                       )}
                   </td>
-                  <td className="px-4 py-3 text-slate-500 font-medium">
-                      {t.creatorName}
+                  {userRole === 'admin' && (
+                  <td className="px-4 py-3">
+                      <span className="inline-flex items-center text-[10px] font-black bg-emerald-50 text-emerald-800 px-2 py-1 rounded-full border border-emerald-200 uppercase">
+                          <User size={12} className="mr-1"/> {t.creatorName}
+                      </span>
                   </td>
+                  )}
                 </tr>
               ))}
             </tbody>

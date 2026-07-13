@@ -568,6 +568,12 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                         <div className="flex items-center text-[8px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded border border-blue-700 uppercase">
                                             _ {sale.paymentMethodName || 'Tiền mặt'}
                                         </div>
+                                        
+                                        {isAdmin && (
+                                            <div className="flex items-center text-[8px] font-black bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 uppercase">
+                                                <User size={10} className="mr-1"/> NV: {sale.creatorName || (sale as any).createdBy || 'Hệ thống'}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* CÔNG NỢ PHỤ */}

@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, orderBy, limit, doc, serverTimestamp, ge
 import { db, auth } from '../services/firebase';
 import { GoodsReceipt, Supplier, PaymentMethod, Warehouse, Product } from '../types';
 // Fixed: Added Users to the list of icons imported from lucide-react
-import { Loader, XCircle, Search, ListFilter, Check, Minus, RefreshCw, Undo, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, FileText as FileTextIcon, Edit, Calendar as CalendarIcon, Package, X, Eye, Tag, Users, CreditCard, History } from 'lucide-react';
+import { Loader, XCircle, Search, ListFilter, Check, Minus, RefreshCw, Undo, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, FileText as FileTextIcon, Edit, Calendar as CalendarIcon, Package, X, Eye, Tag, Users, CreditCard, History, User } from 'lucide-react';
 import Pagination from './Pagination';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
@@ -446,6 +446,7 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                     {isAdmin && <th className="p-4 text-xs font-black uppercase tracking-widest text-right cursor-pointer hover:bg-slate-700 transition" onClick={() => requestSort('total')}>Tổng Tiền {getSortIcon('total')}</th>}
                     <th className="p-4 text-xs font-black uppercase tracking-widest text-center">Thanh Toán</th>
                     <th className="p-4 text-xs font-black uppercase tracking-widest text-center">Hóa Đơn</th>
+                    {isAdmin && <th className="p-4 text-xs font-black uppercase tracking-widest text-center">Người Tạo</th>}
                     <th className="p-4 text-xs font-black uppercase tracking-widest">Thao tác</th>
                   </tr>
                 </thead>
@@ -487,6 +488,11 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                             {receipt.hasInvoice ? 'Có HĐ' : 'Chưa HĐ'}
                         </span>
                       </td>
+                      {isAdmin && <td className="p-4 text-center">
+                          <span className="inline-flex items-center text-[10px] font-black bg-emerald-50 text-emerald-800 px-2 py-1 rounded-full border border-emerald-200 uppercase">
+                              <User size={12} className="mr-1"/> {receipt.creatorName || 'Hệ thống'}
+                          </span>
+                      </td>}
                       <td className="p-4">
                         <div className="flex items-center space-x-1">
                             {isAdmin && (receipt.paymentStatus === 'debt' ? (

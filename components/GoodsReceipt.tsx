@@ -53,7 +53,7 @@ const GoodsReceiptPage: React.FC<{ userRole: 'admin' | 'staff' | null, user: Use
                 {activeTab === 'create' && <CreateGoodsReceipt userRole={userRole} user={user} />}
                 {activeTab === 'inventory' && <InventoryMatrix user={user} onSwitchTab={setActiveTab} />}
                 {isAdmin && activeTab === 'history' && <GoodsReceiptHistory userRole={userRole} />}
-                {activeTab === 'transfers' && <TransferHistory />}
+                {activeTab === 'transfers' && <TransferHistory userRole={userRole} />}
             </div>
         </div>
     );

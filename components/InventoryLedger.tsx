@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, orderBy, onSnapshot, limit, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, GoodsReceipt, Sale } from '../types';
-import { History as HistoryIcon, Search, Filter, Loader, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, Edit3, Calendar, Eye, X } from 'lucide-react';
+import { History as HistoryIcon, Search, Filter, Loader, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, Edit3, Calendar, Eye, X, User } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import SaleDetailModal from './SaleDetailModal';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
@@ -338,7 +338,7 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
                                 <th className="p-4 text-right">Thay đổi</th>
                                 <th className="p-4 text-right">Tồn cuối</th>
                                 <th className="p-4">Ghi chú / Tham chiếu</th>
-                                <th className="p-4">Người thực hiện</th>
+                                {userRole === 'admin' && <th className="p-4">Người thực hiện</th>}
                                 <th className="p-4 text-center">Hành động</th>
                             </tr>
                         </thead>
@@ -385,7 +385,13 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
                                         <div className="text-xs font-medium text-slate-600">{m.note}</div>
                                         <div className="text-[10px] text-slate-400 font-mono">ID: {m.referenceId}</div>
                                     </td>
-                                    <td className="p-4 text-xs font-bold text-slate-500">{m.creatorName || 'Hệ thống'}</td>
+                                    {userRole === 'admin' && (
+                                        <td className="p-4 text-center">
+                                            <span className="inline-flex items-center text-[10px] font-black bg-emerald-50 text-emerald-800 px-2 py-1 rounded-full border border-emerald-200 uppercase">
+                                                <User size={12} className="mr-1"/> {m.creatorName || 'Hệ thống'}
+                                            </span>
+                                        </td>
+                                    )}
                                     <td className="p-4 text-center">
                                         {(m.type === 'sale' || m.type === 'receipt') && (
                                             <button 
