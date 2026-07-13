@@ -296,7 +296,7 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
                         ))}
                     </div>
                 </div>
-                {isAdmin && !product.isCombo && (
+                {!product.isCombo && (
                     <div className="flex gap-1 ml-1">
                         {onQuickImport && (
                             <button 
@@ -316,7 +316,7 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
                                 <ArrowRightLeft size={14}/>
                             </button>
                         )}
-                        {onCompare && (
+                        {isAdmin && onCompare && (
                             <button 
                                 onClick={() => onCompare(product)} 
                                 className="p-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-sm"
@@ -1099,17 +1099,17 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 </div>
                             </div>
 
-                            <div className="pt-1 flex justify-between items-center border-t border-dashed border-slate-200">
-                                <div className="flex items-center gap-1.5 flex-1 max-w-[150px]">
-                                    <div className="relative flex-1">
-                                        <NumericInput 
-                                            value={item.currentImportPrice} 
-                                            onChange={(val) => updateCartItem(item.productId, { currentImportPrice: val })}
-                                            className="w-full pl-6 pr-1 py-0.5 text-right font-black text-[10px] border border-blue-200 rounded bg-blue-50/50 outline-none text-black"
-                                        />
-                                        <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-black text-blue-400 uppercase">Vốn</span>
-                                    </div>
-                                    {isAdmin && (
+                            {isAdmin && (
+                                <div className="pt-1 flex justify-between items-center border-t border-dashed border-slate-200">
+                                    <div className="flex items-center gap-1.5 flex-1 max-w-[150px]">
+                                        <div className="relative flex-1">
+                                            <NumericInput 
+                                                value={item.currentImportPrice} 
+                                                onChange={(val) => updateCartItem(item.productId, { currentImportPrice: val })}
+                                                className="w-full pl-6 pr-1 py-0.5 text-right font-black text-[10px] border border-blue-200 rounded bg-blue-50/50 outline-none text-black"
+                                            />
+                                            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-black text-blue-400 uppercase">Vốn</span>
+                                        </div>
                                         <button 
                                             onClick={() => updateCartItem(item.productId, { updateImportPrice: !item.updateImportPrice })}
                                             className={`p-0.5 rounded border transition-colors ${item.updateImportPrice ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-300 border-slate-200'}`}
@@ -1117,12 +1117,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                         >
                                             <Save size={10}/>
                                         </button>
-                                    )}
+                                    </div>
+                                    <span className={`text-[10px] font-black ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        LN: {formatNumber(profit)} ₫
+                                    </span>
                                 </div>
-                                <span className={`text-[10px] font-black ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    LN: {formatNumber(profit)} ₫
-                                </span>
-                            </div>
+                            )}
                         </div>
                     )})}
                     <div className="p-3 bg-white flex-shrink-0 shadow-sm border-t border-slate-200">
@@ -1161,7 +1161,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                   <div className="flex items-center gap-2"><span className="text-[11px] font-black text-slate-400 uppercase tracking-tighter">Tổng đơn:</span><span className="text-xl font-black text-primary">{summaryToday.count}</span></div>
                                   {isAdmin && (<div className="flex items-center gap-2"><span className="text-[11px] font-black text-slate-400 uppercase tracking-tighter">Lợi nhuận:</span><span className="text-xl font-black text-green-400">{formatNumber(summaryToday.profit)} ₫</span></div>)}
                               </div>
-                              <div className="text-right"><span className="text-[11px] font-black text-slate-400 uppercase tracking-tighter block">Doanh thu hôm nay</span><span className="text-2xl font-black text-yellow-400">{formatNumber(summaryToday.revenue)} ₫</span></div>
+                              {isAdmin && (
+                                  <div className="text-right">
+                                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-tighter block">Doanh thu hôm nay</span>
+                                      <span className="text-2xl font-black text-yellow-400">{formatNumber(summaryToday.revenue)} ₫</span>
+                                  </div>
+                              )}
                           </div>
                           
                           <div className="relative mb-2">
