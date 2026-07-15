@@ -52,7 +52,7 @@ const EditLogModal: React.FC<{
                             type="text"
                             inputMode="numeric"
                             value={formatNumber(amount)} 
-                            onChange={e => setAmount(parseNumber(e.target.value))}
+                            onChange={e => setAmount(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
                             className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none bg-white text-black"
                         />
                     </div>
@@ -141,7 +141,7 @@ const EditBalanceModal: React.FC<{
                             inputMode="numeric"
                             autoFocus
                             value={formatNumber(newBalance)} 
-                            onChange={e => setNewBalance(parseNumber(e.target.value))}
+                            onChange={e => setNewBalance(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
                             onFocus={e => e.target.select()}
                             className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
                         />
@@ -224,7 +224,7 @@ const TransactionModal: React.FC<{
                             inputMode="numeric"
                             autoFocus
                             value={formatNumber(amount)} 
-                            onChange={e => setAmount(parseNumber(e.target.value))}
+                            onChange={e => setAmount(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
                             onFocus={e => e.target.select()}
                             className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
                         />
@@ -322,7 +322,12 @@ const TransferModal: React.FC<{
                         <input 
                             type="text" inputMode="numeric"
                             value={formatNumber(amount)} 
-                            onChange={e => setAmount(Math.min(parseNumber(e.target.value), fromAccount?.balance || 9999999999))}
+                            onChange={e => {
+                                const maxBal = fromAccount ? Number(fromAccount.balance) || 0 : 9999999999;
+                                const rawVal = e.target.value.replace(/\D/g, '');
+                                const numVal = parseInt(rawVal, 10) || 0;
+                                setAmount(Math.min(numVal, maxBal));
+                            }}
                             onFocus={e => e.target.select()}
                             className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
                         />
@@ -773,7 +778,7 @@ const AddAccountModal: React.FC<{
                             type="text"
                             inputMode="numeric"
                             value={formatNumber(initialBalance)} 
-                            onChange={e => setInitialBalance(parseNumber(e.target.value))}
+                            onChange={e => setInitialBalance(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
                             onFocus={e => e.target.select()}
                             className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
                         />

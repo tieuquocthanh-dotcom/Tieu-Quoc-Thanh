@@ -219,12 +219,12 @@ export const ProductModal: React.FC<{
 
             <div>
               <label className="block text-xs font-black uppercase text-slate-500 mb-1">Giá nhập dự kiến (₫)</label>
-              <input type="text" inputMode="numeric" value={formatNumber(importPrice)} onChange={e => setImportPrice(parseNumber(e.target.value))} onFocus={e => e.target.select()} className={`${inputClasses} font-black text-slate-600`} required />
+              <input type="text" inputMode="numeric" value={formatNumber(importPrice)} onChange={e => setImportPrice(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)} onFocus={e => e.target.select()} className={`${inputClasses} font-black text-slate-600`} required />
             </div>
 
             <div>
               <label className="block text-xs font-black uppercase text-slate-500 mb-1">Giá bán niêm yết (₫)</label>
-              <input type="text" inputMode="numeric" value={formatNumber(sellingPrice)} onChange={e => setSellingPrice(parseNumber(e.target.value))} onFocus={e => e.target.select()} className={`${inputClasses} font-black text-primary`} required />
+              <input type="text" inputMode="numeric" value={formatNumber(sellingPrice)} onChange={e => setSellingPrice(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)} onFocus={e => e.target.select()} className={`${inputClasses} font-black text-primary`} required />
             </div>
 
             <div>

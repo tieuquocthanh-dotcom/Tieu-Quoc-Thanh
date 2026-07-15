@@ -182,7 +182,7 @@ const QuotationModal: React.FC<{
                             type="text"
                             inputMode="numeric"
                             value={formatNumber(price)} 
-                            onChange={e => setPrice(parseNumber(e.target.value))} 
+                            onChange={e => setPrice(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)} 
                             onFocus={e => e.target.select()}
                             className={inputClasses} 
                             required 

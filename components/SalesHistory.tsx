@@ -144,7 +144,7 @@ const DebtPaymentModal: React.FC<{
                             <input 
                                 type="text" inputMode="numeric" 
                                 value={formatNumber(payAmount)} 
-                                onChange={e => setPayAmount(Math.min(parseNumber(e.target.value), remaining))} 
+                                onChange={e => setPayAmount(Math.min(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0, remaining))} 
                                 className="w-full p-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-orange-500 outline-none text-slate-900 bg-white shadow-inner" 
                                 onFocus={e => e.target.select()}
                             />
