@@ -1,11 +1,4 @@
-export const formatNumber = (num: number | string | undefined): string => {
-  if (num === undefined || num === null) return '0';
-  const val = typeof num === 'string' ? parseNumber(num) : num;
-  if (isNaN(val)) return '0';
-  return val.toLocaleString('vi-VN');
-};
-
-export const parseNumber = (str: string): number => {
+function parseNumber(str) {
   if (!str) return 0;
   
   let cleanStr = str.toString().trim();
@@ -41,12 +34,13 @@ export const parseNumber = (str: string): number => {
   }
   
   return isNaN(val) ? 0 : val;
-};
+}
 
-export const getLocalYYYYMMDD = (date?: Date): string => {
-  const d = date || new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+console.log("1.000,50 ->", parseNumber("1.000,50"));
+console.log("1,000.50 ->", parseNumber("1,000.50"));
+console.log("1.5 ->", parseNumber("1.5"));
+console.log("1,5 ->", parseNumber("1,5"));
+console.log("1.000 ->", parseNumber("1.000"));
+console.log("1,000 ->", parseNumber("1,000"));
+console.log("1.000.000 ->", parseNumber("1.000.000"));
+console.log("10.5 ->", parseNumber("10.5"));

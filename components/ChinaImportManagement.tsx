@@ -204,6 +204,19 @@ const EditImportModal: React.FC<{
         return products.filter(p => p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 10);
     }, [products, searchTerm]);
 
+    const lastImportPrice = useMemo(() => {
+        if (!selectedProductId || !Array.isArray(allImports)) return null;
+        for (const imp of allImports) {
+            if (imp.id === importData.id) continue;
+            const items = Array.isArray(imp.items) ? imp.items : [];
+            const item = items.find(i => i.productId === selectedProductId);
+            if (item) {
+                return item.priceCNY;
+            }
+        }
+        return null;
+    }, [selectedProductId, allImports, importData.id]);
+
     const handleSelectProduct = (product: Product) => {
         setSelectedProductId(product.id);
         setSearchTerm(product.name);
@@ -320,7 +333,7 @@ const EditImportModal: React.FC<{
                         <div className="lg:w-2/3 space-y-4">
                             <div className="p-4 rounded-lg border bg-slate-50 border-slate-200">
                                 <h4 className="text-[10px] font-black uppercase text-slate-500 mb-3">Thêm sản phẩm mới vào đơn</h4>
-                                <div className="flex gap-2 items-center mb-2">
+                                <div className="flex gap-2 items-start mb-2">
                                     <div className="flex-1 relative" ref={dropdownRef}>
                                         <input type="text" placeholder="Tìm sản phẩm..." value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setIsDropdownOpen(true); }} onFocus={() => setIsDropdownOpen(true)} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium"/>
                                         {isDropdownOpen && searchTerm && (
@@ -329,9 +342,16 @@ const EditImportModal: React.FC<{
                                             </div>
                                         )}
                                     </div>
-                                    <DecimalInput placeholder="SL" className="w-16 px-2 py-2 border bg-white text-black border-slate-300 rounded-lg text-sm text-center font-bold" value={quantity} onChange={setQuantity}/>
-                                    <DecimalInput placeholder="Giá ¥" className="w-24 px-2 py-2 border bg-white text-black border-slate-300 rounded-lg text-sm text-center font-bold" value={priceCNY} onChange={setPriceCNY}/>
-                                    <button onClick={handleAddItem} className="p-2.5 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition shadow-md active:scale-95"><Plus size={20}/></button>
+                                    <DecimalInput placeholder="SL" className="w-16 px-3 py-2 border bg-white text-black border-slate-300 rounded-lg text-sm text-center font-bold" value={quantity} onChange={setQuantity}/>
+                                    <div className="flex flex-col relative w-32">
+                                        <DecimalInput placeholder="Giá ¥" className="w-full px-3 py-2 border bg-white text-black border-slate-300 rounded-lg text-sm text-center font-bold" value={priceCNY} onChange={setPriceCNY}/>
+                                        {selectedProductId && lastImportPrice !== null && (
+                                            <div className="absolute top-full right-0 mt-1 text-[10px] font-bold text-right w-[150px] z-10">
+                                                <span className="text-slate-500">Lần trước: {formatNumber(lastImportPrice)}¥</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={handleAddItem} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition active:scale-95 shadow-md flex items-center justify-center min-w-[42px] min-h-[42px]"><Plus size={20}/></button>
                                 </div>
                             </div>
                             
