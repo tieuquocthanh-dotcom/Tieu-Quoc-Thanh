@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, updateDoc, doc, serverTimestamp, query, orderBy, where, Timestamp, writeBatch, getDoc, increment } from 'firebase/firestore';
+import { collection, onSnapshot, updateDoc, doc, serverTimestamp, query, orderBy, where, Timestamp, writeBatch, getDoc, increment, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Sale, Shipper } from '../types';
+import { Sale, Shipper, Customer, PaymentMethod, Product } from '../types';
 // Fixed: Added Info to the list of icons imported from lucide-react
-import { Send, XCircle, Loader, Truck, CheckCircle, Save, Calendar, Package, Eye, Info } from 'lucide-react';
+import { Send, XCircle, Loader, Truck, CheckCircle, Save, Calendar, Package, Eye, Info, Edit } from 'lucide-react';
 import SaleDetailModal from './SaleDetailModal';
+import SaleEditModal from './SaleEditModal';
 
 const getTodayString = () => new Date().toISOString().split('T')[0];
 
@@ -25,8 +26,30 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
   // Modal state
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedSaleEdit, setSelectedSaleEdit] = useState<Sale | null>(null);
+  
+  // Data for edit modal
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
+    // Fetch auxiliary data for edit modal
+    const fetchAuxData = async () => {
+        try {
+            const [custSnap, paySnap, prodSnap] = await Promise.all([
+                getDocs(query(collection(db, "customers"), orderBy("name"))),
+                getDocs(query(collection(db, "paymentMethods"), orderBy("name"))),
+                getDocs(query(collection(db, "products"), orderBy("name")))
+            ]);
+            setCustomers(custSnap.docs.map(d => ({id: d.id, ...d.data()} as Customer)));
+            setPaymentMethods(paySnap.docs.map(d => ({id: d.id, ...d.data()} as PaymentMethod)));
+            setProducts(prodSnap.docs.map(d => ({id: d.id, ...d.data()} as Product)));
+        } catch (e) { console.error(e); }
+    };
+    fetchAuxData();
+
     setLoading(true);
     setError(null);
     setIndexErrorUrl(null);
@@ -93,6 +116,11 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
       setIsDetailModalOpen(true);
   };
 
+  const handleEdit = (sale: Sale) => {
+      setSelectedSaleEdit(sale);
+      setIsEditModalOpen(true);
+  };
+
   const handleUpdateShipment = async (sale: Sale) => {
     setUpdatingId(sale.id);
     try {
@@ -139,6 +167,15 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
         onClose={() => setIsDetailModalOpen(false)}
         sale={selectedSale}
         userRole={userRole}
+      />
+      <SaleEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        sale={selectedSaleEdit}
+        customers={customers}
+        paymentMethods={paymentMethods}
+        shippers={shippers}
+        products={products}
       />
 
       <div className="flex justify-between items-center mb-6">
@@ -251,6 +288,13 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
                             title="Xem chi tiết"
                           >
                               <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(sale)}
+                            className="p-2 text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-600 hover:text-white transition shadow-sm border border-amber-100"
+                            title="Chỉnh sửa đơn hàng"
+                          >
+                              <Edit size={16} />
                           </button>
                           <button
                             onClick={() => handleUpdateShipment(sale)}
