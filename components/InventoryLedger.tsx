@@ -30,7 +30,13 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedProductId, setSelectedProductId] = useState(initialProductId || 'all');
     const [products, setProducts] = useState<Product[]>([]);
-    const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const [dateRange, setDateRange] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        return { start: d.toISOString().split('T')[0], end: '' };
+    });
+    const [selectedWarehouseId, setSelectedWarehouseId] = useState('all');
+    const [warehouses, setWarehouses] = useState<any[]>([]);
     
     // Detail Modal States
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -42,7 +48,13 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
         const unsubProducts = onSnapshot(query(collection(db, 'products'), orderBy('name')), (snap) => {
             setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
         });
-        return () => unsubProducts();
+        const unsubWarehouses = onSnapshot(query(collection(db, 'warehouses'), orderBy('name')), (snap) => {
+            setWarehouses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => {
+            unsubProducts();
+            unsubWarehouses();
+        };
     }, []);
 
     useEffect(() => {
@@ -54,7 +66,20 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
                 const LIMIT = 500;
 
                 // 1. Fetch Goods Receipts
-                let receiptQuery = query(collection(db, 'goodsReceipts'), orderBy('createdAt', 'desc'), limit(LIMIT));
+                let constraints: any[] = [orderBy('createdAt', 'desc')];
+                if (dateRange.start) {
+                    const startDate = new Date(dateRange.start);
+                    startDate.setHours(0, 0, 0, 0);
+                    constraints.push(where('createdAt', '>=', startDate));
+                }
+                if (dateRange.end && selectedProductId === 'all') {
+                    const endDate = new Date(dateRange.end);
+                    endDate.setHours(23, 59, 59, 999);
+                    constraints.push(where('createdAt', '<=', endDate));
+                }
+                constraints.push(limit(3000));
+                
+                let receiptQuery = query(collection(db, 'goodsReceipts'), ...constraints);
                 const receiptSnap = await getDocs(receiptQuery);
                 receiptSnap.forEach(doc => {
                     const data = doc.data() as any;
@@ -79,7 +104,7 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
                 });
 
                 // 2. Fetch Sales
-                let saleQuery = query(collection(db, 'sales'), orderBy('createdAt', 'desc'), limit(LIMIT));
+                let saleQuery = query(collection(db, 'sales'), ...constraints);
                 const saleSnap = await getDocs(saleQuery);
                 saleSnap.forEach(doc => {
                     const data = doc.data() as any;
@@ -104,7 +129,7 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
                 });
 
                 // 3. Fetch Transfers
-                let transferQuery = query(collection(db, 'warehouseTransfers'), orderBy('createdAt', 'desc'), limit(LIMIT));
+                let transferQuery = query(collection(db, 'warehouseTransfers'), ...constraints);
                 const transferSnap = await getDocs(transferQuery);
                 transferSnap.forEach(doc => {
                     const data = doc.data();
@@ -141,7 +166,7 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
                 });
 
                 // 4. Fetch Manual Adjustments
-                let adjustmentQuery = query(collection(db, 'inventoryAdjustments'), orderBy('createdAt', 'desc'), limit(LIMIT));
+                let adjustmentQuery = query(collection(db, 'inventoryAdjustments'), ...constraints);
                 const adjustmentSnap = await getDocs(adjustmentQuery);
                 adjustmentSnap.forEach(doc => {
                     const data = doc.data();
@@ -198,7 +223,7 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
         };
 
         fetchData();
-    }, [selectedProductId]);
+    }, [selectedProductId, dateRange.start, dateRange.end, selectedWarehouseId]);
 
     const handleViewDetail = async (m: InventoryMovement) => {
         try {
@@ -239,7 +264,11 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
                 matchesDate = matchesDate && m.createdAt.toMillis() <= endDate.getTime();
             }
 
-            return matchesSearch && matchesDate;
+            let matchesWarehouse = true;
+            if (selectedWarehouseId !== 'all') {
+                matchesWarehouse = m.warehouseId === selectedWarehouseId;
+            }
+            return matchesSearch && matchesDate && matchesWarehouse;
         });
     }, [movements, searchTerm, dateRange]);
 
@@ -280,6 +309,16 @@ const InventoryLedger: React.FC<{ userRole?: 'admin' | 'staff' | null, initialPr
                         />
                     </div>
                     <select 
+                        value={selectedWarehouseId}
+                        onChange={e => setSelectedWarehouseId(e.target.value)}
+                        className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold bg-white"
+                    >
+                        <option value="all">Tất cả các kho</option>
+                        {warehouses.map(w => (
+                            <option key={w.id} value={w.id}>{w.name}</option>
+                        ))}
+                    </select>
+                    <select
                         value={selectedProductId}
                         onChange={e => setSelectedProductId(e.target.value)}
                         className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold bg-white"
