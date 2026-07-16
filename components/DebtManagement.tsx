@@ -860,6 +860,7 @@ const DebtManagement: React.FC = () => {
                 data={paymentItem} 
                 isProcessing={isProcessingPayment}
                 paymentMethods={paymentMethods}
+                supplier={paymentItem?.type === 'receipt' ? suppliers.find(s => s.id === (paymentItem.item as any).supplierId) : undefined}
             />
             
             <PayBulkModal 

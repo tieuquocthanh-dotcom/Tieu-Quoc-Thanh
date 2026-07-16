@@ -400,6 +400,33 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
           let currentBal = 0;
           let accountRef = null;
+
+          let finalBankAccountId = null;
+          let finalBankDetails = null;
+          if (paymentStatus === 'paid') {
+              const supplierRef = doc(db, 'suppliers', selSup.id);
+              const supplierSnap = await transaction.get(supplierRef);
+              if (supplierSnap.exists()) {
+                  let supplierData = supplierSnap.data();
+                  let accounts = supplierData.bankAccounts || [];
+                  if (isCreatingNewBank && newBankDetails.bankName && newBankDetails.accountNumber) {
+                      const newId = Date.now().toString();
+                      const newAccount = {
+                          id: newId,
+                          bankName: newBankDetails.bankName,
+                          accountNumber: newBankDetails.accountNumber,
+                          accountName: newBankDetails.accountName
+                      };
+                      accounts.push(newAccount);
+                      transaction.update(supplierRef, { bankAccounts: accounts });
+                      finalBankAccountId = newId;
+                      finalBankDetails = newAccount;
+                  } else if (selectedBankAccountId) {
+                      finalBankAccountId = selectedBankAccountId;
+                      finalBankDetails = accounts.find((a: any) => a.id === selectedBankAccountId) || null;
+                  }
+              }
+          }
           if (paymentStatus === 'paid' && selectedPaymentMethodId) {
               accountRef = doc(db, 'paymentMethods', selectedPaymentMethodId);
               const accSnap = await transaction.get(accountRef);
@@ -418,7 +445,9 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
             productIds: receipt.map(i => i.productId),
             total, 
             supplierId: selSup.id, 
-            supplierName: selSup.name, 
+            supplierName: selSup.name,
+             supplierBankAccountId: finalBankAccountId,
+             supplierBankDetails: finalBankDetails, 
             warehouseId: selWh.id, 
             warehouseName: selWh.name, 
             paymentMethodId: selectedPaymentMethodId || null, 
@@ -530,7 +559,33 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
                                 <div className="relative flex gap-1" ref={supplierDropdownRef}><div className="relative flex-1"><Users className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><input type="text" placeholder="Tìm NCC..." value={supplierSearchTerm} onChange={e => { setSupplierSearchTerm(e.target.value); setIsSupplierDropdownOpen(true); }} onFocus={() => setIsSupplierDropdownOpen(true)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" />{isSupplierDropdownOpen && (<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">{suppliers.filter(s => s.name.toLowerCase().includes(supplierSearchTerm.toLowerCase())).map(s => <button key={s.id} onClick={() => { setSelectedSupplierId(s.id); setSupplierSearchTerm(s.name); setIsSupplierDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b font-black text-black">{s.name}</button>)}</div>)}</div><button onClick={() => setIsSupplierModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border hover:bg-green-600 transition shadow-sm"><Plus size={18}/></button></div>
                                 <div className="relative"><Archive className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedWarehouseId} onChange={e => setSelectedWarehouseId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary focus:outline-none appearance-none"><option value="">Kho nhập...</option>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
-                                <div className="relative"><CreditCard className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedPaymentMethodId} onChange={e => setSelectedPaymentMethodId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary focus:outline-none appearance-none" disabled={paymentStatus === 'debt'}><option value="">PT Thanh toán...</option>{paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+                                
+                                <div className="relative">
+                                    <CreditCard className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/>
+                                    <select 
+                                        value={selectedPaymentMethodId} 
+                                        onChange={e => setSelectedPaymentMethodId(e.target.value)} 
+                                        className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary focus:outline-none appearance-none" 
+                                        disabled={paymentStatus === 'debt'}
+                                    >
+                                        <option value="">PT Thanh toán...</option>
+                                        {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    </select>
+                                </div>
+                                {paymentStatus === 'paid' && selectedSupplierId && (
+                                    <div className="col-span-1 sm:col-span-2 lg:col-span-1">
+                                    <SupplierBankSelector 
+                                        supplier={suppliers.find(s => s.id === selectedSupplierId)}
+                                        selectedBankAccountId={selectedBankAccountId}
+                                        onSelect={setSelectedBankAccountId}
+                                        isCreatingNew={isCreatingNewBank}
+                                        setIsCreatingNew={setIsCreatingNewBank}
+                                        newBankDetails={newBankDetails}
+                                        onNewBankChange={(field, val) => setNewBankDetails(prev => ({...prev, [field]: val}))}
+                                    />
+                                    </div>
+                                )}
+
                                 <div className="relative">
                                     <ClipboardList className="absolute left-2 top-1/2 -translate-y-1/2 text-white" size={16}/>
                                     <select 
