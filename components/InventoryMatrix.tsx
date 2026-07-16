@@ -357,10 +357,10 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
       });
 
       await batch.commit();
-      alert("Cập nhật tồn kho thành công!");
+      showToast("Cập nhật tồn kho thành công!", "success");
     } catch (error) {
       console.error("Error updating stock:", error);
-      alert("Lỗi khi cập nhật tồn kho.");
+      showToast("Lỗi khi cập nhật tồn kho.", "error");
     } finally {
       setEditModalOpen(false);
       setEditingItem(null);
@@ -378,10 +378,10 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
           const inventoryRef = doc(db, 'products', editingItem.productId, 'inventory', editingItem.warehouseId);
           await deleteDoc(inventoryRef);
           
-          alert("Đã xóa bản ghi tồn kho thành công!");
+          showToast("Đã xóa bản ghi tồn kho thành công!", "success");
       } catch (error: any) {
           console.error("Error deleting inventory item:", error);
-          alert("Lỗi khi xóa bản ghi tồn kho. Vui lòng thử lại.");
+          showToast("Lỗi khi xóa bản ghi", "error");
       } finally {
           setConfirmDeleteInventoryOpen(false);
           setEditingItem(null);
@@ -440,11 +440,11 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
           });
       });
 
-      alert("Chuyển kho thành công!");
+      showToast("Chuyển kho thành công!", "success");
       setTransferModalOpen(false);
     } catch (error: any) {
       console.error("Error transferring stock: ", error);
-      alert(`Lỗi khi chuyển kho: ${error.message}`);
+      showToast(`Lỗi khi chuyển kho: ${error.message}`, "error");
     }
   };
 
@@ -482,7 +482,7 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
           if (totalDeleted === 0) {
               alert("Không có bản ghi tồn kho nào bằng 0.");
           } else {
-              alert(`Đã dọn dẹp thành công ${totalDeleted} bản ghi tồn kho bằng 0.`);
+              showToast(`Đã dọn dẹp thành công ${totalDeleted} bản ghi tồn kho bằng 0.`, "success");
           }
 
       } catch (error) {

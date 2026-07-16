@@ -1,3 +1,4 @@
+import { ToastProvider } from './components/ToastContext';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -17,7 +18,7 @@ try {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <ErrorBoundary>
-      <App />
+      <ToastProvider><App /></ToastProvider>
     </ErrorBoundary>
   );
 } catch (error) {
