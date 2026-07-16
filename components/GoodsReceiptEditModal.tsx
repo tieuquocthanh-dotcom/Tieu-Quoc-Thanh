@@ -36,21 +36,29 @@ const NumericInput: React.FC<{
     }, [autoFocus]);
 
     useEffect(() => {
-        setLocalValue(isCurrency ? formatNumber(value) : value.toString());
-    }, [value, isCurrency]);
+        const parsedLocal = parseNumber(localValue);
+        if (value !== parsedLocal) {
+             setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+        }
+    }, [value, isCurrency, localValue]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const raw = e.target.value.replace(/[^0-9]/g, '');
-        const num = Number(raw) || 0;
-        setLocalValue(isCurrency ? formatNumber(num) : num.toString());
-        onChange(num);
+        const raw = e.target.value;
+        setLocalValue(raw);
+        onChange(parseNumber(raw));
+    };
+
+    const handleBlur = (e?: React.FocusEvent<HTMLInputElement>) => {
+        const parsed = parseNumber(localValue);
+        setLocalValue(isCurrency ? formatNumber(parsed) : parsed.toString());
+        if (onBlur) onBlur();
     };
 
     return (
         <input
             ref={inputRef}
             type="text"
-            inputMode="numeric"
+            inputMode={isCurrency ? "numeric" : "decimal"}
             value={localValue}
             placeholder={placeholder}
             className={className}
@@ -58,11 +66,11 @@ const NumericInput: React.FC<{
                 if (value === 0) setLocalValue("");
                 onFocus?.(e);
             }}
-            onBlur={() => {
-                setLocalValue(isCurrency ? formatNumber(value) : value.toString());
-                onBlur?.();
-            }}
             onChange={handleChange}
+            onBlur={handleBlur}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') handleBlur();
+            }}
         />
     );
 };

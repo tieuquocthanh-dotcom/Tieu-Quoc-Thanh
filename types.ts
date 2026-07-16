@@ -24,9 +24,21 @@ export interface Manufacturer {
   name: string;
 }
 
+export interface SupplierBankAccount {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+}
+
 export interface Supplier {
   id: string;
   name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  contactPerson?: string;
+  bankAccounts?: SupplierBankAccount[];
 }
 
 export interface PaymentMethod {
@@ -186,4 +198,10 @@ export interface PaymentHistoryEntry {
   createdAt: Timestamp;
   creatorName?: string;
   note?: string;
+  supplierBankAccountId?: string;
+  supplierBankDetails?: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+  };
 }

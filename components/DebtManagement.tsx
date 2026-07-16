@@ -25,27 +25,103 @@ interface DebtorSummary {
 
 const getTodayString = () => new Date().toISOString().split('T')[0];
 
+
+const SupplierBankSelector: React.FC<{
+    supplier?: Supplier;
+    selectedBankAccountId: string;
+    onSelect: (id: string) => void;
+    newBankDetails: { bankName: string; accountNumber: string; accountName: string };
+    onNewBankChange: (field: string, value: string) => void;
+    isCreatingNew: boolean;
+    setIsCreatingNew: (val: boolean) => void;
+}> = ({ supplier, selectedBankAccountId, onSelect, newBankDetails, onNewBankChange, isCreatingNew, setIsCreatingNew }) => {
+    if (!supplier) return null;
+    const accounts = supplier.bankAccounts || [];
+
+    return (
+        <div className="mt-4 border-t-2 border-slate-200 pt-4">
+            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Thanh toán vào ngân hàng của nhà cung cấp</label>
+            {!isCreatingNew ? (
+                <div className="flex gap-2">
+                    <select
+                        value={selectedBankAccountId}
+                        onChange={(e) => {
+                            if (e.target.value === 'new') {
+                                setIsCreatingNew(true);
+                                onSelect('');
+                            } else {
+                                onSelect(e.target.value);
+                            }
+                        }}
+                        className="flex-1 px-3 py-3 border-2 border-slate-800 rounded-xl font-black focus:ring-2 focus:ring-primary outline-none bg-white text-black"
+                    >
+                        <option value="">-- Chọn tài khoản thụ hưởng --</option>
+                        {accounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>
+                                {acc.bankName} - {acc.accountNumber} - {acc.accountName}
+                            </option>
+                        ))}
+                        <option value="new">+ Thêm tài khoản mới</option>
+                    </select>
+                </div>
+            ) : (
+                <div className="space-y-2 bg-slate-50 p-3 rounded-xl border-2 border-slate-200">
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-black text-slate-500 uppercase">Thêm tài khoản mới</span>
+                        <button onClick={() => setIsCreatingNew(false)} className="text-red-500 hover:bg-red-50 p-1 rounded"><X size={14}/></button>
+                    </div>
+                    <input type="text" placeholder="Tên Ngân hàng (vd: VCB, TCB...)" value={newBankDetails.bankName} onChange={e => onNewBankChange('bankName', e.target.value)} className="w-full px-3 py-2 border-2 border-slate-800 rounded-lg text-sm font-bold"/>
+                    <input type="text" placeholder="Số tài khoản" value={newBankDetails.accountNumber} onChange={e => onNewBankChange('accountNumber', e.target.value)} className="w-full px-3 py-2 border-2 border-slate-800 rounded-lg text-sm font-bold"/>
+                    <input type="text" placeholder="Tên chủ tài khoản" value={newBankDetails.accountName} onChange={e => onNewBankChange('accountName', e.target.value)} className="w-full px-3 py-2 border-2 border-slate-800 rounded-lg text-sm font-bold"/>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const PayBulkModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (date: string, amount: number, note: string, paymentMethodId: string) => void;
+    onConfirm: (date: string, amount: number, note: string, paymentMethodId: string, bankDetails?: any) => void;
     totalAmount: number;
     count: number;
     debtorName: string;
     isProcessing: boolean;
     type: 'receivables' | 'payables';
     paymentMethods: PaymentMethod[];
-}> = ({ isOpen, onClose, onConfirm, totalAmount, count, debtorName, isProcessing, type, paymentMethods }) => {
+    supplier?: Supplier;
+}> = ({ isOpen, onClose, onConfirm, totalAmount, count, debtorName, isProcessing, type, paymentMethods, supplier }) => {
     const [paymentDate, setPaymentDate] = useState(getTodayString());
     const [selectedMethodId, setSelectedMethodId] = useState('');
     const [note, setNote] = useState('');
+
     const [payAmount, setPayAmount] = useState(0);
+
+    const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+    const [isCreatingNewBank, setIsCreatingNewBank] = useState(false);
+    const [newBankDetails, setNewBankDetails] = useState({ bankName: '', accountNumber: '', accountName: '' });
+
+    const handleConfirm = () => {
+        let bankData = undefined;
+        if (type === 'payables') {
+            if (isCreatingNewBank && newBankDetails.bankName && newBankDetails.accountNumber) {
+                bankData = { isNew: true, ...newBankDetails };
+            } else if (selectedBankAccountId) {
+                bankData = { isNew: false, id: selectedBankAccountId };
+            }
+        }
+        onConfirm(paymentDate, payAmount, note, selectedMethodId, bankData);
+    };
+
 
     useEffect(() => {
         if (isOpen) {
             setPaymentDate(getTodayString());
             setSelectedMethodId('');
             setPayAmount(totalAmount);
+            setSelectedBankAccountId('');
+            setIsCreatingNewBank(false);
+            setNewBankDetails({ bankName: '', accountNumber: '', accountName: '' });
             setNote(type === 'receivables' ? `Thu hồi nợ các đơn đã chọn từ ${debtorName}` : `Thanh toán nợ các phiếu đã chọn cho ${debtorName}`);
         }
     }, [isOpen, type, debtorName, totalAmount]);
@@ -85,6 +161,17 @@ const PayBulkModal: React.FC<{
                                 {paymentMethods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
                         </div>
+                        {type === 'payables' && (
+                            <SupplierBankSelector 
+                                supplier={supplier}
+                                selectedBankAccountId={selectedBankAccountId}
+                                onSelect={setSelectedBankAccountId}
+                                isCreatingNew={isCreatingNewBank}
+                                setIsCreatingNew={setIsCreatingNewBank}
+                                newBankDetails={newBankDetails}
+                                onNewBankChange={(field, val) => setNewBankDetails(prev => ({...prev, [field]: val}))}
+                            />
+                        )}
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán</label>
                             <NumericInput 
@@ -114,7 +201,7 @@ const PayBulkModal: React.FC<{
                         Hủy
                     </button>
                     <button 
-                        onClick={() => onConfirm(paymentDate, payAmount, note, selectedMethodId)} 
+                        onClick={handleConfirm} 
                         className={`flex-1 py-3 text-white rounded-xl font-black text-xs uppercase shadow-lg transition active:scale-95 flex items-center justify-center ${isReceivable ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'} disabled:bg-slate-300 disabled:shadow-none`}
                         disabled={isProcessing || !selectedMethodId || payAmount <= 0}
                     >
@@ -130,15 +217,30 @@ const PayBulkModal: React.FC<{
 const PartialPaymentModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (date: string, amount: number, note: string, paymentMethodId: string) => void;
+    onConfirm: (date: string, amount: number, note: string, paymentMethodId: string, bankDetails?: any) => void;
     data: { item: Sale | GoodsReceipt, type: 'sale' | 'receipt' } | null;
     isProcessing: boolean;
     paymentMethods: PaymentMethod[];
-}> = ({ isOpen, onClose, onConfirm, data, isProcessing, paymentMethods }) => {
+    supplier?: Supplier;
+}> = ({ isOpen, onClose, onConfirm, data, isProcessing, paymentMethods, supplier }) => {
     const [paymentDate, setPaymentDate] = useState(getTodayString());
     const [payAmount, setPayAmount] = useState(0);
     const [selectedMethodId, setSelectedMethodId] = useState('');
     const [note, setNote] = useState('');
+    const [selectedBankAccountId, setSelectedBankAccountId] = useState(""); 
+    const [isCreatingNewBank, setIsCreatingNewBank] = useState(false); 
+    const [newBankDetails, setNewBankDetails] = useState({ bankName: "", accountNumber: "", accountName: "" }); 
+    const handleConfirm = () => { 
+        let bankData = undefined; 
+        if (data?.type === "receipt") { 
+            if (isCreatingNewBank && newBankDetails.bankName && newBankDetails.accountNumber) { 
+                bankData = { isNew: true, ...newBankDetails }; 
+            } else if (selectedBankAccountId) { 
+                bankData = { isNew: false, id: selectedBankAccountId }; 
+            } 
+        } 
+        onConfirm(paymentDate, payAmount, note, selectedMethodId, bankData); 
+    };
 
     useEffect(() => {
         if (isOpen && data) {
@@ -148,6 +250,9 @@ const PartialPaymentModal: React.FC<{
             const remaining = (item.total || 0) - (item.amountPaid || 0);
             setPayAmount(remaining > 0 ? remaining : 0);
             setNote('');
+            setSelectedBankAccountId('');
+            setIsCreatingNewBank(false);
+            setNewBankDetails({ bankName: '', accountNumber: '', accountName: '' });
         }
     }, [isOpen, data]);
 
@@ -191,6 +296,17 @@ const PartialPaymentModal: React.FC<{
                                 {paymentMethods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
                         </div>
+                        {type === 'receipt' && (
+                            <SupplierBankSelector 
+                                supplier={supplier}
+                                selectedBankAccountId={selectedBankAccountId}
+                                onSelect={setSelectedBankAccountId}
+                                isCreatingNew={isCreatingNewBank}
+                                setIsCreatingNew={setIsCreatingNewBank}
+                                newBankDetails={newBankDetails}
+                                onNewBankChange={(field, val) => setNewBankDetails(prev => ({...prev, [field]: val}))}
+                            />
+                        )}
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán</label>
                             <NumericInput 
@@ -208,7 +324,7 @@ const PartialPaymentModal: React.FC<{
 
                 <div className="p-4 bg-slate-50 border-t-2 border-slate-800 flex gap-2">
                     <button onClick={onClose} className="flex-1 py-3 bg-white border-2 border-slate-800 rounded-xl font-black text-xs uppercase text-black" disabled={isProcessing}>Hủy</button>
-                    <button onClick={() => onConfirm(paymentDate, payAmount, note, selectedMethodId)} className="flex-1 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg disabled:bg-slate-300 disabled:shadow-none" disabled={isProcessing || payAmount <= 0 || !selectedMethodId}>
+                    <button onClick={handleConfirm} className="flex-1 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg disabled:bg-slate-300 disabled:shadow-none" disabled={isProcessing || payAmount <= 0 || !selectedMethodId}>
                         {isProcessing ? <Loader size={18} className="animate-spin" /> : 'Xác nhận'}
                     </button>
                 </div>
@@ -238,21 +354,29 @@ const NumericInput: React.FC<{
     }, [autoFocus]);
 
     useEffect(() => {
-        setLocalValue(isCurrency ? formatNumber(value) : value.toString());
-    }, [value, isCurrency]);
+        const parsedLocal = parseNumber(localValue);
+        if (value !== parsedLocal) {
+             setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+        }
+    }, [value, isCurrency, localValue]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const raw = e.target.value.replace(/[^0-9]/g, '');
-        const num = Number(raw) || 0;
-        setLocalValue(isCurrency ? formatNumber(num) : num.toString());
-        onChange(num);
+        const raw = e.target.value;
+        setLocalValue(raw);
+        onChange(parseNumber(raw));
+    };
+
+    const handleBlur = (e?: React.FocusEvent<HTMLInputElement>) => {
+        const parsed = parseNumber(localValue);
+        setLocalValue(isCurrency ? formatNumber(parsed) : parsed.toString());
+        if (onBlur) onBlur();
     };
 
     return (
         <input
             ref={inputRef}
             type="text"
-            inputMode="numeric"
+            inputMode={isCurrency ? "numeric" : "decimal"}
             value={localValue}
             placeholder={placeholder}
             className={className}
@@ -260,11 +384,11 @@ const NumericInput: React.FC<{
                 if (value === 0) setLocalValue("");
                 onFocus?.(e);
             }}
-            onBlur={() => {
-                setLocalValue(isCurrency ? formatNumber(value) : value.toString());
-                onBlur?.();
-            }}
             onChange={handleChange}
+            onBlur={handleBlur}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') handleBlur();
+            }}
         />
     );
 };
@@ -443,6 +567,7 @@ const DebtManagement: React.FC = () => {
         const list: (Sale | GoodsReceipt)[] = [];
         let total = 0;
         let debtorName = '';
+        let debtorId = '';
         const dataList = activeTab === 'receivables' ? salesDebt : receiptsDebt;
         
         dataList.forEach(item => {
@@ -450,14 +575,14 @@ const DebtManagement: React.FC = () => {
                 list.push(item);
                 const anyItem = item as any;
                 total += ((item.total || 0) - (anyItem.amountPaid || 0));
-                if (!debtorName) debtorName = anyItem.customerName || anyItem.supplierName;
+                if (!debtorName) { debtorName = anyItem.customerName || anyItem.supplierName; debtorId = anyItem.customerId || anyItem.supplierId; }
             }
         });
 
-        return { items: list, total, debtorName, count: list.length };
+        return { items: list, total, debtorName, debtorId, count: list.length };
     }, [selectedIds, activeTab, salesDebt, receiptsDebt]);
 
-    const handleConfirmPayment = async (dateString: string, amount: number, note: string, paymentMethodId: string) => {
+    const handleConfirmPayment = async (dateString: string, amount: number, note: string, paymentMethodId: string, bankDetails?: any) => {
         if (!paymentItem) return;
         setIsProcessingPayment(true);
         try {
@@ -472,6 +597,34 @@ const DebtManagement: React.FC = () => {
 
             await runTransaction(db, async (transaction) => {
                 const accRef = doc(db, 'paymentMethods', paymentMethodId);
+                
+                let finalBankDetails = null;
+                let finalBankAccountId = null;
+                if (!isSale && bankDetails) {
+                    const supplierRef = doc(db, 'suppliers', (item as any).supplierId);
+                    const supplierSnap = await transaction.get(supplierRef);
+                    if (supplierSnap.exists()) {
+                        let supplierData = supplierSnap.data();
+                        let accounts = supplierData.bankAccounts || [];
+                        if (bankDetails.isNew) {
+                            const newId = Date.now().toString();
+                            const newAccount = {
+                                id: newId,
+                                bankName: bankDetails.bankName,
+                                accountNumber: bankDetails.accountNumber,
+                                accountName: bankDetails.accountName
+                            };
+                            accounts.push(newAccount);
+                            transaction.update(supplierRef, { bankAccounts: accounts });
+                            finalBankAccountId = newId;
+                            finalBankDetails = newAccount;
+                        } else {
+                            finalBankAccountId = bankDetails.id;
+                            finalBankDetails = accounts.find((a: any) => a.id === bankDetails.id) || null;
+                        }
+                    }
+                }
+
                 const accSnap = await transaction.get(accRef);
                 if (!accSnap.exists()) throw "Account not found";
 
@@ -488,11 +641,15 @@ const DebtManagement: React.FC = () => {
                     amountPaid: newPaid,
                     paidAt: isFull ? ts : (anyItem.paidAt || null),
                     paymentHistory: arrayUnion({ 
+                        
                         date: ts, 
                         amount: amount, 
                         note: note || (isSale ? 'Khách trả nợ' : 'Trả nợ NCC'),
                         paymentMethodId: paymentMethodId,
-                        paymentMethodName: method?.name || 'N/A'
+                        paymentMethodName: method?.name || 'N/A',
+                        supplierBankAccountId: finalBankAccountId || null,
+                        supplierBankDetails: finalBankDetails || null
+
                     })
                 });
 
@@ -518,7 +675,9 @@ const DebtManagement: React.FC = () => {
                     relatedType: isSale ? 'sale' : 'receipt',
                     createdAt: ts,
                     createdBy: auth.currentUser?.uid || null,
-                    creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A'
+                    creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A',
+                    supplierBankAccountId: finalBankAccountId || null,
+                    supplierBankDetails: finalBankDetails || null
                 });
             });
 
@@ -532,7 +691,7 @@ const DebtManagement: React.FC = () => {
         }
     };
 
-    const handleConfirmBulkPayment = async (dateString: string, amount: number, note: string, paymentMethodId: string) => {
+    const handleConfirmBulkPayment = async (dateString: string, amount: number, note: string, paymentMethodId: string, bankDetails?: any) => {
         if (selectedIds.size === 0 || !paymentMethodId || amount <= 0) return;
         setIsProcessingBulk(true);
         try {
@@ -544,6 +703,36 @@ const DebtManagement: React.FC = () => {
             const method = paymentMethods.find(m => m.id === paymentMethodId);
 
             await runTransaction(db, async (transaction) => {
+                                let finalBankDetails = null;
+                let finalBankAccountId = null;
+                if (!isReceivable && bankDetails) {
+                    const firstItem = selectedItemsData.items[0];
+                    if (firstItem) {
+                        const supplierRef = doc(db, 'suppliers', (firstItem as any).supplierId);
+                        const supplierSnap = await transaction.get(supplierRef);
+                        if (supplierSnap.exists()) {
+                            let supplierData = supplierSnap.data();
+                            let accounts = supplierData.bankAccounts || [];
+                            if (bankDetails.isNew) {
+                                const newId = Date.now().toString();
+                                const newAccount = {
+                                    id: newId,
+                                    bankName: bankDetails.bankName,
+                                    accountNumber: bankDetails.accountNumber,
+                                    accountName: bankDetails.accountName
+                                };
+                                accounts.push(newAccount);
+                                transaction.update(supplierRef, { bankAccounts: accounts });
+                                finalBankAccountId = newId;
+                                finalBankDetails = newAccount;
+                            } else {
+                                finalBankAccountId = bankDetails.id;
+                                finalBankDetails = accounts.find((a: any) => a.id === bankDetails.id) || null;
+                            }
+                        }
+                    }
+                }
+
                 const accRef = doc(db, 'paymentMethods', paymentMethodId);
                 const accSnap = await transaction.get(accRef);
                 if (!accSnap.exists()) throw "Account not found";
@@ -573,11 +762,13 @@ const DebtManagement: React.FC = () => {
                         amountPaid: newPaid,
                         paidAt: isFull ? ts : (anyItem.paidAt || null),
                         paymentHistory: arrayUnion({ 
-                            date: ts, 
+                                                        date: ts, 
                             amount: paymentForThisItem, 
                             note: note,
                             paymentMethodId: paymentMethodId,
-                            paymentMethodName: method?.name || 'N/A'
+                            paymentMethodName: method?.name || 'N/A',
+                            supplierBankAccountId: finalBankAccountId || null,
+                            supplierBankDetails: finalBankDetails || null
                         })
                     });
 
@@ -602,7 +793,9 @@ const DebtManagement: React.FC = () => {
                     note: bulkAutoNote,
                     createdAt: ts,
                     createdBy: auth.currentUser?.uid || null,
-                    creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A'
+                    creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A',
+                    supplierBankAccountId: finalBankAccountId || null,
+                    supplierBankDetails: finalBankDetails || null
                 });
             });
 
@@ -670,6 +863,7 @@ const DebtManagement: React.FC = () => {
             />
             
             <PayBulkModal 
+                supplier={activeTab === 'payables' ? suppliers.find(s => s.id === selectedItemsData.debtorId) : undefined}
                 isOpen={isPayBulkModalOpen} 
                 onClose={() => setIsPayBulkModalOpen(false)} 
                 onConfirm={handleConfirmBulkPayment} 

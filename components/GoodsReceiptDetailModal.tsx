@@ -311,7 +311,8 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                         <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
                                 <th className="p-3 text-[10px] font-black uppercase text-slate-400">Thời gian</th>
-                                <th className="p-3 text-[10px] font-black uppercase text-slate-400">Ghi chú / Tài khoản</th>
+                                <th className="p-3 text-[10px] font-black uppercase text-slate-400">Ghi chú / Tài khoản trả</th>
+                                <th className="p-3 text-[10px] font-black uppercase text-slate-400">Ngân hàng nhận</th>
                                 <th className="p-3 text-[10px] font-black uppercase text-slate-400 text-right">Số tiền trả</th>
                             </tr>
                         </thead>
@@ -325,6 +326,18 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                                         <td className="p-3 text-[11px] font-black text-slate-800 uppercase">
                                             {payment.note || 'Thanh toán trực tiếp'}
                                         </td>
+                                        <td className="p-3">
+                                            {(payment as any).supplierBankDetails ? (
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-slate-800 text-[10px]">{(payment as any).supplierBankDetails.bankName}</span>
+                                                    <span className="text-[9px] text-slate-500 font-mono">{(payment as any).supplierBankDetails.accountNumber}</span>
+                                                    <span className="text-[9px] font-black uppercase text-slate-400">{(payment as any).supplierBankDetails.accountName}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[10px] italic text-slate-400">Không có</span>
+                                            )}
+                                        </td>
+
                                         <td className="p-3 text-right font-black text-red-600 text-sm">
                                             -{formatNumber(payment.amount)} ₫
                                         </td>
@@ -332,7 +345,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={3} className="p-8 text-center text-slate-400 text-xs italic font-medium uppercase tracking-widest">
+                                    <td colSpan={4} className="p-8 text-center text-slate-400 text-xs italic font-medium uppercase tracking-widest">
                                         Chưa phát sinh giao dịch thanh toán nào
                                     </td>
                                 </tr>
