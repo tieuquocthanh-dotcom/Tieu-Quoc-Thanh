@@ -5,6 +5,7 @@ import { db } from '../services/firebase';
 import { Product, Warehouse, Manufacturer } from '../types';
 import { Loader, XCircle, Package, Search, AlertTriangle, List, LayoutGrid, Edit, GitCommit, Download, Upload, Trash2, Filter, Tag, X, TrendingUp, Plus, History as HistoryIcon } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
+import { useToast } from './ToastContext';
 import InventoryTransferModal from './InventoryTransferModal';
 import ConfirmationModal from './ConfirmationModal';
 import Pagination from './Pagination';
@@ -107,6 +108,7 @@ const EditStockModal: React.FC<{
 
 
 const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'create' | 'inventory' | 'history' | 'transfers') => void }> = ({ user, onSwitchTab }) => {
+    const { showToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
