@@ -221,8 +221,8 @@ const PartialPaymentModal: React.FC<{
     data: { item: Sale | GoodsReceipt, type: 'sale' | 'receipt' } | null;
     isProcessing: boolean;
     paymentMethods: PaymentMethod[];
-    supplier?: Supplier;
-}> = ({ isOpen, onClose, onConfirm, data, isProcessing, paymentMethods, supplier }) => {
+    suppliers: Supplier[];
+}> = ({ isOpen, onClose, onConfirm, data, isProcessing, paymentMethods, suppliers }) => {
     const [paymentDate, setPaymentDate] = useState(getTodayString());
     const [payAmount, setPayAmount] = useState(0);
     const [selectedMethodId, setSelectedMethodId] = useState('');
@@ -262,6 +262,7 @@ const PartialPaymentModal: React.FC<{
     const isSale = type === 'sale';
     const anyItem = item as any;
     const remainingDebt = (item.total || 0) - (anyItem.amountPaid || 0);
+    const supplier = type === 'receipt' ? suppliers.find(s => s.id === anyItem.supplierId) : undefined;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
@@ -297,6 +298,8 @@ const PartialPaymentModal: React.FC<{
                             </select>
                         </div>
                         {type === 'receipt' && (
+                            <>
+                            {!supplier && <div className="text-red-500 text-xs">Không tìm thấy nhà cung cấp (ID: {anyItem.supplierId})</div>}
                             <SupplierBankSelector 
                                 supplier={supplier}
                                 selectedBankAccountId={selectedBankAccountId}
@@ -306,6 +309,7 @@ const PartialPaymentModal: React.FC<{
                                 newBankDetails={newBankDetails}
                                 onNewBankChange={(field, val) => setNewBankDetails(prev => ({...prev, [field]: val}))}
                             />
+                            </>
                         )}
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán</label>
@@ -860,7 +864,7 @@ const DebtManagement: React.FC = () => {
                 data={paymentItem} 
                 isProcessing={isProcessingPayment}
                 paymentMethods={paymentMethods}
-                supplier={paymentItem?.type === 'receipt' ? suppliers.find(s => s.id === (paymentItem.item as any).supplierId) : undefined}
+                suppliers={suppliers}
             />
             
             <PayBulkModal 
