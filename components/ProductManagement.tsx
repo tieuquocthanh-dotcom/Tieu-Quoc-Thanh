@@ -14,6 +14,58 @@ import * as XLSX from 'xlsx';
 type SortKey = 'name' | 'importPrice' | 'sellingPrice' | 'profit' | 'warningThreshold';
 type SortDirection = 'asc' | 'desc';
 
+
+const NumericInput: React.FC<{
+    value: number;
+    onChange: (val: number) => void;
+    className?: string;
+    placeholder?: string;
+    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+    onBlur?: () => void;
+    isCurrency?: boolean;
+    autoFocus?: boolean;
+}> = ({ value, onChange, className, placeholder, onFocus, onBlur, isCurrency = true, autoFocus = false }) => {
+    const [localValue, setLocalValue] = useState(isCurrency ? formatNumber(value) : value.toString());
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [autoFocus]);
+
+    useEffect(() => {
+        setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+    }, [value, isCurrency]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/[^0-9]/g, '');
+        const num = Number(raw) || 0;
+        setLocalValue(isCurrency ? formatNumber(num) : num.toString());
+        onChange(num);
+    };
+
+    return (
+        <input
+            ref={inputRef}
+            type="text"
+            inputMode="numeric"
+            value={localValue}
+            placeholder={placeholder}
+            className={className}
+            onFocus={(e) => {
+                if (value === 0) setLocalValue("");
+                onFocus?.(e);
+            }}
+            onBlur={() => {
+                setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+                onBlur?.();
+            }}
+            onChange={handleChange}
+        />
+    );
+};
+
 export const ProductModal: React.FC<{
   product: Partial<Product> | null;
   manufacturers: Manufacturer[];
@@ -219,12 +271,12 @@ export const ProductModal: React.FC<{
 
             <div>
               <label className="block text-xs font-black uppercase text-slate-500 mb-1">Giá nhập dự kiến (₫)</label>
-              <input type="text" inputMode="numeric" value={formatNumber(importPrice)} onChange={e => setImportPrice(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)} onFocus={e => e.target.select()} className={`${inputClasses} font-black text-slate-600`} required />
+              <NumericInput value={importPrice} onChange={setImportPrice} className={`${inputClasses} font-black text-slate-600`} />
             </div>
 
             <div>
               <label className="block text-xs font-black uppercase text-slate-500 mb-1">Giá bán niêm yết (₫)</label>
-              <input type="text" inputMode="numeric" value={formatNumber(sellingPrice)} onChange={e => setSellingPrice(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)} onFocus={e => e.target.select()} className={`${inputClasses} font-black text-primary`} required />
+              <NumericInput value={sellingPrice} onChange={setSellingPrice} className={`${inputClasses} font-black text-primary`} />
             </div>
 
             <div>

@@ -20,6 +20,58 @@ interface Quotation {
     createdAt: Timestamp;
 }
 
+
+const NumericInput: React.FC<{
+    value: number;
+    onChange: (val: number) => void;
+    className?: string;
+    placeholder?: string;
+    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+    onBlur?: () => void;
+    isCurrency?: boolean;
+    autoFocus?: boolean;
+}> = ({ value, onChange, className, placeholder, onFocus, onBlur, isCurrency = true, autoFocus = false }) => {
+    const [localValue, setLocalValue] = useState(isCurrency ? formatNumber(value) : value.toString());
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [autoFocus]);
+
+    useEffect(() => {
+        setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+    }, [value, isCurrency]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/[^0-9]/g, '');
+        const num = Number(raw) || 0;
+        setLocalValue(isCurrency ? formatNumber(num) : num.toString());
+        onChange(num);
+    };
+
+    return (
+        <input
+            ref={inputRef}
+            type="text"
+            inputMode="numeric"
+            value={localValue}
+            placeholder={placeholder}
+            className={className}
+            onFocus={(e) => {
+                if (value === 0) setLocalValue("");
+                onFocus?.(e);
+            }}
+            onBlur={() => {
+                setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+                onBlur?.();
+            }}
+            onChange={handleChange}
+        />
+    );
+};
+
 const QuotationModal: React.FC<{
     quotation: Partial<Quotation> | null;
     onClose: () => void;
@@ -178,15 +230,7 @@ const QuotationModal: React.FC<{
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-neutral mb-1">Giá báo (VNĐ)</label>
-                        <input 
-                            type="text"
-                            inputMode="numeric"
-                            value={formatNumber(price)} 
-                            onChange={e => setPrice(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)} 
-                            onFocus={e => e.target.select()}
-                            className={inputClasses} 
-                            required 
-                        />
+                        <NumericInput value={price} onChange={setPrice} className={inputClasses} />
                     </div>
 
                     {error && <p className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</p>}

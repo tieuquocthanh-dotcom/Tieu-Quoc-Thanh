@@ -21,37 +21,46 @@ const NumericInput: React.FC<{
     onChange: (val: number) => void;
     className?: string;
     placeholder?: string;
-}> = ({ value, onChange, className, placeholder }) => {
-    const [isFocused, setIsFocused] = useState(false);
-    const [localValue, setLocalValue] = useState("");
+    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+    onBlur?: () => void;
+    isCurrency?: boolean;
+    autoFocus?: boolean;
+}> = ({ value, onChange, className, placeholder, onFocus, onBlur, isCurrency = true, autoFocus = false }) => {
+    const [localValue, setLocalValue] = useState(isCurrency ? formatNumber(value) : value.toString());
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (!isFocused) {
-            setLocalValue(formatNumber(value));
+        if (autoFocus && inputRef.current) {
+            inputRef.current.focus();
         }
-    }, [value, isFocused]);
+    }, [autoFocus]);
+
+    useEffect(() => {
+        setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+    }, [value, isCurrency]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.target.value.replace(/[^0-9]/g, '');
-        setLocalValue(raw);
-        onChange(Number(raw) || 0);
+        const num = Number(raw) || 0;
+        setLocalValue(isCurrency ? formatNumber(num) : num.toString());
+        onChange(num);
     };
 
     return (
         <input
+            ref={inputRef}
             type="text"
             inputMode="numeric"
             value={localValue}
             placeholder={placeholder}
             className={className}
             onFocus={(e) => {
-                setIsFocused(true);
-                setLocalValue(value === 0 ? "" : value.toString());
-                e.target.select();
+                if (value === 0) setLocalValue("");
+                onFocus?.(e);
             }}
             onBlur={() => {
-                setIsFocused(false);
-                setLocalValue(formatNumber(value));
+                setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+                onBlur?.();
             }}
             onChange={handleChange}
         />

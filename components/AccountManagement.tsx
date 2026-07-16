@@ -48,13 +48,11 @@ const EditLogModal: React.FC<{
                 <div className="p-6 space-y-4 bg-slate-50">
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số tiền giao dịch</label>
-                        <input 
-                            type="text"
-                            inputMode="numeric"
-                            value={formatNumber(amount)} 
-                            onChange={e => setAmount(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
-                            className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none bg-white text-black"
-                        />
+                        <NumericInput 
+        value={amount} 
+        onChange={setAmount}
+        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none bg-white text-black"
+    />
                     </div>
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Ngày giao dịch</label>
@@ -136,15 +134,12 @@ const EditBalanceModal: React.FC<{
 
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số dư mới</label>
-                        <input 
-                            type="text"
-                            inputMode="numeric"
-                            autoFocus
-                            value={formatNumber(newBalance)} 
-                            onChange={e => setNewBalance(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
-                            onFocus={e => e.target.select()}
-                            className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
-                        />
+                        <NumericInput 
+        autoFocus
+        value={newBalance} 
+        onChange={setNewBalance}
+        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
+    />
                     </div>
 
                     <div>
@@ -219,15 +214,12 @@ const TransactionModal: React.FC<{
 
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số tiền muốn {isDeposit ? 'nhập' : 'rút'}</label>
-                        <input 
-                            type="text"
-                            inputMode="numeric"
-                            autoFocus
-                            value={formatNumber(amount)} 
-                            onChange={e => setAmount(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
-                            onFocus={e => e.target.select()}
-                            className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
-                        />
+                        <NumericInput 
+        autoFocus
+        value={amount} 
+        onChange={setAmount}
+        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
+    />
                     </div>
 
                     <div>
@@ -319,18 +311,14 @@ const TransferModal: React.FC<{
 
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số tiền chuyển</label>
-                        <input 
-                            type="text" inputMode="numeric"
-                            value={formatNumber(amount)} 
-                            onChange={e => {
-                                const maxBal = fromAccount ? Number(fromAccount.balance) || 0 : 9999999999;
-                                const rawVal = e.target.value.replace(/\D/g, '');
-                                const numVal = parseInt(rawVal, 10) || 0;
-                                setAmount(Math.min(numVal, maxBal));
-                            }}
-                            onFocus={e => e.target.select()}
-                            className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
-                        />
+                        <NumericInput 
+        value={amount} 
+        onChange={val => {
+            const maxBal = fromAccount ? Number(fromAccount.balance) || 0 : 9999999999;
+            setAmount(Math.min(val, maxBal));
+        }}
+        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
+    />
                         {fromAccount && (
                             <p className="text-[10px] font-bold text-orange-600 mt-1 uppercase">Tối đa có thể chuyển: {formatNumber(fromAccount.balance || 0)} ₫</p>
                         )}
@@ -774,14 +762,11 @@ const AddAccountModal: React.FC<{
 
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Số dư ban đầu</label>
-                        <input 
-                            type="text"
-                            inputMode="numeric"
-                            value={formatNumber(initialBalance)} 
-                            onChange={e => setInitialBalance(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
-                            onFocus={e => e.target.select()}
-                            className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
-                        />
+                        <NumericInput 
+        value={initialBalance} 
+        onChange={setInitialBalance}
+        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
+    />
                     </div>
                 </div>
 
@@ -798,6 +783,58 @@ const AddAccountModal: React.FC<{
                 </div>
             </div>
         </div>
+    );
+};
+
+
+const NumericInput: React.FC<{
+    value: number;
+    onChange: (val: number) => void;
+    className?: string;
+    placeholder?: string;
+    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+    onBlur?: () => void;
+    isCurrency?: boolean;
+    autoFocus?: boolean;
+}> = ({ value, onChange, className, placeholder, onFocus, onBlur, isCurrency = true, autoFocus = false }) => {
+    const [localValue, setLocalValue] = useState(isCurrency ? formatNumber(value) : value.toString());
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [autoFocus]);
+
+    useEffect(() => {
+        setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+    }, [value, isCurrency]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/[^0-9]/g, '');
+        const num = Number(raw) || 0;
+        setLocalValue(isCurrency ? formatNumber(num) : num.toString());
+        onChange(num);
+    };
+
+    return (
+        <input
+            ref={inputRef}
+            type="text"
+            inputMode="numeric"
+            value={localValue}
+            placeholder={placeholder}
+            className={className}
+            onFocus={(e) => {
+                if (value === 0) setLocalValue("");
+                onFocus?.(e);
+            }}
+            onBlur={() => {
+                setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+                onBlur?.();
+            }}
+            onChange={handleChange}
+        />
     );
 };
 

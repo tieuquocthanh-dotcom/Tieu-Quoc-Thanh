@@ -87,11 +87,9 @@ const PayBulkModal: React.FC<{
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán</label>
-                            <input 
-                                type="text" inputMode="numeric"
-                                value={formatNumber(payAmount)} 
-                                onChange={(e) => setPayAmount(Math.min(parseNumber(e.target.value), totalAmount))} 
-                                onFocus={(e) => e.target.select()}
+                            <NumericInput 
+                                value={payAmount} 
+                                onChange={(val) => setPayAmount(Math.min(val, totalAmount))}
                                 className="w-full px-4 py-3 bg-slate-900 text-white border-2 border-slate-800 rounded-xl font-black text-2xl text-right focus:border-primary outline-none shadow-inner"
                             />
                         </div>
@@ -195,13 +193,11 @@ const PartialPaymentModal: React.FC<{
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán</label>
-                            <input 
-                                type="text" inputMode="numeric"
-                                value={formatNumber(payAmount)} 
-                                onChange={(e) => setPayAmount(Math.min(parseNumber(e.target.value), remainingDebt))} 
-                                onFocus={(e) => e.target.select()}
-                                className="w-full px-4 py-3 bg-slate-900 text-white border-2 border-slate-800 rounded-xl font-black text-2xl text-right focus:border-primary outline-none shadow-inner"
-                            />
+                            <NumericInput 
+        value={payAmount} 
+        onChange={(val) => setPayAmount(Math.min(val, remainingDebt))}
+        className="w-full px-4 py-3 bg-slate-900 text-white border-2 border-slate-800 rounded-xl font-black text-2xl text-right focus:border-primary outline-none shadow-inner"
+    />
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ngày ghi nhận</label>
@@ -218,6 +214,58 @@ const PartialPaymentModal: React.FC<{
                 </div>
             </div>
         </div>
+    );
+};
+
+
+const NumericInput: React.FC<{
+    value: number;
+    onChange: (val: number) => void;
+    className?: string;
+    placeholder?: string;
+    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+    onBlur?: () => void;
+    isCurrency?: boolean;
+    autoFocus?: boolean;
+}> = ({ value, onChange, className, placeholder, onFocus, onBlur, isCurrency = true, autoFocus = false }) => {
+    const [localValue, setLocalValue] = useState(isCurrency ? formatNumber(value) : value.toString());
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [autoFocus]);
+
+    useEffect(() => {
+        setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+    }, [value, isCurrency]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/[^0-9]/g, '');
+        const num = Number(raw) || 0;
+        setLocalValue(isCurrency ? formatNumber(num) : num.toString());
+        onChange(num);
+    };
+
+    return (
+        <input
+            ref={inputRef}
+            type="text"
+            inputMode="numeric"
+            value={localValue}
+            placeholder={placeholder}
+            className={className}
+            onFocus={(e) => {
+                if (value === 0) setLocalValue("");
+                onFocus?.(e);
+            }}
+            onBlur={() => {
+                setLocalValue(isCurrency ? formatNumber(value) : value.toString());
+                onBlur?.();
+            }}
+            onChange={handleChange}
+        />
     );
 };
 
