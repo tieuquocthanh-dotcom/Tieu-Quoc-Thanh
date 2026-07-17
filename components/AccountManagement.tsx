@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, updateDoc, doc, query, orderBy, addDoc, serverTimestamp, increment, where, limit, runTransaction, deleteDoc, getDoc, startAfter, limitToLast, endBefore, Timestamp } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { PaymentMethod, PaymentLog, Sale, GoodsReceipt } from '../types';

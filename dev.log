@@ -1,0 +1,15 @@
+
+> quan-ly-ban-hang-kho@0.0.0 dev
+> vite --port 3001
+
+9:36:11 AM [vite] (client) Re-optimizing dependencies because lockfile has changed
+
+  VITE v6.4.1  ready in 657 ms
+
+  ➜  Local:   http://localhost:3001/
+  ➜  Network: http://169.254.8.1:3001/
+  ➜  Network: http://169.254.9.1:3001/
+  ➜  Network: http://169.254.169.1:3001/
+9:36:31 AM [vite] (client) page reload package.json
+9:36:44 AM [vite] (client) page reload test-browser.cjs
+9:37:20 AM [vite] (client) page reload package.json
