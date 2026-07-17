@@ -256,7 +256,7 @@ const TransferModal: React.FC<{
     onClose: () => void;
     onConfirm: (fromId: string, toId: string, amount: number) => void;
     isSaving: boolean;
-}> = ({ isOpen, accounts, onClose, onConfirm, isSaving }) => {
+}> = ({ isOpen, accounts = [], onClose, onConfirm, isSaving }) => {
     const [fromId, setFromId] = useState('');
     const [toId, setToId] = useState('');
     const [amount, setAmount] = useState(0);
@@ -271,7 +271,8 @@ const TransferModal: React.FC<{
 
     if (!isOpen) return null;
 
-    const fromAccount = accounts.find(a => a.id === fromId);
+    const safeAccounts = accounts || [];
+    const fromAccount = safeAccounts.find(a => a.id === fromId);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
@@ -293,7 +294,7 @@ const TransferModal: React.FC<{
                             className="w-full p-3 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-primary bg-white text-black"
                         >
                             <option value="">-- Chọn tài khoản nguồn --</option>
-                            {accounts.map(a => <option key={a.id} value={a.id}>{a.name} (Dư: {formatNumber(a.balance || 0)} ₫)</option>)}
+                            {safeAccounts.map(a => <option key={a.id} value={a.id}>{a.name} (Dư: {formatNumber(a.balance || 0)} ₫)</option>)}
                         </select>
                     </div>
 
@@ -305,7 +306,7 @@ const TransferModal: React.FC<{
                             className="w-full p-3 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-primary bg-white text-black"
                         >
                             <option value="">-- Chọn tài khoản đích --</option>
-                            {accounts.filter(a => a.id !== fromId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            {safeAccounts.filter(a => a.id !== fromId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                         </select>
                     </div>
 
