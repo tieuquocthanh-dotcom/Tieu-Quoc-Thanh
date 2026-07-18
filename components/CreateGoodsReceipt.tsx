@@ -131,18 +131,48 @@ const ImportProductCard: React.FC<{
             {product.isCombo && (
                 <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-br-lg font-black z-10 uppercase shadow-sm">COMBO</div>
             )}
-            <div className="mb-2 mt-3">
-                <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1" title={product.name}>{product.name}</div>
-                
-                {/* Inventory display for 3 warehouses */}
-                <div className="flex flex-wrap gap-2 mb-2">
-                    {topWarehouses.map(w => (
-                        <div key={w.id} className="flex items-center bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                            <span className="text-[8px] font-bold text-slate-400 uppercase mr-1 truncate max-w-[40px]">{w.name}:</span>
-                            <span className="text-[10px] font-black text-red-600">{productInventory[w.id] || 0}</span>
-                        </div>
-                    ))}
+            <div className="mb-2 mt-3 flex justify-between items-start">
+                <div className="flex-1">
+                    <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1 cursor-pointer transition-all hover:line-clamp-none" title={product.name}>{product.name}</div>
+                    
+                    {/* Inventory display for 3 warehouses */}
+                    <div className="grid grid-cols-3 gap-1 text-[9px] text-neutral font-bold mt-1">
+                        {topWarehouses.map(w => (
+                            <div key={w.id} className="text-center">
+                                <div className="text-[8px] text-slate-400 uppercase truncate">{w.name}</div>
+                                <div className="text-primary">{productInventory[w.id] || 0}</div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
+                {!product.isCombo && (
+                    <div className="flex gap-1 ml-1 flex-shrink-0">
+                        {isAdmin && (
+                            <button 
+                                onClick={handleSaveBasePrice} 
+                                disabled={isSaving}
+                                className={`p-1.5 rounded-lg transition-all shadow-sm flex items-center justify-center h-7 w-7 ${lastSupplierPrice !== undefined ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-800 text-white hover:bg-black'}`}
+                                title="Lưu thành giá nhập gốc của sản phẩm"
+                            >
+                                {isSaving ? <Loader size={12} className="animate-spin"/> : <Save size={12}/>}
+                            </button>
+                        )}
+                        <button 
+                            onClick={() => onCompare?.(product)}
+                            className="p-1.5 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-600 hover:text-white transition shadow-sm flex items-center justify-center h-7 w-7"
+                            title="So sánh giá nhập"
+                        >
+                            <TrendingUp size={12}/>
+                        </button>
+                        <button 
+                            onClick={() => onTrace?.(product)}
+                            className="p-1.5 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-sm flex items-center justify-center h-7 w-7"
+                            title="Truy vết tồn kho"
+                        >
+                            <History size={12}/>
+                        </button>
+                    </div>
+                )}
             </div>
             <div className="space-y-1 mb-3">
                 <div className="flex items-center gap-1">
@@ -150,35 +180,9 @@ const ImportProductCard: React.FC<{
                         <NumericInput 
                             value={inputImportPrice}
                             onChange={setInputImportPrice}
-                            className={`w-full pl-6 pr-1 py-1.5 text-base border-2 rounded-lg font-black text-right focus:ring-2 focus:ring-white outline-none shadow-sm transition-colors ${lastSupplierPrice !== undefined ? 'bg-blue-50 border-blue-600 text-black' : 'bg-slate-900 border-black text-white'}`}
+                            className={`w-full pl-6 pr-1 py-1.5 text-base border-2 rounded-lg font-black text-right focus:ring-2 focus:ring-white outline-none shadow-sm transition-colors ${lastSupplierPrice !== undefined ? 'bg-red-50 border-red-600 text-black' : 'bg-slate-900 border-black text-white'}`}
                         />
-                        <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-[9px] font-black ${lastSupplierPrice !== undefined ? 'text-blue-600' : 'text-white/70'}`}>VỐN</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        {isAdmin && (
-                            <button 
-                                onClick={handleSaveBasePrice} 
-                                disabled={isSaving}
-                                className={`p-1.5 rounded-lg transition-all shadow-sm flex items-center justify-center ${lastSupplierPrice !== undefined ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-800 text-white hover:bg-black'}`}
-                                title="Lưu thành giá nhập gốc của sản phẩm"
-                            >
-                                {isSaving ? <Loader size={14} className="animate-spin"/> : <Save size={14}/>}
-                            </button>
-                        )}
-                        <button 
-                            onClick={() => onCompare?.(product)}
-                            className="p-1.5 bg-orange-100 text-orange-600 rounded-lg border border-orange-200 hover:bg-orange-600 hover:text-white transition shadow-sm flex items-center justify-center"
-                            title="So sánh giá nhập"
-                        >
-                            <TrendingUp size={14}/>
-                        </button>
-                        <button 
-                            onClick={() => onTrace?.(product)}
-                            className="p-1.5 bg-purple-100 text-purple-600 rounded-lg border border-purple-200 hover:bg-purple-600 hover:text-white transition shadow-sm flex items-center justify-center"
-                            title="Truy vết tồn kho"
-                        >
-                            <History size={14}/>
-                        </button>
+                        <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-[9px] font-black ${lastSupplierPrice !== undefined ? 'text-red-600' : 'text-white/70'}`}>VỐN</span>
                     </div>
                 </div>
             </div>
