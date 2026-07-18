@@ -11,6 +11,7 @@ import PriceComparisonModal from './PriceComparisonModal';
 import InventoryLedger from './InventoryLedger';
 import { ProductModal } from './ProductManagement';
 import { SupplierModal } from './SupplierManagement';
+import { SupplierBankSelector } from './SupplierBankSelector';
 import { User } from 'firebase/auth';
 
 // Add missing getTodayString helper function
@@ -212,6 +213,9 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'debt'>('paid');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+  const [isCreatingNewBank, setIsCreatingNewBank] = useState(false);
+  const [newBankDetails, setNewBankDetails] = useState({ bankName: '', accountNumber: '', accountName: '' });
   const [hasInvoice, setHasInvoice] = useState(false);
   const [receiptDate, setReceiptDate] = useState(getTodayString());
   const [supplierPriceHistory, setSupplierPriceHistory] = useState<Record<string, number>>({});
