@@ -558,6 +558,25 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                     </div>
                                     <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={hasInvoice} onChange={e => setHasInvoice(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-0" /><span className="text-xs font-black uppercase text-blue-600">Có HĐ Đỏ</span></label>
                                     <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={paymentStatus === 'debt'} onChange={e => setPaymentStatus(e.target.checked ? 'debt' : 'paid')} className="w-5 h-5 rounded border-slate-300 text-red-600 focus:ring-0" /><span className="text-xs font-black uppercase text-red-600">Ghi nợ NCC</span></label>
+                                    <div className="relative ml-2 w-48">
+                                        <ClipboardList className="absolute left-2 top-1/2 -translate-y-1/2 text-white" size={14}/>
+                                        <select 
+                                            onChange={(e) => handleImportFromSource(e.target.value)}
+                                            className="w-full pl-7 pr-1 py-1.5 border border-black bg-black rounded-lg text-[10px] font-black text-white focus:ring-2 focus:ring-primary focus:outline-none appearance-none uppercase shadow-sm cursor-pointer"
+                                        >
+                                            <option value="" className="text-white bg-black">Nhập từ nguồn...</option>
+                                            <optgroup label="Dự kiến đặt hàng" className="text-white bg-black">
+                                                {plannedOrders.map(o => (
+                                                    <option key={o.id} value={`planned:${o.id}`} className="text-white bg-black">{o.supplierName} - {o.id.substring(0,5)}</option>
+                                                ))}
+                                            </optgroup>
+                                            <optgroup label="Nhập hàng Trung Quốc" className="text-white bg-black">
+                                                {chinaImports.map(o => (
+                                                    <option key={o.id} value={`china:${o.id}`} className="text-white bg-black">{o.orderName || o.id.substring(0,5)}</option>
+                                                ))}
+                                            </optgroup>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
@@ -590,26 +609,6 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                     />
                                     </div>
                                 )}
-
-                                <div className="relative">
-                                    <ClipboardList className="absolute left-2 top-1/2 -translate-y-1/2 text-white" size={16}/>
-                                    <select 
-                                        onChange={(e) => handleImportFromSource(e.target.value)}
-                                        className="w-full pl-8 pr-1 py-2 border border-black bg-black rounded-lg text-[10px] font-black text-white focus:ring-2 focus:ring-primary focus:outline-none appearance-none uppercase shadow-lg"
-                                    >
-                                        <option value="" className="text-white bg-black">Nhập từ nguồn...</option>
-                                        <optgroup label="Dự kiến đặt hàng" className="text-white bg-black">
-                                            {plannedOrders.map(o => (
-                                                <option key={o.id} value={`planned:${o.id}`} className="text-white bg-black">{o.supplierName} - {o.id.substring(0,5)}</option>
-                                            ))}
-                                        </optgroup>
-                                        <optgroup label="Nhập hàng Trung Quốc" className="text-white bg-black">
-                                            {chinaImports.map(o => (
-                                                <option key={o.id} value={`china:${o.id}`} className="text-white bg-black">{o.orderName || o.id.substring(0,5)}</option>
-                                            ))}
-                                        </optgroup>
-                                    </select>
-                                </div>
                             </div>
                         </div>
                         <div className="flex gap-2 shrink-0">

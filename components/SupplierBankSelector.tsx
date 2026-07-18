@@ -20,7 +20,7 @@ export const SupplierBankSelector: React.FC<{
             <div className="w-full h-full flex flex-col justify-center">
                 {!isCreatingNew ? (
                     <div className="relative w-full">
-                        <Banknote className="absolute left-2 top-1/2 -translate-y-1/2 text-white" size={16}/>
+                        <Banknote className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600" size={16}/>
                         <select
                             value={selectedBankAccountId}
                             onChange={(e) => {
@@ -31,9 +31,9 @@ export const SupplierBankSelector: React.FC<{
                                     onSelect(e.target.value);
                                 }
                             }}
-                            className="w-full pl-8 pr-1 py-2 border border-black bg-black rounded-lg text-[10px] font-black text-white focus:ring-2 focus:ring-primary focus:outline-none appearance-none uppercase shadow-lg truncate"
+                            className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary focus:outline-none appearance-none truncate bg-white text-black border-slate-300"
                         >
-                            <option value="">Ngân hàng NCC...</option>
+                            <option value="">Chọn NH của NCC...</option>
                             {accounts.map(acc => (
                                 <option key={acc.id} value={acc.id}>
                                     {acc.bankName} - {acc.accountNumber}
@@ -43,14 +43,14 @@ export const SupplierBankSelector: React.FC<{
                         </select>
                     </div>
                 ) : (
-                    <div className="space-y-1 bg-slate-900 p-2 rounded-lg border border-slate-700 w-full relative z-10 shadow-2xl">
+                    <div className="space-y-2 bg-white p-2 rounded-lg border border-slate-300 w-full relative z-10 shadow-lg">
                         <div className="flex justify-between items-center mb-1">
-                            <span className="text-[9px] font-black text-slate-300 uppercase">Thêm TK Ngân hàng</span>
-                            <button onClick={() => setIsCreatingNew(false)} className="text-red-400 hover:text-red-300 p-0.5"><X size={12}/></button>
+                            <span className="text-[10px] font-black text-slate-500 uppercase">Thêm TK Ngân hàng</span>
+                            <button onClick={() => setIsCreatingNew(false)} className="text-red-500 hover:text-red-600 p-0.5"><X size={14}/></button>
                         </div>
-                        <input type="text" placeholder="Ngân hàng (VCB...)" value={newBankDetails.bankName} onChange={e => onNewBankChange('bankName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-700 bg-black text-white rounded text-[10px] font-bold outline-none focus:border-primary"/>
-                        <input type="text" placeholder="Số tài khoản" value={newBankDetails.accountNumber} onChange={e => onNewBankChange('accountNumber', e.target.value)} className="w-full px-2 py-1.5 border border-slate-700 bg-black text-white rounded text-[10px] font-bold outline-none focus:border-primary"/>
-                        <input type="text" placeholder="Tên chủ tài khoản" value={newBankDetails.accountName} onChange={e => onNewBankChange('accountName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-700 bg-black text-white rounded text-[10px] font-bold outline-none focus:border-primary"/>
+                        <input type="text" placeholder="Ngân hàng (VCB...)" value={newBankDetails.bankName} onChange={e => onNewBankChange('bankName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
+                        <input type="text" placeholder="Số tài khoản" value={newBankDetails.accountNumber} onChange={e => onNewBankChange('accountNumber', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
+                        <input type="text" placeholder="Tên chủ tài khoản" value={newBankDetails.accountName} onChange={e => onNewBankChange('accountName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
                     </div>
                 )}
             </div>
