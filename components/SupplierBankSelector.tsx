@@ -10,14 +10,15 @@ export const SupplierBankSelector: React.FC<{
     onNewBankChange: (field: string, value: string) => void;
     isCreatingNew: boolean;
     setIsCreatingNew: (val: boolean) => void;
+    onSaveNewBank?: () => void;
     theme?: 'light' | 'dark';
-}> = ({ supplier, selectedBankAccountId, onSelect, newBankDetails, onNewBankChange, isCreatingNew, setIsCreatingNew, theme = 'light' }) => {
+}> = ({ supplier, selectedBankAccountId, onSelect, newBankDetails, onNewBankChange, isCreatingNew, setIsCreatingNew, onSaveNewBank, theme = 'light' }) => {
     if (!supplier) return null;
     const accounts = supplier.bankAccounts || [];
 
     if (theme === 'dark') {
         return (
-            <div className="w-full h-full flex flex-col justify-center">
+            <div className="w-full h-full flex flex-col justify-center relative">
                 {!isCreatingNew ? (
                     <div className="relative w-full">
                         <Banknote className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600" size={16}/>
@@ -43,14 +44,25 @@ export const SupplierBankSelector: React.FC<{
                         </select>
                     </div>
                 ) : (
-                    <div className="space-y-2 bg-white p-2 rounded-lg border border-slate-300 w-full relative z-10 shadow-lg">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="text-[10px] font-black text-slate-500 uppercase">Thêm TK Ngân hàng</span>
-                            <button onClick={() => setIsCreatingNew(false)} className="text-red-500 hover:text-red-600 p-0.5"><X size={14}/></button>
+                    <div className="relative w-full">
+                        <div className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black truncate bg-slate-100 text-slate-500 border-slate-300 cursor-not-allowed">
+                            <Banknote className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                            Đang thêm TK mới...
                         </div>
-                        <input type="text" placeholder="Ngân hàng (VCB...)" value={newBankDetails.bankName} onChange={e => onNewBankChange('bankName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
-                        <input type="text" placeholder="Số tài khoản" value={newBankDetails.accountNumber} onChange={e => onNewBankChange('accountNumber', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
-                        <input type="text" placeholder="Tên chủ tài khoản" value={newBankDetails.accountName} onChange={e => onNewBankChange('accountName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
+                        <div className="absolute top-full left-0 mt-1 bg-white p-3 rounded-xl border border-slate-300 shadow-2xl z-50 space-y-2 w-[280px]">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[10px] font-black text-slate-500 uppercase">Thêm TK Ngân hàng</span>
+                                <button onClick={() => setIsCreatingNew(false)} className="text-red-500 hover:text-red-600 p-0.5 hover:bg-red-50 rounded"><X size={14}/></button>
+                            </div>
+                            <input type="text" placeholder="Ngân hàng (VCB...)" value={newBankDetails.bankName} onChange={e => onNewBankChange('bankName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
+                            <input type="text" placeholder="Số tài khoản" value={newBankDetails.accountNumber} onChange={e => onNewBankChange('accountNumber', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
+                            <input type="text" placeholder="Tên chủ tài khoản" value={newBankDetails.accountName} onChange={e => onNewBankChange('accountName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-[11px] font-bold outline-none focus:border-primary"/>
+                            {onSaveNewBank && (
+                                <button onClick={onSaveNewBank} className="w-full py-1.5 bg-primary text-white rounded text-[10px] font-black uppercase tracking-wider hover:bg-primary-hover transition mt-2">
+                                    Lưu Tài Khoản
+                                </button>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -92,6 +104,11 @@ export const SupplierBankSelector: React.FC<{
                     <input type="text" placeholder="Tên Ngân hàng (vd: VCB, TCB...)" value={newBankDetails.bankName} onChange={e => onNewBankChange('bankName', e.target.value)} className="w-full px-3 py-2 border-2 border-slate-800 rounded-lg text-sm font-bold"/>
                     <input type="text" placeholder="Số tài khoản" value={newBankDetails.accountNumber} onChange={e => onNewBankChange('accountNumber', e.target.value)} className="w-full px-3 py-2 border-2 border-slate-800 rounded-lg text-sm font-bold"/>
                     <input type="text" placeholder="Tên chủ tài khoản" value={newBankDetails.accountName} onChange={e => onNewBankChange('accountName', e.target.value)} className="w-full px-3 py-2 border-2 border-slate-800 rounded-lg text-sm font-bold"/>
+                    {onSaveNewBank && (
+                        <button onClick={onSaveNewBank} className="w-full py-2 mt-2 bg-primary text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-primary-hover transition shadow-sm">
+                            Lưu Tài Khoản
+                        </button>
+                    )}
                 </div>
             )}
         </div>

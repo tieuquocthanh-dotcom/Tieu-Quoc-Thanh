@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, increment, setDoc, Timestamp, where, addDoc, limit, getDocs, updateDoc, deleteDoc, runTransaction, collectionGroup } from 'firebase/firestore';
+import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, increment, setDoc, Timestamp, where, addDoc, limit, getDocs, updateDoc, deleteDoc, runTransaction, collectionGroup, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, Supplier, GoodsReceiptItem, Warehouse, PaymentMethod, Manufacturer, GoodsReceipt, PlannedOrder, ChinaImport } from '../types';
 import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck } from 'lucide-react';
@@ -379,6 +379,31 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     }
   };
 
+  const handleSaveNewBank = async () => {
+      if (!selectedSupplierId) {
+          setToast({ message: "Vui lòng chọn nhà cung cấp trước.", type: 'error' });
+          return;
+      }
+      if (!newBankDetails.bankName || !newBankDetails.accountNumber) {
+          setToast({ message: "Vui lòng nhập tên ngân hàng và số tài khoản", type: 'error' });
+          return;
+      }
+      try {
+          const newId = Date.now().toString();
+          const newAccount = { id: newId, ...newBankDetails };
+          await updateDoc(doc(db, 'suppliers', selectedSupplierId), {
+              bankAccounts: arrayUnion(newAccount)
+          });
+          setSelectedBankAccountId(newId);
+          setIsCreatingNewBank(false);
+          setNewBankDetails({ bankName: '', accountNumber: '', accountName: '' });
+          setToast({ message: "Đã lưu tài khoản ngân hàng mới!", type: 'success' });
+      } catch (e: any) {
+          console.error(e);
+          setToast({ message: "Lỗi khi lưu tài khoản NH: " + e.message, type: 'error' });
+      }
+  };
+
   const handleQuickCreateSupplier = async (data: any) => {
     try {
         const docRef = await addDoc(collection(db, 'suppliers'), { ...data, createdAt: serverTimestamp() });
@@ -609,6 +634,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         setIsCreatingNew={setIsCreatingNewBank}
                                         newBankDetails={newBankDetails}
                                         onNewBankChange={(field, val) => setNewBankDetails(prev => ({...prev, [field]: val}))}
+                                        onSaveNewBank={handleSaveNewBank}
                                         theme="dark"
                                     />
                                     </div>
