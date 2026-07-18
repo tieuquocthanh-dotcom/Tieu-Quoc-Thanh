@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, Banknote } from 'lucide-react';
 import { Supplier } from '../types';
 
 export const SupplierBankSelector: React.FC<{
@@ -10,9 +10,52 @@ export const SupplierBankSelector: React.FC<{
     onNewBankChange: (field: string, value: string) => void;
     isCreatingNew: boolean;
     setIsCreatingNew: (val: boolean) => void;
-}> = ({ supplier, selectedBankAccountId, onSelect, newBankDetails, onNewBankChange, isCreatingNew, setIsCreatingNew }) => {
+    theme?: 'light' | 'dark';
+}> = ({ supplier, selectedBankAccountId, onSelect, newBankDetails, onNewBankChange, isCreatingNew, setIsCreatingNew, theme = 'light' }) => {
     if (!supplier) return null;
     const accounts = supplier.bankAccounts || [];
+
+    if (theme === 'dark') {
+        return (
+            <div className="w-full h-full flex flex-col justify-center">
+                {!isCreatingNew ? (
+                    <div className="relative w-full">
+                        <Banknote className="absolute left-2 top-1/2 -translate-y-1/2 text-white" size={16}/>
+                        <select
+                            value={selectedBankAccountId}
+                            onChange={(e) => {
+                                if (e.target.value === 'new') {
+                                    setIsCreatingNew(true);
+                                    onSelect('');
+                                } else {
+                                    onSelect(e.target.value);
+                                }
+                            }}
+                            className="w-full pl-8 pr-1 py-2 border border-black bg-black rounded-lg text-[10px] font-black text-white focus:ring-2 focus:ring-primary focus:outline-none appearance-none uppercase shadow-lg truncate"
+                        >
+                            <option value="">Ngân hàng NCC...</option>
+                            {accounts.map(acc => (
+                                <option key={acc.id} value={acc.id}>
+                                    {acc.bankName} - {acc.accountNumber}
+                                </option>
+                            ))}
+                            <option value="new">+ Thêm TK mới</option>
+                        </select>
+                    </div>
+                ) : (
+                    <div className="space-y-1 bg-slate-900 p-2 rounded-lg border border-slate-700 w-full relative z-10 shadow-2xl">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-[9px] font-black text-slate-300 uppercase">Thêm TK Ngân hàng</span>
+                            <button onClick={() => setIsCreatingNew(false)} className="text-red-400 hover:text-red-300 p-0.5"><X size={12}/></button>
+                        </div>
+                        <input type="text" placeholder="Ngân hàng (VCB...)" value={newBankDetails.bankName} onChange={e => onNewBankChange('bankName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-700 bg-black text-white rounded text-[10px] font-bold outline-none focus:border-primary"/>
+                        <input type="text" placeholder="Số tài khoản" value={newBankDetails.accountNumber} onChange={e => onNewBankChange('accountNumber', e.target.value)} className="w-full px-2 py-1.5 border border-slate-700 bg-black text-white rounded text-[10px] font-bold outline-none focus:border-primary"/>
+                        <input type="text" placeholder="Tên chủ tài khoản" value={newBankDetails.accountName} onChange={e => onNewBankChange('accountName', e.target.value)} className="w-full px-2 py-1.5 border border-slate-700 bg-black text-white rounded text-[10px] font-bold outline-none focus:border-primary"/>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className="mt-4 border-t-2 border-slate-200 pt-4">

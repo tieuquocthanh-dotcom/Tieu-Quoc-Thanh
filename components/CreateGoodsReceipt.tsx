@@ -586,6 +586,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         setIsCreatingNew={setIsCreatingNewBank}
                                         newBankDetails={newBankDetails}
                                         onNewBankChange={(field, val) => setNewBankDetails(prev => ({...prev, [field]: val}))}
+                                        theme="dark"
                                     />
                                     </div>
                                 )}
