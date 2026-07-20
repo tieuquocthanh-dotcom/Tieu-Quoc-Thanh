@@ -312,8 +312,16 @@ const App: React.FC = () => {
     <div className="flex flex-col h-[100dvh] bg-slate-100 font-sans">
       <header className="w-full bg-white shadow-md p-3 z-20 border-b border-slate-200 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="text-xl font-bold text-primary cursor-pointer flex items-center" onClick={() => setView('home')}>
-            <Home className="mr-2"/> Kho & Bán Hàng
+          <div className="flex flex-col">
+            <div className="text-xl font-bold text-primary cursor-pointer flex items-center" onClick={() => setView('home')}>
+              <Home className="mr-2"/> Kho & Bán Hàng
+            </div>
+            {user && (
+              <div className="text-[10px] font-black text-green-600 flex items-center mt-0.5 uppercase tracking-wide">
+                <UserCircle size={12} className="mr-1"/> 
+                {user.displayName || user.email?.split('@')[0]} đang làm việc
+              </div>
+            )}
           </div>
           
           <nav className="flex items-center space-x-1">
