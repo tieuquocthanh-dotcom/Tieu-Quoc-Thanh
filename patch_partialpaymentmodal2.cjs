@@ -1,14 +1,9 @@
 const fs = require('fs');
-let file = 'components/DebtManagement.tsx';
-let content = fs.readFileSync(file, 'utf8');
+let code = fs.readFileSync('components/DebtManagement.tsx', 'utf-8');
 
-const regex = /supplier=\{paymentItem\?.type === 'receipt' \? suppliers\.find\(s => s\.id === \(paymentItem\.item as import\('\.\.\/types'\)\.GoodsReceipt\)\.supplierId\) : undefined\}/;
+code = code.replace(
+    '<div className="p-4 bg-slate-50 border-t-2 border-slate-800 flex gap-2">',
+    '<div className="p-4 bg-slate-50 border-t-2 border-slate-800 flex gap-2 shrink-0">'
+);
 
-const replacement = `supplier={paymentItem?.type === 'receipt' ? suppliers.find(s => s.id === (paymentItem.item as any).supplierId) : undefined}`;
-
-if (content.match(regex)) {
-    content = content.replace(regex, replacement);
-    fs.writeFileSync(file, content);
-} else {
-    console.log("NOT FOUND");
-}
+fs.writeFileSync('components/DebtManagement.tsx', code);

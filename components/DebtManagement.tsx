@@ -132,7 +132,7 @@ const PayBulkModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down overflow-hidden border-4 border-slate-800">
+            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down overflow-hidden border-4 border-slate-800 flex flex-col max-h-[90vh]">
                 <div className={`flex justify-between items-center p-4 border-b-2 border-slate-800 ${isReceivable ? 'bg-green-100' : 'bg-orange-100'}`}>
                     <h3 className="text-sm font-black text-black uppercase flex items-center">
                         <CheckCheck className="mr-2" size={18} />
@@ -140,7 +140,7 @@ const PayBulkModal: React.FC<{
                     </h3>
                     <button onClick={onClose} className="text-black hover:text-red-500 transition-colors"><X size={24} /></button>
                 </div>
-                <div className="p-6">
+                <div className="p-6 overflow-y-auto">
                     <div className="bg-slate-50 p-4 rounded-xl border-2 border-slate-200 mb-6 text-center shadow-inner">
                         <p className="text-[10px] text-slate-500 font-black uppercase mb-1">Đối tác: {debtorName}</p>
                         <p className="text-[10px] text-slate-500 font-black uppercase">Đang chọn {count} mục</p>
@@ -192,7 +192,7 @@ const PayBulkModal: React.FC<{
                         </div>
                     </div>
                 </div>
-                <div className="p-4 bg-slate-50 flex gap-3">
+                <div className="p-4 bg-slate-50 flex gap-3 shrink-0">
                     <button 
                         onClick={onClose} 
                         className="flex-1 py-3 bg-white border-2 border-slate-800 text-black rounded-xl font-black text-xs uppercase hover:bg-slate-100 transition active:scale-95"
@@ -326,7 +326,7 @@ const PartialPaymentModal: React.FC<{
                     </div>
                 </div>
 
-                <div className="p-4 bg-slate-50 border-t-2 border-slate-800 flex gap-2">
+                <div className="p-4 bg-slate-50 border-t-2 border-slate-800 flex gap-2 shrink-0">
                     <button onClick={onClose} className="flex-1 py-3 bg-white border-2 border-slate-800 rounded-xl font-black text-xs uppercase text-black" disabled={isProcessing}>Hủy</button>
                     <button onClick={handleConfirm} className="flex-1 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg disabled:bg-slate-300 disabled:shadow-none" disabled={isProcessing || payAmount <= 0 || !selectedMethodId}>
                         {isProcessing ? <Loader size={18} className="animate-spin" /> : 'Xác nhận'}
