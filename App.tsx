@@ -305,9 +305,11 @@ const App: React.FC = () => {
     label: string;
     disabled?: boolean;
     onClick?: () => void;
-  }> = ({ targetView, icon, label, disabled = false, onClick }) => {
+  
+    badgeCount?: number;
+  }> = ({ targetView, icon, label, disabled = false, onClick, badgeCount = 0 }) => {
     const isActive = view === targetView;
-    const baseClasses = 'flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium';
+    const baseClasses = 'flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium relative';
     const activeClasses = 'bg-primary text-white shadow';
     const inactiveClasses = 'text-neutral hover:bg-slate-100 hover:text-dark';
     const disabledClasses = 'text-slate-400 cursor-not-allowed';
@@ -325,6 +327,11 @@ const App: React.FC = () => {
       >
         {icon}
         <span className="hidden md:inline">{label}</span>
+        {badgeCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white shadow-sm flex items-center justify-center">
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </span>
+        )}
       </button>
     );
   };
@@ -386,8 +393,8 @@ const App: React.FC = () => {
             )}
 
             {isAdmin && <NavItem targetView="dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" />}
-            <NavItem targetView="sales" icon={<ShoppingCart size={18} />} label="Bán Hàng" />
-            <NavItem targetView="goodsReceipt" icon={<Archive size={18} />} label="Nhập Hàng" />
+            <NavItem targetView="sales" icon={<ShoppingCart size={18} />} label="Bán Hàng" badgeCount={unreadSalesCount} />
+            <NavItem targetView="goodsReceipt" icon={<Archive size={18} />} label="Nhập Hàng" badgeCount={unreadReceiptsCount} />
 
             {isAdmin && (
                 <>
