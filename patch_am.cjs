@@ -1,116 +1,64 @@
 const fs = require('fs');
-const file = 'components/AccountManagement.tsx';
-let content = fs.readFileSync(file, 'utf8');
+let code = fs.readFileSync('App.tsx', 'utf-8');
 
-const numericInputStr = `
-const NumericInput: React.FC<{
-    value: number;
-    onChange: (val: number) => void;
-    className?: string;
-    placeholder?: string;
-    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
-    onBlur?: () => void;
-    isCurrency?: boolean;
-    autoFocus?: boolean;
-}> = ({ value, onChange, className, placeholder, onFocus, onBlur, isCurrency = true, autoFocus = false }) => {
-    const [isFocused, setIsFocused] = useState(false);
-    const [localValue, setLocalValue] = useState("");
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => {
-        if (autoFocus && inputRef.current) {
-            inputRef.current.focus();
-        }
-    }, [autoFocus]);
-
-    useEffect(() => {
-        if (!isFocused) {
-            setLocalValue(isCurrency ? formatNumber(value) : value.toString());
-        }
-    }, [value, isFocused, isCurrency]);
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const raw = e.target.value.replace(/[^0-9]/g, '');
-        setLocalValue(raw);
-        onChange(Number(raw) || 0);
-    };
-
-    return (
-        <input
-            ref={inputRef}
-            type="text"
-            inputMode="numeric"
-            value={localValue}
-            placeholder={placeholder}
-            className={className}
-            onFocus={(e) => {
-                setIsFocused(true);
-                setLocalValue(value === 0 ? "" : value.toString());
-                onFocus?.(e);
-            }}
-            onBlur={() => {
-                setIsFocused(false);
-                setLocalValue(isCurrency ? formatNumber(value) : value.toString());
-                onBlur?.();
-            }}
-            onChange={handleChange}
-        />
-    );
-};
-`;
-
-if (!content.includes('const NumericInput')) {
-    content = content.replace("const AccountManagement: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ userRole }) => {", numericInputStr + "\nconst AccountManagement: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ userRole }) => {");
-}
-
-content = content.replace(
-    /<input\s*type="text"\s*inputMode="numeric"\s*value=\{formatNumber\(amount\)\}\s*onChange=\{e => setAmount\(parseInt\(e\.target\.value\.replace\(\/\\D\/g, ''\), 10\) \|\| 0\)\}\s*className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none bg-white text-black"\s*\/>/g,
-    `<NumericInput 
-        value={amount} 
-        onChange={setAmount}
-        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none bg-white text-black"
-    />`
+code = code.replace(
+    "import { doc, onSnapshot as onDocSnapshot, setDoc } from 'firebase/firestore';",
+    "import { doc, onSnapshot as onDocSnapshot, setDoc, collection, query, where, onSnapshot } from 'firebase/firestore';"
 );
 
-content = content.replace(
-    /<input\s*type="text"\s*inputMode="numeric"\s*autoFocus\s*value=\{formatNumber\(newBalance\)\}\s*onChange=\{e => setNewBalance\(parseInt\(e\.target\.value\.replace\(\/\\D\/g, ''\), 10\) \|\| 0\)\}\s*onFocus=\{e => e\.target\.select\(\)\}\s*className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"\s*\/>/g,
-    `<NumericInput 
-        autoFocus
-        value={newBalance} 
-        onChange={setNewBalance}
-        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
-    />`
-);
+const newLogic = `
+  const [unreadSalesCount, setUnreadSalesCount] = useState(0);
+  const [unreadReceiptsCount, setUnreadReceiptsCount] = useState(0);
 
-content = content.replace(
-    /<input\s*type="text"\s*inputMode="numeric"\s*autoFocus\s*value=\{formatNumber\(amount\)\}\s*onChange=\{e => setAmount\(parseInt\(e\.target\.value\.replace\(\/\\D\/g, ''\), 10\) \|\| 0\)\}\s*onFocus=\{e => e\.target\.select\(\)\}\s*className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"\s*\/>/g,
-    `<NumericInput 
-        autoFocus
-        value={amount} 
-        onChange={setAmount}
-        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
-    />`
-);
+  const [lastViewedSales, setLastViewedSales] = useState(() => parseInt(localStorage.getItem('lastViewedSales') || Date.now().toString()));
+  const [lastViewedReceipts, setLastViewedReceipts] = useState(() => parseInt(localStorage.getItem('lastViewedReceipts') || Date.now().toString()));
 
-content = content.replace(
-    /<input\s*type="text" inputMode="numeric"\s*value=\{formatNumber\(amount\)\}\s*onChange=\{e => \{\s*const maxBal = fromAccount \? Number\(fromAccount\.balance\) \|\| 0 : 9999999999;\s*const rawVal = e\.target\.value\.replace\(\/\\D\/g, ''\);\s*const numVal = parseInt\(rawVal, 10\) \|\| 0;\s*setAmount\(Math\.min\(numVal, maxBal\)\);\s*\}\}\s*onFocus=\{e => e\.target\.select\(\)\}\s*className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"\s*\/>/g,
-    `<NumericInput 
-        value={amount} 
-        onChange={val => {
-            const maxBal = fromAccount ? Number(fromAccount.balance) || 0 : 9999999999;
-            setAmount(Math.min(val, maxBal));
-        }}
-        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
-    />`
-);
+  useEffect(() => {
+      if (view === 'sales') {
+          const now = Date.now();
+          setLastViewedSales(now);
+          localStorage.setItem('lastViewedSales', now.toString());
+      }
+      if (view === 'goodsReceipt') {
+          const now = Date.now();
+          setLastViewedReceipts(now);
+          localStorage.setItem('lastViewedReceipts', now.toString());
+      }
+  }, [view]);
 
-content = content.replace(
-    /<input\s*type="text"\s*inputMode="numeric"\s*value=\{formatNumber\(initialBalance\)\}\s*onChange=\{e => setInitialBalance\(parseInt\(e\.target\.value\.replace\(\/\\D\/g, ''\), 10\) \|\| 0\)\}\s*onFocus=\{e => e\.target\.select\(\)\}\s*className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"\s*\/>/g,
-    `<NumericInput 
-        value={initialBalance} 
-        onChange={setInitialBalance}
-        className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl text-right font-black text-2xl focus:ring-2 focus:ring-primary outline-none shadow-inner bg-white text-black"
-    />`
-);
+  useEffect(() => {
+      if (!user) return;
+      const q = query(collection(db, 'sales'), where('createdAt', '>', new Date(lastViewedSales)));
+      const unsub = onSnapshot(q, (snap) => setUnreadSalesCount(snap.docs.length));
+      return () => unsub();
+  }, [user, lastViewedSales]);
 
-fs.writeFileSync(file, content);
+  useEffect(() => {
+      if (!user) return;
+      const q = query(collection(db, 'goodsReceipts'), where('createdAt', '>', new Date(lastViewedReceipts)));
+      const unsub = onSnapshot(q, (snap) => setUnreadReceiptsCount(snap.docs.length));
+      return () => unsub();
+  }, [user, lastViewedReceipts]);
+
+  useEffect(() => {
+      const total = unreadSalesCount + unreadReceiptsCount;
+      try {
+          if (total > 0) {
+              if (navigator && 'setAppBadge' in navigator) {
+                  (navigator as any).setAppBadge(total).catch((e: any) => console.error("AppBadge Error:", e));
+              }
+          } else {
+              if (navigator && 'clearAppBadge' in navigator) {
+                  (navigator as any).clearAppBadge().catch((e: any) => console.error("AppBadge Error:", e));
+              }
+          }
+      } catch(e) {
+          console.error("AppBadge Sync Error:", e);
+      }
+  }, [unreadSalesCount, unreadReceiptsCount]);
+
+  const handleLogout = async () => {`;
+
+code = code.replace("  const handleLogout = async () => {", newLogic);
+
+fs.writeFileSync('App.tsx', code);
