@@ -514,8 +514,8 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[500px]">
-                        <table className="w-full text-left border-collapse">
+                    <div className="flex-1 overflow-auto min-h-[300px] max-h-[500px]">
+                        <table className="w-full text-left border-collapse min-w-[550px]">
                             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                 <tr className="text-[10px] font-black text-slate-500 uppercase">
                                     <th className="p-3">Sản phẩm</th>
