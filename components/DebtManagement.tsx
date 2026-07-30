@@ -602,6 +602,9 @@ const DebtManagement: React.FC = () => {
             await runTransaction(db, async (transaction) => {
                 const accRef = doc(db, 'paymentMethods', paymentMethodId);
                 
+                const accSnap = await transaction.get(accRef);
+                if (!accSnap.exists()) throw "Account not found";
+
                 let finalBankDetails = null;
                 let finalBankAccountId = null;
                 if (!isSale && bankDetails) {
@@ -628,9 +631,6 @@ const DebtManagement: React.FC = () => {
                         }
                     }
                 }
-
-                const accSnap = await transaction.get(accRef);
-                if (!accSnap.exists()) throw "Account not found";
 
                 const currentBal = accSnap.data().balance || 0;
                 const finalBal = isSale ? currentBal + amount : currentBal - amount;
@@ -707,7 +707,11 @@ const DebtManagement: React.FC = () => {
             const method = paymentMethods.find(m => m.id === paymentMethodId);
 
             await runTransaction(db, async (transaction) => {
-                                let finalBankDetails = null;
+                const accRef = doc(db, 'paymentMethods', paymentMethodId);
+                const accSnap = await transaction.get(accRef);
+                if (!accSnap.exists()) throw "Account not found";
+
+                let finalBankDetails = null;
                 let finalBankAccountId = null;
                 if (!isReceivable && bankDetails) {
                     const firstItem = selectedItemsData.items[0];
@@ -736,10 +740,6 @@ const DebtManagement: React.FC = () => {
                         }
                     }
                 }
-
-                const accRef = doc(db, 'paymentMethods', paymentMethodId);
-                const accSnap = await transaction.get(accRef);
-                if (!accSnap.exists()) throw "Account not found";
 
                 const currentBal = accSnap.data().balance || 0;
                 let remainingToPay = amount;
