@@ -108,6 +108,7 @@ const ImportProductCard: React.FC<{
     const [inputQty, setInputQty] = useState(1);
     const [inputImportPrice, setInputImportPrice] = useState(initialPrice);
     const [isSaving, setIsSaving] = useState(false);
+    const [isNameExpanded, setIsNameExpanded] = useState(false);
     const isAdmin = userRole === 'admin';
 
     useEffect(() => { setInputImportPrice(initialPrice); }, [initialPrice, product.id]);
@@ -133,7 +134,13 @@ const ImportProductCard: React.FC<{
             )}
             <div className="mb-2 mt-3 flex justify-between items-start">
                 <div className="flex-1">
-                    <div className="font-black text-black leading-tight line-clamp-2 text-[12px] mb-1 cursor-pointer transition-all hover:line-clamp-none" title={product.name}>{product.name}</div>
+                    <div 
+                        className={`font-black text-black leading-tight text-[12px] mb-1 cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'}`}
+                        title={product.name}
+                        onClick={() => setIsNameExpanded(!isNameExpanded)}
+                    >
+                        {product.name}
+                    </div>
                     
                     {/* Inventory display for 3 warehouses */}
                     <div className="grid grid-cols-3 gap-1 text-[9px] text-neutral font-bold mt-1">
