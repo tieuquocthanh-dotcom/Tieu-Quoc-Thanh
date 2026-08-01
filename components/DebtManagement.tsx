@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, Timestamp, arrayUnion, writeBatch, increment, getDocs, orderBy, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Sale, GoodsReceipt, PaymentMethod, Customer, Supplier, Shipper, Product, Warehouse } from '../types';
-import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User, Edit } from 'lucide-react';
+import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User, Edit, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 import SaleDetailModal from './SaleDetailModal';
@@ -422,6 +422,16 @@ const DebtManagement: React.FC = () => {
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
+    const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
+
+    const toggleRowExpansion = (id: string) => {
+        setExpandedRowIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
     const [pageSize, setPageSize] = useState(10);
 
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -968,6 +978,7 @@ const DebtManagement: React.FC = () => {
                                     <thead className="bg-slate-50 border-b-2 border-slate-100">
                                         <tr className="text-[10px] font-black text-slate-500 uppercase">
                                             <th className="px-4 py-3 w-10"></th>
+                                            <th className="px-4 py-3 w-10"></th>
                                             <th className="px-4 py-3">Mã phiếu</th>
                                             <th className="px-4 py-3">Ngày tạo</th>
                                             <th className="px-4 py-3 text-right">Tổng tiền</th>
@@ -980,14 +991,21 @@ const DebtManagement: React.FC = () => {
                                         {debtor.items.map((item: any) => {
                                             const remaining = (item.total || 0) - (item.amountPaid || 0);
                                             const isSelected = selectedIds.has(item.id);
+                                            const isExpanded = expandedRowIds.has(item.id);
                                             return (
-                                                <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-blue-50/50' : ''}`}>
-                                                    <td className="px-4 py-3">
-                                                        <button onClick={() => toggleSelection(item.id)} className="hover:scale-110 transition-transform">
-                                                            {isSelected ? <CheckSquare size={20} className="text-primary"/> : <Square size={20} className="text-slate-300"/>}
-                                                        </button>
-                                                    </td>
-                                                    <td className="px-4 py-3 font-bold text-black uppercase">#{item.id.substring(0, 8)}</td>
+                                                <React.Fragment key={item.id}>
+                                                    <tr className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-blue-50/50' : ''}`}>
+                                                        <td className="px-4 py-3">
+                                                            <button onClick={() => toggleSelection(item.id)} className="hover:scale-110 transition-transform">
+                                                                {isSelected ? <CheckSquare size={20} className="text-primary"/> : <Square size={20} className="text-slate-300"/>}
+                                                            </button>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <button onClick={() => toggleRowExpansion(item.id)} className="text-slate-400 hover:text-black transition">
+                                                                {isExpanded ? <ChevronDown size={18}/> : <ChevronRight size={18}/>}
+                                                            </button>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-bold text-black uppercase">#{item.id.substring(0, 8)}</td>
                                                     <td className="px-4 py-3 text-slate-500 font-medium">{item.createdAt?.toDate().toLocaleDateString('vi-VN')}</td>
                                                     <td className="px-4 py-3 text-right font-bold text-slate-400">{formatNumber(item.total || 0)}</td>
                                                     <td className="px-4 py-3 text-right font-bold text-blue-600">{formatNumber(item.amountPaid || 0)}</td>
@@ -1004,6 +1022,26 @@ const DebtManagement: React.FC = () => {
                                                         </div>
                                                     </td>
                                                 </tr>
+                                                {isExpanded && item.items && (
+                                                    <tr className="bg-slate-50">
+                                                        <td colSpan={8} className="p-0">
+                                                            <div className="bg-slate-100 p-4 border-b-2 border-slate-200 shadow-inner">
+                                                                <h4 className="text-xs font-black uppercase text-slate-500 mb-2">Chi tiết sản phẩm</h4>
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                                    {item.items.map((prod: any, idx: number) => (
+                                                                        <div key={idx} className="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-sm">
+                                                                            <span className="text-[11px] font-bold text-slate-800 line-clamp-1 flex-1 pr-2" title={prod.productName}>{prod.productName}</span>
+                                                                            <span className="text-[11px] font-black text-primary shrink-0">
+                                                                                {prod.quantity} x {formatNumber(prod.price || prod.importPrice)} ₫
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                </React.Fragment>
                                             );
                                         })}
                                     </tbody>
