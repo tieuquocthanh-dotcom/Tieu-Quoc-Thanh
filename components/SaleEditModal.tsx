@@ -227,8 +227,8 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
       alert("Đơn hàng không thể để trống sản phẩm.");
       return;
     }
-    if (additionalPayment > 0 && !paymentMethodId) {
-      alert("Vui lòng chọn tài khoản thu tiền cho phần thanh toán thêm.");
+    if ((additionalPayment > 0 || sale?.amountPaid > 0) && !paymentMethodId) {
+      alert("Vui lòng chọn tài khoản thu tiền.");
       return;
     }
     const maxAllowed = Math.max(0, newTotal - (sale?.amountPaid || 0));
@@ -258,8 +258,15 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
         }
 
         let newAccSnap = null;
-        if (additionalPayment > 0 && paymentMethodId) {
+        let oldAccSnap = null;
+        
+        if (paymentMethodId) {
             newAccSnap = await transaction.get(doc(db, 'paymentMethods', paymentMethodId));
+        }
+        
+        const isChangingPaymentMethod = oldData.paymentMethodId && paymentMethodId && oldData.paymentMethodId !== paymentMethodId;
+        if (isChangingPaymentMethod && oldData.amountPaid > 0) {
+            oldAccSnap = await transaction.get(doc(db, 'paymentMethods', oldData.paymentMethodId));
         }
 
         const selectedDateObj = new Date(saleDate);
@@ -313,19 +320,68 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             }
         }
 
-        if (newAccSnap && additionalPayment > 0) {
-            const snapBal = Number(newAccSnap.data()?.balance) || 0;
-            const finalBal = snapBal + additionalPayment;
-            transaction.update(newAccSnap.ref, { balance: finalBal });
+        if (isChangingPaymentMethod && oldData.amountPaid > 0 && oldAccSnap && oldAccSnap.exists()) {
+            // Rút tiền khỏi tài khoản cũ
+            const oldSnapBal = Number(oldAccSnap.data()?.balance) || 0;
+            const finalOldBal = oldSnapBal - oldData.amountPaid;
+            transaction.update(oldAccSnap.ref, { balance: finalOldBal });
             transaction.set(doc(collection(db, 'paymentLogs')), {
-                paymentMethodId: paymentMethodId,
-                paymentMethodName: paymentMethods.find(p => p.id === paymentMethodId)?.name || 'N/A',
-                type: 'deposit',
-                amount: additionalPayment,
-                balanceAfter: finalBal,
-                note: `Thu tiền thêm cho đơn hàng #${shortId}`,
+                paymentMethodId: oldData.paymentMethodId,
+                paymentMethodName: oldData.paymentMethodName || 'N/A',
+                type: 'withdrawal',
+                amount: oldData.amountPaid,
+                balanceAfter: finalOldBal,
+                note: `Hoàn tiền do đổi tài khoản thu cho đơn hàng #${shortId}`,
                 relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
             });
+            
+            // Nạp tiền vào tài khoản mới và log
+            if (newAccSnap && newAccSnap.exists()) {
+                const newSnapBal = Number(newAccSnap.data()?.balance) || 0;
+                let finalNewBal = newSnapBal + oldData.amountPaid;
+                
+                transaction.set(doc(collection(db, 'paymentLogs')), {
+                    paymentMethodId: paymentMethodId,
+                    paymentMethodName: paymentMethods.find(p => p.id === paymentMethodId)?.name || 'N/A',
+                    type: 'deposit',
+                    amount: oldData.amountPaid,
+                    balanceAfter: finalNewBal,
+                    note: `Chuyển tiền thu vào tài khoản mới cho đơn hàng #${shortId}`,
+                    relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
+                });
+                
+                if (additionalPayment > 0) {
+                    finalNewBal += additionalPayment;
+                    transaction.set(doc(collection(db, 'paymentLogs')), {
+                        paymentMethodId: paymentMethodId,
+                        paymentMethodName: paymentMethods.find(p => p.id === paymentMethodId)?.name || 'N/A',
+                        type: 'deposit',
+                        amount: additionalPayment,
+                        balanceAfter: finalNewBal,
+                        note: `Thu tiền thêm cho đơn hàng #${shortId}`,
+                        relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
+                    });
+                }
+                
+                // Chỉ update một lần cho newAccSnap
+                transaction.update(newAccSnap.ref, { balance: finalNewBal });
+            }
+        } else {
+            // Nếu không đổi tài khoản thu, chỉ xử lý thêm phần additionalPayment (nếu có)
+            if (newAccSnap && newAccSnap.exists() && additionalPayment > 0) {
+                const newSnapBal = Number(newAccSnap.data()?.balance) || 0;
+                const finalBalForNew = newSnapBal + additionalPayment;
+                transaction.update(newAccSnap.ref, { balance: finalBalForNew });
+                transaction.set(doc(collection(db, 'paymentLogs')), {
+                    paymentMethodId: paymentMethodId,
+                    paymentMethodName: paymentMethods.find(p => p.id === paymentMethodId)?.name || 'N/A',
+                    type: 'deposit',
+                    amount: additionalPayment,
+                    balanceAfter: finalBalForNew,
+                    note: `Thu tiền thêm cho đơn hàng #${shortId}`,
+                    relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
+                });
+            }
         }
 
         const selectedCustomer = customers.find(c => c.id === customerId);
@@ -336,6 +392,13 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
         const newStatus = finalAmountPaid >= newTotal ? 'paid' : 'debt';
         
         let newPaymentHistory = oldData.paymentHistory || [];
+        if (isChangingPaymentMethod && oldData.amountPaid > 0) {
+             newPaymentHistory = [...newPaymentHistory, {
+                 date: Timestamp.now(),
+                 amount: 0,
+                 note: `Đổi tài khoản thu từ ${oldData.paymentMethodName || 'N/A'} sang ${selectedMethod?.name || 'N/A'}`
+             }];
+        }
         if (additionalPayment > 0) {
              newPaymentHistory = [...newPaymentHistory, {
                  date: Timestamp.now(),
@@ -352,8 +415,8 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
           issueInvoice: issueInvoice,
           customerId: customerId || null,
           customerName: selectedCustomer ? selectedCustomer.name : (custSearch || 'Khách vãng lai'),
-          paymentMethodId: oldData.paymentMethodId || (additionalPayment > 0 ? paymentMethodId : null),
-          paymentMethodName: oldData.paymentMethodName || (additionalPayment > 0 ? (selectedMethod?.name || null) : null),
+          paymentMethodId: paymentMethodId || oldData.paymentMethodId || null,
+          paymentMethodName: selectedMethod ? selectedMethod.name : (oldData.paymentMethodName || null),
           shipperId: shipperId || null,
           shipperName: selectedShipper ? selectedShipper.name : null,
           status: newStatus,
@@ -444,6 +507,13 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                         </div>
                     </div>
 
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Tài khoản thu tiền</label>
+                        <select value={paymentMethodId} onChange={e => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm h-[40px] mb-3">
+                            <option value="">-- CHỌN TÀI KHOẢN --</option>
+                            {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
                     {(newTotal - (sale?.amountPaid || 0)) > 0 && (
                         <>
                             <div>
@@ -451,12 +521,6 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                 <div className="flex space-x-2">
                                     <div className="flex-1">
                                         <NumericInput value={additionalPayment} onChange={setAdditionalPayment} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg text-right font-black text-sm outline-none text-slate-900 bg-white shadow-sm" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <select value={paymentMethodId} onChange={e => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm h-[40px]">
-                                            <option value="">-- CHỌN TÀI KHOẢN --</option>
-                                            {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                        </select>
                                     </div>
                                 </div>
                             </div>
