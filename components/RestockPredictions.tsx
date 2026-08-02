@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, collectionGroup, orderBy, Timestamp, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, collectionGroup, orderBy, Timestamp, where, addDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Manufacturer, Sale, Supplier, GoodsReceipt } from '../types';
-import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users } from 'lucide-react';
+import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import Pagination from './Pagination';
+import { useToast } from './ToastContext';
 
 interface PredictionConfig {
     daysToAnalyze: number;
@@ -48,6 +49,69 @@ const RestockPredictions: React.FC = () => {
     }, []);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(15);
+    
+    const [selectedItems, setSelectedItems] = useState<{[productId: string]: number}>({});
+    const { showToast } = useToast();
+    const [isOrdering, setIsOrdering] = useState(false);
+
+    const handleCreatePlannedOrder = async () => {
+        if (selectedSupplier === 'all') {
+            showToast("Vui lòng chọn một nhà cung cấp cụ thể để đặt hàng.", "error");
+            return;
+        }
+        
+        const itemsToOrder = Object.entries(selectedItems).map(([productId, qty]) => {
+            const p = products.find(p => p.id === productId);
+            return p ? { productId, productName: p.name, quantity: qty } : null;
+        }).filter(Boolean);
+
+        if (itemsToOrder.length === 0) {
+            showToast("Vui lòng chọn ít nhất một sản phẩm.", "error");
+            return;
+        }
+
+        setIsOrdering(true);
+        try {
+            const supplier = suppliers.find(s => s.id === selectedSupplier);
+            if (!supplier) throw new Error("Không tìm thấy nhà cung cấp");
+
+            await addDoc(collection(db, 'plannedOrders'), {
+                supplierId: supplier.id,
+                supplierName: supplier.name,
+                items: itemsToOrder,
+                status: 'pending',
+                createdAt: Timestamp.now()
+            });
+
+            showToast("Đã tạo đơn dự kiến đặt hàng thành công!", "success");
+            setSelectedItems({});
+        } catch (err: any) {
+            console.error("Lỗi khi tạo đơn dự kiến:", err);
+            showToast("Có lỗi xảy ra khi tạo đơn.", "error");
+        } finally {
+            setIsOrdering(false);
+        }
+    };
+
+    const handleToggleCheck = (p: ProductPrediction, checked: boolean) => {
+        setSelectedItems(prev => {
+            const next = { ...prev };
+            if (checked) {
+                next[p.id] = p.suggestedRestockQty > 0 ? p.suggestedRestockQty : 1;
+            } else {
+                delete next[p.id];
+            }
+            return next;
+        });
+    };
+
+    const handleQtyChange = (productId: string, qty: number) => {
+        setSelectedItems(prev => ({
+            ...prev,
+            [productId]: qty
+        }));
+    };
+
 
     useEffect(() => {
         setLoading(true);
@@ -278,7 +342,7 @@ const RestockPredictions: React.FC = () => {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-4">
+                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-4 sticky top-0 z-30 shadow-sm">
                     <div className="relative flex-1 max-w-sm">
                         <input 
                             type="text" 
@@ -343,12 +407,50 @@ const RestockPredictions: React.FC = () => {
                             <option value="no_sales">Chưa Bán Được</option>
                         </select>
                     </div>
+                    {selectedSupplier !== 'all' && (
+                        <div className="ml-auto flex items-center gap-2">
+                            <span className="text-sm font-bold text-slate-500">
+                                Đã chọn: {Object.keys(selectedItems).length}
+                            </span>
+                            <button
+                                onClick={handleCreatePlannedOrder}
+                                disabled={isOrdering || Object.keys(selectedItems).length === 0}
+                                className="px-4 py-2 bg-primary text-white rounded-xl font-bold flex items-center hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                            >
+                                {isOrdering ? <Loader className="animate-spin mr-2" size={16}/> : <ShoppingCart className="mr-2" size={16}/>}
+                                Đặt hàng
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-100">
                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                {selectedSupplier !== 'all' && (
+                                    <th className="px-4 py-3 w-10 text-center">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                                            checked={paginated.length > 0 && paginated.every(p => !!selectedItems[p.id])}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setSelectedItems(prev => {
+                                                    const next = { ...prev };
+                                                    paginated.forEach(p => {
+                                                        if (checked) {
+                                                            next[p.id] = p.suggestedRestockQty > 0 ? p.suggestedRestockQty : 1;
+                                                        } else {
+                                                            delete next[p.id];
+                                                        }
+                                                    });
+                                                    return next;
+                                                });
+                                            }}
+                                        />
+                                    </th>
+                                )}
                                 <th className="px-4 py-3">Sản phẩm</th>
                                 <th className="px-4 py-3 text-right">Tồn Kho</th>
                                 <th className="px-4 py-3 text-right">Tổng Thực Còn<br/>(Tiền Hàng)</th>
@@ -357,18 +459,31 @@ const RestockPredictions: React.FC = () => {
                                 <th className="px-4 py-3 text-right">Còn Bán Được</th>
                                 <th className="px-4 py-3 text-right bg-primary/5 text-primary">SL Cần Nhập<br/>(Cho {config.daysToStock} ngày)</th>
                                 <th className="px-4 py-3 text-right bg-primary/5 text-primary">Tiền Dự Kiến</th>
+                                {selectedSupplier !== 'all' && (
+                                    <th className="px-4 py-3 text-center bg-blue-50 text-blue-600">SL Đặt</th>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
-                                <tr><td colSpan={8} className="p-8 text-center"><Loader className="animate-spin text-primary mx-auto" size={24}/></td></tr>
+                                <tr><td colSpan={10} className="p-8 text-center"><Loader className="animate-spin text-primary mx-auto" size={24}/></td></tr>
                             ) : paginated.length === 0 ? (
-                                <tr><td colSpan={8} className="p-8 text-center text-slate-400 font-medium">Không tìm thấy sản phẩm nào.</td></tr>
+                                <tr><td colSpan={10} className="p-8 text-center text-slate-400 font-medium">Không tìm thấy sản phẩm nào.</td></tr>
                             ) : (
                                 paginated.map(p => {
                                     const statusInfo = getStatusInfo(p.status);
                                     return (
                                         <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                                            {selectedSupplier !== 'all' && (
+                                                <td className="px-4 py-4 text-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                                                        checked={!!selectedItems[p.id]}
+                                                        onChange={(e) => handleToggleCheck(p, e.target.checked)}
+                                                    />
+                                                </td>
+                                            )}
                                             <td className="px-4 py-4">
                                                 <div className="font-bold text-dark max-w-[200px] sm:max-w-xs">{p.name}</div>
                                             </td>
@@ -418,6 +533,33 @@ const RestockPredictions: React.FC = () => {
                                                     <span className="text-slate-400 font-bold">-</span>
                                                 )}
                                             </td>
+                                            {selectedSupplier !== 'all' && (
+                                                <td className="px-4 py-4 text-center bg-blue-50/50">
+                                                    <input 
+                                                        type="number"
+                                                        min="1"
+                                                        value={selectedItems[p.id] || ''}
+                                                        onChange={(e) => {
+                                                            const val = parseInt(e.target.value);
+                                                            if (!isNaN(val) && val > 0) {
+                                                                handleQtyChange(p.id, val);
+                                                            } else if (e.target.value === '') {
+                                                                handleQtyChange(p.id, 0); // Allow temporary empty
+                                                            }
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            if (!selectedItems[p.id]) {
+                                                                // if empty on blur and checked, set to 1, or just remove?
+                                                                // let's remove if 0
+                                                                handleToggleCheck(p, false);
+                                                            }
+                                                        }}
+                                                        disabled={!selectedItems[p.id] && selectedItems[p.id] !== 0}
+                                                        className={`w-20 px-2 py-1.5 text-center text-sm font-bold rounded-lg border ${selectedItems[p.id] !== undefined ? 'border-blue-300 focus:border-blue-500 bg-white' : 'border-transparent bg-transparent opacity-50'} outline-none transition-all`}
+                                                        placeholder="-"
+                                                    />
+                                                </td>
+                                            )}
                                         </tr>
                                     );
                                 })
