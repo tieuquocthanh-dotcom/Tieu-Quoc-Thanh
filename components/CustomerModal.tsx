@@ -9,7 +9,7 @@ interface CustomerModalProps {
   existingCustomers?: Customer[];
 }
 
-const CustomerModal: React.FC<CustomerModalProps> = ({ customer, onClose, onSave }) => {
+const CustomerModal: React.FC<CustomerModalProps> = ({ customer, onClose, onSave, existingCustomers }) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -24,6 +24,13 @@ const CustomerModal: React.FC<CustomerModalProps> = ({ customer, onClose, onSave
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (phone && existingCustomers) {
+      const isDuplicatePhone = existingCustomers.some(c => c.phone === phone && c.id !== customer?.id);
+      if (isDuplicatePhone) {
+        alert("Số điện thoại này đã tồn tại trong hệ thống. Vui lòng sử dụng số khác hoặc tìm khách hàng đã có.");
+        return;
+      }
+    }
     onSave({ name, phone, address });
   };
 
