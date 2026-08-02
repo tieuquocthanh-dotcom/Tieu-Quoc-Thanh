@@ -290,7 +290,6 @@ const RestockPredictions: React.FC = () => {
                     </div>
                     <div className="relative flex-1 max-w-[300px]" ref={supplierDropdownRef}>
                         <div className="relative">
-                            <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                             <input 
                                 type="text" 
                                 placeholder="Tìm nhà cung cấp..." 
@@ -302,7 +301,7 @@ const RestockPredictions: React.FC = () => {
                                     }
                                     setIsSupplierDropdownOpen(true);
                                 }} 
-                                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-bold text-slate-700 bg-white" 
+                                className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-medium" 
                             />
                             {isSupplierDropdownOpen && (
                                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">
