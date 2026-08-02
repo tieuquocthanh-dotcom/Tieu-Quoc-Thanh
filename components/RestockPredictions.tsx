@@ -351,17 +351,19 @@ const RestockPredictions: React.FC = () => {
                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                                 <th className="px-4 py-3">Sản phẩm</th>
                                 <th className="px-4 py-3 text-right">Tồn Kho</th>
+                                <th className="px-4 py-3 text-right">Tổng Thực Còn<br/>(Tiền Hàng)</th>
                                 <th className="px-4 py-3 text-right">Tốc độ bán<br/>({config.daysToAnalyze} ngày)</th>
                                 <th className="px-4 py-3 text-center">Tình Trạng</th>
                                 <th className="px-4 py-3 text-right">Còn Bán Được</th>
                                 <th className="px-4 py-3 text-right bg-primary/5 text-primary">SL Cần Nhập<br/>(Cho {config.daysToStock} ngày)</th>
+                                <th className="px-4 py-3 text-right bg-primary/5 text-primary">Tiền Dự Kiến</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
-                                <tr><td colSpan={6} className="p-8 text-center"><Loader className="animate-spin text-primary mx-auto" size={24}/></td></tr>
+                                <tr><td colSpan={8} className="p-8 text-center"><Loader className="animate-spin text-primary mx-auto" size={24}/></td></tr>
                             ) : paginated.length === 0 ? (
-                                <tr><td colSpan={6} className="p-8 text-center text-slate-400 font-medium">Không tìm thấy sản phẩm nào.</td></tr>
+                                <tr><td colSpan={8} className="p-8 text-center text-slate-400 font-medium">Không tìm thấy sản phẩm nào.</td></tr>
                             ) : (
                                 paginated.map(p => {
                                     const statusInfo = getStatusInfo(p.status);
@@ -373,6 +375,11 @@ const RestockPredictions: React.FC = () => {
                                             <td className="px-4 py-4 text-right">
                                                 <span className={`font-black ${p.totalStock <= 0 ? 'text-red-500' : 'text-slate-700'}`}>
                                                     {formatNumber(p.totalStock)}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-right">
+                                                <span className="font-black text-slate-700">
+                                                    {formatNumber(p.totalStock * (p.importPrice || 0))}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-4 text-right">
@@ -397,6 +404,15 @@ const RestockPredictions: React.FC = () => {
                                                 {p.suggestedRestockQty > 0 ? (
                                                     <span className="font-black text-primary text-base">
                                                         +{formatNumber(p.suggestedRestockQty)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400 font-bold">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-4 text-right bg-primary/5">
+                                                {p.suggestedRestockQty > 0 ? (
+                                                    <span className="font-black text-primary text-base">
+                                                        {formatNumber(p.suggestedRestockQty * (p.importPrice || 0))}
                                                     </span>
                                                 ) : (
                                                     <span className="text-slate-400 font-bold">-</span>
