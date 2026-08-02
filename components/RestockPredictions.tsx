@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, Timestamp, where, addDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Manufacturer, Sale, Supplier, GoodsReceipt } from '../types';
-import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart } from 'lucide-react';
+import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart, X } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 import { useToast } from './ToastContext';
@@ -53,6 +53,25 @@ const RestockPredictions: React.FC = () => {
     const [selectedItems, setSelectedItems] = useState<{[productId: string]: number}>({});
     const { showToast } = useToast();
     const [isOrdering, setIsOrdering] = useState(false);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+
+    const handleOpenConfirmModal = () => {
+        if (selectedSupplier === 'all') {
+            showToast("Vui lòng chọn một nhà cung cấp cụ thể để đặt hàng.", "error");
+            return;
+        }
+        
+        const itemsToOrder = Object.entries(selectedItems).map(([productId, qty]) => {
+            const p = products.find(p => p.id === productId);
+            return p ? { productId, productName: p.name, quantity: qty } : null;
+        }).filter(Boolean);
+
+        if (itemsToOrder.length === 0) {
+            showToast("Vui lòng chọn ít nhất một sản phẩm.", "error");
+            return;
+        }
+        setIsConfirmModalOpen(true);
+    };
 
     const handleCreatePlannedOrder = async () => {
         if (selectedSupplier === 'all') {
@@ -413,7 +432,7 @@ const RestockPredictions: React.FC = () => {
                                 Đã chọn: {Object.keys(selectedItems).length}
                             </span>
                             <button
-                                onClick={handleCreatePlannedOrder}
+                                onClick={handleOpenConfirmModal}
                                 disabled={isOrdering || Object.keys(selectedItems).length === 0}
                                 className="px-4 py-2 bg-primary text-white rounded-xl font-bold flex items-center hover:bg-primary/90 disabled:opacity-50 transition-colors"
                             >
@@ -578,6 +597,69 @@ const RestockPredictions: React.FC = () => {
                     />
                 </div>
             </div>
+
+            {isConfirmModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-scale-up">
+                        <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h2 className="text-xl font-black text-dark flex items-center">
+                                <ShoppingCart className="mr-2 text-primary" size={24} />
+                                Xác nhận đơn dự kiến
+                            </h2>
+                            <button 
+                                onClick={() => setIsConfirmModalOpen(false)}
+                                className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <X size={20} className="text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-4 sm:p-6 max-h-[60vh] overflow-y-auto">
+                            <p className="text-sm font-medium text-slate-500 mb-4">
+                                Bạn đang tạo đơn hàng dự kiến từ nhà cung cấp: <strong className="text-dark">{suppliers.find(s => s.id === selectedSupplier)?.name}</strong>
+                            </p>
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-4 py-2 border-b border-slate-200 font-bold text-slate-600">Sản phẩm</th>
+                                        <th className="px-4 py-2 border-b border-slate-200 font-bold text-slate-600 text-right">Số lượng đặt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.entries(selectedItems).map(([productId, qty]) => {
+                                        if (!qty) return null;
+                                        const p = products.find(p => p.id === productId);
+                                        return (
+                                            <tr key={productId} className="border-b border-slate-100 last:border-0">
+                                                <td className="px-4 py-3 font-medium text-dark">{p?.name || productId}</td>
+                                                <td className="px-4 py-3 text-right font-black text-primary">{qty}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="p-4 sm:p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsConfirmModalOpen(false)}
+                                className="px-6 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+                                disabled={isOrdering}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={() => {
+                                    handleCreatePlannedOrder().then(() => setIsConfirmModalOpen(false));
+                                }}
+                                disabled={isOrdering}
+                                className="px-6 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 flex items-center transition-colors disabled:opacity-50"
+                            >
+                                {isOrdering ? <Loader className="animate-spin mr-2" size={18} /> : null}
+                                Xác nhận đặt hàng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
