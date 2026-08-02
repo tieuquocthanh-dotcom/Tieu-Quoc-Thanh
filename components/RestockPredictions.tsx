@@ -341,8 +341,8 @@ const RestockPredictions: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-4 sticky top-0 z-30 shadow-sm">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6">
+                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-4 sticky top-0 z-30 shadow-sm rounded-t-2xl">
                     <div className="relative flex-1 max-w-sm">
                         <input 
                             type="text" 
@@ -424,9 +424,9 @@ const RestockPredictions: React.FC = () => {
                     )}
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="w-full">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-100">
+                        <thead className="bg-slate-100 sticky top-[73px] z-20 shadow-sm ring-1 ring-slate-200">
                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                                 {selectedSupplier !== 'all' && (
                                     <th className="px-4 py-3 w-10 text-center">
