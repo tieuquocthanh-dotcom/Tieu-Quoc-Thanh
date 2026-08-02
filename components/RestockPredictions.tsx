@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, Timestamp, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Product, Manufacturer, Sale } from '../types';
+import { Product, Manufacturer, Sale, Supplier, GoodsReceipt } from '../types';
 import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import Pagination from './Pagination';
@@ -24,6 +24,9 @@ const RestockPredictions: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [inventoryData, setInventoryData] = useState<{[productId: string]: number}>({});
     const [salesVelocity, setSalesVelocity] = useState<{[productId: string]: number}>({});
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [supplierProductsMap, setSupplierProductsMap] = useState<{[supplierId: string]: Set<string>}>({});
+    const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [config, setConfig] = useState<PredictionConfig>({ daysToAnalyze: 30, daysToStock: 30 });
@@ -38,10 +41,30 @@ const RestockPredictions: React.FC = () => {
         let unsubProducts: () => void;
         let unsubInventory: () => void;
         let unsubSales: () => void;
+        let unsubSuppliers: () => void;
+        let unsubReceipts: () => void;
 
         try {
             unsubProducts = onSnapshot(query(collection(db, "products")), (snapshot) => {
                 setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+            });
+
+            unsubSuppliers = onSnapshot(query(collection(db, 'suppliers')), (snapshot) => {
+                setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+            });
+
+            unsubReceipts = onSnapshot(query(collection(db, 'goodsReceipts')), (snapshot) => {
+                const spMap: {[supplierId: string]: Set<string>} = {};
+                snapshot.forEach(doc => {
+                    const data = doc.data() as GoodsReceipt;
+                    if (data.supplierId && data.items) {
+                        if (!spMap[data.supplierId]) spMap[data.supplierId] = new Set();
+                        data.items.forEach(item => {
+                            if (item.productId) spMap[data.supplierId].add(item.productId);
+                        });
+                    }
+                });
+                setSupplierProductsMap(spMap);
             });
 
             unsubInventory = onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => {
@@ -107,6 +130,8 @@ const RestockPredictions: React.FC = () => {
             if (unsubProducts) unsubProducts();
             if (unsubInventory) unsubInventory();
             if (unsubSales) unsubSales();
+            if (unsubSuppliers) unsubSuppliers();
+            if (unsubReceipts) unsubReceipts();
         };
     }, [config.daysToAnalyze]);
 
@@ -158,11 +183,11 @@ const RestockPredictions: React.FC = () => {
         return predictions.filter(p => {
             const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesStatus = filterStatus === 'all' || p.status === filterStatus;
+            const matchesSupplier = selectedSupplier === 'all' || (supplierProductsMap[selectedSupplier] && supplierProductsMap[selectedSupplier].has(p.id));
             
-            // By default, if 'all', don't show healthy/overstocked/no_sales unless searched? Let's show all but paginate.
-            return matchesSearch && matchesStatus;
+            return matchesSearch && matchesStatus && matchesSupplier;
         });
-    }, [predictions, searchTerm, filterStatus]);
+    }, [predictions, searchTerm, filterStatus, selectedSupplier, supplierProductsMap]);
 
     const paginated = useMemo(() => filteredPredictions.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredPredictions, currentPage, pageSize]);
 
@@ -249,6 +274,16 @@ const RestockPredictions: React.FC = () => {
                             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                             className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-medium"
                         />
+                    </div>
+                    <div className="relative">
+                        <select 
+                            value={selectedSupplier}
+                            onChange={e => { setSelectedSupplier(e.target.value); setCurrentPage(1); }}
+                            className="pl-3 pr-8 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-bold text-slate-700 bg-white appearance-none min-w-[200px]"
+                        >
+                            <option value="all">Tất cả nhà cung cấp</option>
+                            {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
                     </div>
                     <div className="relative">
                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
