@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, Timestamp, where, addDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Manufacturer, Sale, Supplier, GoodsReceipt } from '../types';
-import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart, X } from 'lucide-react';
+import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart, X, History } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 import { useToast } from './ToastContext';
+import PriceSparkline from './PriceSparkline';
 
 interface PredictionConfig {
     daysToAnalyze: number;
@@ -31,8 +32,14 @@ const RestockPredictions: React.FC = () => {
         lastPriceGlobal: number,
         lastDateGlobal: number,
         lastSupplierGlobal: string,
-        supplierPrices: {[supplierId: string]: { price: number, date: number }}
+        supplierPrices: {[supplierId: string]: { price: number, date: number }},
+        priceHistory: { date: number, price: number }[]
     }}>({});
+    const [isSparklineModalOpen, setIsSparklineModalOpen] = useState(false);
+    const [sparklineProduct, setSparklineProduct] = useState<{id: string, name: string} | null>(null);
+    const [allReceipts, setAllReceipts] = useState<GoodsReceipt[]>([]);
+    const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+    const [receiptProduct, setReceiptProduct] = useState<{id: string, name: string} | null>(null);
     const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -56,7 +63,14 @@ const RestockPredictions: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(15);
     
-    const [selectedItems, setSelectedItems] = useState<{[productId: string]: number}>({});
+    const [selectedItems, setSelectedItems] = useState<{[productId: string]: number}>(() => {
+        const saved = localStorage.getItem('restockDraft');
+        return saved ? JSON.parse(saved) : {};
+    });
+
+    useEffect(() => {
+        localStorage.setItem('restockDraft', JSON.stringify(selectedItems));
+    }, [selectedItems]);
     const { showToast } = useToast();
     const [isOrdering, setIsOrdering] = useState(false);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -161,12 +175,14 @@ const RestockPredictions: React.FC = () => {
                     lastPriceGlobal: number,
                     lastDateGlobal: number,
                     lastSupplierGlobal: string,
-                    supplierPrices: {[supplierId: string]: { price: number, date: number }}
+                    supplierPrices: {[supplierId: string]: { price: number, date: number }},
+                    priceHistory: { date: number, price: number }[]
                 }} = {};
 
                 snapshot.forEach(doc => {
                     const data = doc.data() as GoodsReceipt;
                     const date = data.createdAt ? (data.createdAt as any).toMillis() : 0;
+                    const sixMonthsAgo = Date.now() - 6 * 30 * 24 * 60 * 60 * 1000;
                     
                     if (data.supplierId && data.items) {
                         if (!spMap[data.supplierId]) spMap[data.supplierId] = new Set();
@@ -179,7 +195,8 @@ const RestockPredictions: React.FC = () => {
                                         lastPriceGlobal: 0,
                                         lastDateGlobal: 0,
                                         lastSupplierGlobal: '',
-                                        supplierPrices: {}
+                                        supplierPrices: {},
+                                        priceHistory: []
                                     };
                                 }
                                 
@@ -196,12 +213,17 @@ const RestockPredictions: React.FC = () => {
                                     pInfo.lastDateGlobal = date;
                                     pInfo.lastSupplierGlobal = data.supplierId;
                                 }
+
+                                if (date >= sixMonthsAgo) {
+                                    pInfo.priceHistory.push({ date, price: item.importPrice || 0 });
+                                }
                             }
                         });
                     }
                 });
                 setSupplierProductsMap(spMap);
                 setProductPriceInfo(priceInfo);
+                setAllReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoodsReceipt)));
             });
 
             unsubInventory = onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => {
@@ -612,8 +634,28 @@ const RestockPredictions: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-4 text-right">
-                                                <div className="font-black text-slate-700">
+                                                <div className="font-black text-slate-700 flex items-center justify-end">
                                                     {formatNumber(displayPrice)}
+                                                    {pInfo && pInfo.priceHistory.length > 0 && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setSparklineProduct({id: p.id, name: p.name});
+                                                                setIsSparklineModalOpen(true);
+                                                            }}
+                                                            className="ml-2 p-1 hover:bg-slate-200 rounded-full transition-colors"
+                                                        >
+                                                            <TrendingUp size={14} className="text-blue-500" />
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        onClick={() => {
+                                                            setReceiptProduct({id: p.id, name: p.name});
+                                                            setIsReceiptModalOpen(true);
+                                                        }}
+                                                        className="ml-2 p-1 hover:bg-slate-200 rounded-full transition-colors"
+                                                    >
+                                                        <History size={14} className="text-slate-500" />
+                                                    </button>
                                                 </div>
                                                 {comparisonNode}
                                             </td>
@@ -757,6 +799,79 @@ const RestockPredictions: React.FC = () => {
                                 {isOrdering ? <Loader className="animate-spin mr-2" size={18} /> : null}
                                 Xác nhận đặt hàng
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isSparklineModalOpen && sparklineProduct && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-scale-up">
+                        <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h2 className="text-lg font-black text-dark flex items-center">
+                                <TrendingUp className="mr-2 text-primary" size={20} />
+                                Biến động giá: {sparklineProduct.name}
+                            </h2>
+                            <button 
+                                onClick={() => setIsSparklineModalOpen(false)}
+                                className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <X size={20} className="text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-4 sm:p-6">
+                            <PriceSparkline data={productPriceInfo[sparklineProduct.id].priceHistory} />
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isReceiptModalOpen && receiptProduct && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-scale-up">
+                        <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h2 className="text-xl font-black text-dark flex items-center">
+                                <History className="mr-2 text-primary" size={24} />
+                                Đơn hàng gần nhất: {receiptProduct.name}
+                            </h2>
+                            <button 
+                                onClick={() => setIsReceiptModalOpen(false)}
+                                className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                            >
+                                <X size={20} className="text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-4 sm:p-6 max-h-[60vh] overflow-y-auto">
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-slate-50 sticky top-0">
+                                    <tr>
+                                        <th className="px-4 py-2 border-b border-slate-200 font-bold text-slate-600">Ngày nhập</th>
+                                        <th className="px-4 py-2 border-b border-slate-200 font-bold text-slate-600">NCC</th>
+                                        <th className="px-4 py-2 border-b border-slate-200 font-bold text-slate-600 text-right">Số lượng</th>
+                                        <th className="px-4 py-2 border-b border-slate-200 font-bold text-slate-600 text-right">Giá nhập</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {allReceipts
+                                        .filter(r => r.items.some(i => i.productId === receiptProduct.id))
+                                        .filter(r => selectedSupplier === 'all' || r.supplierId === selectedSupplier)
+                                        .sort((a, b) => (b.createdAt as any).toMillis() - (a.createdAt as any).toMillis())
+                                        .slice(0, 10)
+                                        .map((r, idx) => {
+                                            const item = r.items.find(i => i.productId === receiptProduct.id);
+                                            return (
+                                                <tr key={idx} className="border-b border-slate-100 last:border-0">
+                                                    <td className="px-4 py-3 text-slate-600">
+                                                        {r.createdAt ? new Date((r.createdAt as any).toMillis()).toLocaleDateString() : 'N/A'}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-medium text-dark">
+                                                        {suppliers.find(s => s.id === r.supplierId)?.name || 'N/A'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-dark">{item?.quantity || 0}</td>
+                                                    <td className="px-4 py-3 text-right font-black text-primary">{formatNumber(item?.importPrice || 0)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
