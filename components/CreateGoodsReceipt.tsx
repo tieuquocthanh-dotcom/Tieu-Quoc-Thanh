@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, increment, setDoc, Timestamp, where, addDoc, limit, getDocs, updateDoc, deleteDoc, runTransaction, collectionGroup, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, Supplier, GoodsReceiptItem, Warehouse, PaymentMethod, Manufacturer, GoodsReceipt, PlannedOrder, ChinaImport } from '../types';
-import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck } from 'lucide-react';
+import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck , Sparkles } from 'lucide-react';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
@@ -565,6 +565,16 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const filteredProducts = useMemo(() => products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())), [products, searchTerm]);
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredProducts, currentPage, pageSize]);
 
+  const suggestedProducts = useMemo(() => {
+      if (!selectedSupplierId) return [];
+      const supplierProducts = products.filter(p => p.id in supplierPriceHistory);
+      return supplierProducts.sort((a, b) => {
+          const invA = Object.values(detailedInventory[a.id] || {}).reduce((s, v) => s + v, 0);
+          const invB = Object.values(detailedInventory[b.id] || {}).reduce((s, v) => s + v, 0);
+          return invA - invB;
+      }).slice(0, 10);
+  }, [selectedSupplierId, products, supplierPriceHistory, detailedInventory]);
+
   return (
     <div className={`flex flex-col h-full gap-4 ${isFullscreen ? 'fixed inset-0 bg-slate-100 z-[100] p-4 overflow-y-auto' : ''}`}>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -669,6 +679,25 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                 </button>
                             )}
                         </div>
+                        {suggestedProducts.length > 0 && !searchTerm && (
+                            <div className="mb-2">
+                                <div className="text-[10px] font-black text-slate-500 uppercase mb-1.5 flex items-center"><Sparkles size={12} className="mr-1 text-yellow-500"/> Gợi ý mặt hàng nên nhập từ NCC này (tồn kho thấp)</div>
+                                <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
+                                    {suggestedProducts.map(sp => {
+                                        const stock = Object.values(detailedInventory[sp.id] || {}).reduce((s, v) => s + v, 0);
+                                        return (
+                                        <button 
+                                            key={sp.id} 
+                                            onClick={() => addToReceipt(sp, 1, supplierPriceHistory[sp.id] || sp.importPrice)}
+                                            className="px-3 py-1.5 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-lg whitespace-nowrap font-black text-[11px] hover:bg-yellow-100 flex flex-col items-start transition-colors"
+                                        >
+                                            <span className="flex items-center"><Plus size={12} className="mr-1 opacity-50"/> {sp.name}</span>
+                                            <span className="text-[9px] opacity-70 mt-0.5">Tồn: {stock} | Lần trước: {new Intl.NumberFormat('vi-VN').format(supplierPriceHistory[sp.id] || sp.importPrice)}</span>
+                                        </button>
+                                    )})}
+                                </div>
+                            </div>
+                        )}
                         <div className={`grid gap-2 content-start ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ImportProductCard key={p.id} product={p} lastSupplierPrice={supplierPriceHistory[p.id]} detailedInventory={detailedInventory} warehouses={warehouses} onAdd={addToReceipt} onUpdateImportPrice={handleUpdateProductImportPrice} onCompare={(prod) => { setSelectedPriceComparisonProduct(prod); setIsPriceComparisonOpen(true); }} onTrace={(prod) => { setSelectedLedgerProductId(prod.id); setIsLedgerModalOpen(true); }} userRole={userRole} />)) }</div>
                         <div className="mt-3 flex justify-between items-center border-t pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
                     </div>
