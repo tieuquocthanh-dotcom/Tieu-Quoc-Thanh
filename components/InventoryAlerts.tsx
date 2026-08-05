@@ -46,9 +46,10 @@ const InventoryAlerts: React.FC = () => {
             snapshot.forEach(doc => {
                 const data = doc.data();
                 const productId = doc.ref.parent.parent?.id;
-                if (productId && data.warehouseId && typeof data.stock === 'number') {
+                const warehouseId = data.warehouseId || doc.id;
+                if (productId && warehouseId && typeof data.stock === 'number') {
                     if (!newInventoryData[productId]) newInventoryData[productId] = {};
-                    newInventoryData[productId][data.warehouseId] = data.stock;
+                    newInventoryData[productId][warehouseId] = data.stock;
                 }
             });
             setInventoryData(newInventoryData);

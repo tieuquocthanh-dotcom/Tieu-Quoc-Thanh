@@ -446,7 +446,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     onSnapshot(query(collection(db, "shippers"), orderBy("name")), (snap) => setShippers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Shipper))));
     onSnapshot(query(collection(db, "suppliers"), orderBy("name")), (snap) => setSuppliers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier))));
     onSnapshot(query(collection(db, "manufacturers"), orderBy("name")), (snap) => setManufacturers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Manufacturer))));
-    onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => { const data: Record<string, Record<string, number>> = {}; snapshot.forEach(doc => { const d = doc.data(); const pid = doc.ref.parent.parent?.id; if (pid && d.warehouseId) { if (!data[pid]) data[pid] = {}; data[pid][d.warehouseId] = d.stock || 0; } }); setDetailedInventory(data); });
+    onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => { const data: Record<string, Record<string, number>> = {}; snapshot.forEach(doc => { const d = doc.data(); const pid = doc.ref.parent.parent?.id; const warehouseId = d.warehouseId || doc.id; if (pid && warehouseId) { if (!data[pid]) data[pid] = {}; data[pid][warehouseId] = d.stock || 0; } }); setDetailedInventory(data); });
     const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
     onSnapshot(query(collection(db, "sales"), where("createdAt", ">=", Timestamp.fromDate(startOfToday))), (snapshot) => { const list: Sale[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)); list.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)); setTodaySales(list); });
     setLoading(false);

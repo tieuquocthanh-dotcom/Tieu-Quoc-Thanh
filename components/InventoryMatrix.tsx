@@ -177,11 +177,12 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
       snapshot.forEach(doc => {
         const data = doc.data();
         const productId = doc.ref.parent.parent?.id;
-        if (productId && data.warehouseId && typeof data.stock === 'number') {
+        const warehouseId = data.warehouseId || doc.id;
+        if (productId && warehouseId && typeof data.stock === 'number') {
           if (!newInventoryData[productId]) {
             newInventoryData[productId] = {};
           }
-          newInventoryData[productId][data.warehouseId] = {
+          newInventoryData[productId][warehouseId] = {
               stock: data.stock
           };
         }

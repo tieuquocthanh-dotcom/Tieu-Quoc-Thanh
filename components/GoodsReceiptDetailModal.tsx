@@ -166,7 +166,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                         comboItems.forEach((cItem: any) => {
                             const totalDeduct = cItem.quantity * item.quantity;
                             const invRef = doc(db, 'products', cItem.productId, 'inventory', receipt.warehouseId);
-                            batch.set(invRef, { stock: increment(-totalDeduct) }, { merge: true });
+                            batch.set(invRef, { stock: increment(-totalDeduct), warehouseId: receipt.warehouseId, warehouseName: receipt.warehouseName || '' }, { merge: true });
                             if (receipt.hasInvoice) {
                                 batch.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-totalDeduct) });
                             }
@@ -174,7 +174,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                     }
                 } else {
                     const inventoryRef = doc(db, 'products', item.productId, 'inventory', receipt.warehouseId);
-                    batch.set(inventoryRef, { stock: increment(-item.quantity) }, { merge: true });
+                    batch.set(inventoryRef, { stock: increment(-item.quantity), warehouseId: receipt.warehouseId, warehouseName: receipt.warehouseName || '' }, { merge: true });
                     if (receipt.hasInvoice) {
                         batch.update(doc(db, 'products', item.productId), { totalInvoicedStock: increment(-item.quantity) });
                     }

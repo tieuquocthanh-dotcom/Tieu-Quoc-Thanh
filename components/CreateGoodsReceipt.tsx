@@ -262,11 +262,12 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => { 
         const data: Record<string, Record<string, number>> = {}; 
         snapshot.forEach(doc => { 
-            const d = doc.data() as { warehouseId: string; stock: number }; 
+            const d = doc.data() as { warehouseId?: string; stock: number }; 
             const pid = doc.ref.parent.parent?.id; 
-            if (pid && d.warehouseId) { 
+            const warehouseId = d.warehouseId || doc.id;
+            if (pid && warehouseId) { 
                 if (!data[pid]) data[pid] = {}; 
-                data[pid][d.warehouseId] = d.stock || 0; 
+                data[pid][warehouseId] = d.stock || 0; 
             } 
         }); 
         setDetailedInventory(data); 

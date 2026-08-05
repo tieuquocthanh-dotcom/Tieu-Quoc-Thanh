@@ -178,7 +178,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                         comboItems.forEach((cItem: any) => {
                             const totalReturn = cItem.quantity * item.quantity;
                             const invRef = doc(db, 'products', cItem.productId, 'inventory', sale.warehouseId);
-                            batch.set(invRef, { stock: increment(totalReturn) }, { merge: true });
+                            batch.set(invRef, { stock: increment(totalReturn), warehouseId: sale.warehouseId, warehouseName: sale.warehouseName || '' }, { merge: true });
                             if (sale.issueInvoice) {
                                 batch.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(totalReturn) });
                             }
@@ -186,7 +186,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                     }
                 } else {
                     const inventoryRef = doc(db, 'products', item.productId, 'inventory', sale.warehouseId);
-                    batch.set(inventoryRef, { stock: increment(item.quantity) }, { merge: true });
+                    batch.set(inventoryRef, { stock: increment(item.quantity), warehouseId: sale.warehouseId, warehouseName: sale.warehouseName || '' }, { merge: true });
                     if (sale.issueInvoice) {
                         batch.update(doc(db, 'products', item.productId), { totalInvoicedStock: increment(item.quantity) });
                     }

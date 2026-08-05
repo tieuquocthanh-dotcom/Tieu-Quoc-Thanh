@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, onSnapshot as onDocSnapshot, setDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot as onDocSnapshot, setDoc, collection, query, where, onSnapshot, getDocs, collectionGroup, updateDoc } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from './services/firebase';
 import FirebaseSetupGuide from './components/FirebaseSetupGuide';
 import ProductManagement from './components/ProductManagement';
@@ -103,6 +103,22 @@ const App: React.FC = () => {
       clearTimeout(timeout);
     };
   }, []);
+
+  // Auto-heal inventory documents missing warehouseId
+  useEffect(() => {
+    if (user && isFirebaseConfigured) {
+      getDocs(query(collectionGroup(db, 'inventory')))
+        .then(snapshot => {
+          snapshot.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            if (!data.warehouseId) {
+              updateDoc(docSnap.ref, { warehouseId: docSnap.id }).catch(() => {});
+            }
+          });
+        })
+        .catch(err => console.warn('Auto-heal inventory skipped:', err));
+    }
+  }, [user]);
 
   // Lấy vai trò người dùng từ Firestore
   useEffect(() => {

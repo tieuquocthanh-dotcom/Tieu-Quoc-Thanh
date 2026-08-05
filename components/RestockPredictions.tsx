@@ -27,6 +27,8 @@ const RestockPredictions: React.FC = () => {
     const [inventoryData, setInventoryData] = useState<{[productId: string]: number}>({});
     const [salesVelocity, setSalesVelocity] = useState<{[productId: string]: number}>({});
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+    const [selectedManufacturer, setSelectedManufacturer] = useState<string>('all');
     const [supplierProductsMap, setSupplierProductsMap] = useState<{[supplierId: string]: Set<string>}>({});
     const [productPriceInfo, setProductPriceInfo] = useState<{[productId: string]: {
         lastPriceGlobal: number,
@@ -158,6 +160,7 @@ const RestockPredictions: React.FC = () => {
         let unsubInventory: () => void;
         let unsubSales: () => void;
         let unsubSuppliers: () => void;
+        let unsubManufacturers: () => void;
         let unsubReceipts: () => void;
 
         try {
@@ -167,6 +170,10 @@ const RestockPredictions: React.FC = () => {
 
             unsubSuppliers = onSnapshot(query(collection(db, 'suppliers')), (snapshot) => {
                 setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+            });
+
+            unsubManufacturers = onSnapshot(query(collection(db, 'manufacturers'), orderBy('name')), (snapshot) => {
+                setManufacturers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Manufacturer)));
             });
 
             unsubReceipts = onSnapshot(query(collection(db, 'goodsReceipts')), (snapshot) => {
@@ -290,6 +297,7 @@ const RestockPredictions: React.FC = () => {
             if (unsubInventory) unsubInventory();
             if (unsubSales) unsubSales();
             if (unsubSuppliers) unsubSuppliers();
+            if (unsubManufacturers) unsubManufacturers();
             if (unsubReceipts) unsubReceipts();
         };
     }, [config.daysToAnalyze]);
@@ -343,10 +351,11 @@ const RestockPredictions: React.FC = () => {
             const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesStatus = filterStatus === 'all' || p.status === filterStatus;
             const matchesSupplier = selectedSupplier === 'all' || (supplierProductsMap[selectedSupplier] && supplierProductsMap[selectedSupplier].has(p.id));
+            const matchesManufacturer = selectedManufacturer === 'all' || p.manufacturerId === selectedManufacturer;
             
-            return matchesSearch && matchesStatus && matchesSupplier;
+            return matchesSearch && matchesStatus && matchesSupplier && matchesManufacturer;
         });
-    }, [predictions, searchTerm, filterStatus, selectedSupplier, supplierProductsMap]);
+    }, [predictions, searchTerm, filterStatus, selectedSupplier, supplierProductsMap, selectedManufacturer]);
 
     const paginated = useMemo(() => filteredPredictions.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredPredictions, currentPage, pageSize]);
 
@@ -472,6 +481,18 @@ const RestockPredictions: React.FC = () => {
                                 </div>
                             )}
                         </div>
+                    </div>
+                    <div className="relative flex-1 max-w-[220px]">
+                        <select 
+                            value={selectedManufacturer}
+                            onChange={e => { setSelectedManufacturer(e.target.value); setCurrentPage(1); }}
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-bold text-slate-700 bg-white"
+                        >
+                            <option value="all">Tất cả hãng sản xuất</option>
+                            {manufacturers.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                        </select>
                     </div>
                     <div className="relative">
                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -627,6 +648,11 @@ const RestockPredictions: React.FC = () => {
                                             )}
                                             <td className="px-4 py-4">
                                                 <div className="font-bold text-dark max-w-[200px] sm:max-w-xs">{p.name}</div>
+                                                {manufacturers.find(m => m.id === p.manufacturerId)?.name && (
+                                                    <div className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                                                        {manufacturers.find(m => m.id === p.manufacturerId)?.name}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-4 py-4 text-right">
                                                 <span className={`font-black ${p.totalStock <= 0 ? 'text-red-500' : 'text-slate-700'}`}>

@@ -307,10 +307,16 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             }
         }
 
+        const whName = oldData.warehouseName || '';
+
         for (const [pid, diff] of Object.entries(inventoryDiffs)) {
             if (diff !== 0 && oldData.warehouseId) {
                 const invRef = doc(db, 'products', pid, 'inventory', oldData.warehouseId);
-                transaction.set(invRef, { stock: increment(diff) }, { merge: true });
+                transaction.set(invRef, {
+                    stock: increment(diff),
+                    warehouseId: oldData.warehouseId,
+                    warehouseName: whName
+                }, { merge: true });
             }
         }
 

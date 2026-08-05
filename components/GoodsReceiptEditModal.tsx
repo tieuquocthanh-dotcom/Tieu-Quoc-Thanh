@@ -260,10 +260,17 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
             }
         }
 
+        const currentWh = warehouses.find(w => w.id === oldData.warehouseId);
+        const whName = currentWh?.name || oldData.warehouseName || '';
+
         for (const [pid, diff] of Object.entries(inventoryDiffs)) {
             if (diff !== 0) {
                 const invRef = doc(db, 'products', pid, 'inventory', oldData.warehouseId);
-                transaction.set(invRef, { stock: increment(diff) }, { merge: true });
+                transaction.set(invRef, {
+                    stock: increment(diff),
+                    warehouseId: oldData.warehouseId,
+                    warehouseName: whName
+                }, { merge: true });
             }
         }
 
