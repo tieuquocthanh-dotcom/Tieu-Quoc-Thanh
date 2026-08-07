@@ -114,8 +114,15 @@ const ChinaImportDetailModal: React.FC<{
                         <div className="bg-slate-900 p-4 rounded-lg border-2 border-slate-800 shadow-lg text-white">
                             <p className="text-xs text-slate-400 uppercase font-bold mb-2 tracking-widest border-b border-slate-700 pb-1">Tổng cộng thanh toán</p>
                             <div className="flex justify-between text-sm mb-1"><span className="text-slate-400">Tiền hàng (¥):</span><span className="font-bold">{formatNumber((importData.totalCostCNY || 0) - importData.shippingFeeCN)} ¥</span></div>
-                            <div className="flex justify-between text-sm mb-2 border-b border-slate-700 pb-1 font-black text-red-400"><span className="text-slate-400">TỔNG TỆ (HÀNG+SHIP):</span><span>{formatNumber(importData.totalCostCNY)} ¥</span></div>
-                            <div className="pt-2"><div className="flex justify-between text-lg font-extrabold text-green-400 uppercase"><span>TỔNG VỀ TAY:</span><span>{formatNumber(importData.totalCostVND)} ₫</span></div></div>
+                            <div className="flex justify-between text-sm mb-2 border-b border-slate-700 pb-1 font-black text-red-400"><span className="text-slate-400">TỔNG TỆ (HÀNG+SHIP NĐ):</span><span>{formatNumber(importData.totalCostCNY)} ¥</span></div>
+                            <div className="my-2 p-2 bg-slate-800 rounded-lg border border-slate-700 flex justify-between items-center">
+                                <div>
+                                    <span className="text-xs font-black text-blue-400 uppercase block">TIỀN CHUYỂN (TỆ + SHIP NĐ × TỶ GIÁ):</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">(Chưa có phí vận chuyển VN)</span>
+                                </div>
+                                <span className="text-base font-black text-blue-300">{formatNumber((importData.totalCostCNY || 0) * importData.exchangeRate)} ₫</span>
+                            </div>
+                            <div className="pt-1"><div className="flex justify-between text-lg font-extrabold text-green-400 uppercase"><span>TỔNG VỀ TAY:</span><span>{formatNumber(importData.totalCostVND)} ₫</span></div></div>
                         </div>
                     </div>
                     <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center text-sm text-blue-900">
@@ -451,10 +458,17 @@ const EditImportModal: React.FC<{
                                 <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Ghi chú</label>
                                 <textarea value={note} onChange={e => setNote(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg bg-white text-black text-sm shadow-sm" rows={2}></textarea>
                             </div>
-                            <div className="pt-3 border-t border-slate-300">
-                                <div className="flex justify-between text-sm mb-1 text-slate-600 font-bold"><span>Tổng Tệ:</span><span className="text-red-600">{formatNumber(finalTotalCNY)} ¥</span></div>
-                                <div className="flex justify-between text-base text-black font-black uppercase mt-1">
-                                    <span className="text-dark">Tổng VNĐ:</span>
+                            <div className="pt-3 border-t border-slate-300 space-y-2">
+                                <div className="flex justify-between text-sm text-slate-600 font-bold"><span>Tổng Tệ (Hàng + Ship NĐ):</span><span className="text-red-600 font-black">{formatNumber(finalTotalCNY)} ¥</span></div>
+                                <div className="p-2.5 bg-blue-50 rounded-xl border border-blue-200 flex justify-between items-center">
+                                    <div>
+                                        <span className="font-black text-blue-900 uppercase block text-xs">TIỀN CHUYỂN (TỆ + SHIP NĐ × TỶ GIÁ):</span>
+                                        <span className="text-[10px] text-blue-600 font-bold">(Chưa có phí vận chuyển VN)</span>
+                                    </div>
+                                    <span className="font-black text-blue-700 text-base">{formatNumber(finalTotalCNY * parsedExchangeRate)} ₫</span>
+                                </div>
+                                <div className="flex justify-between text-base text-black font-black uppercase pt-1">
+                                    <span className="text-dark">Tổng VNĐ (Về tay):</span>
                                     <span className="text-green-700 text-xl">{formatNumber(finalTotalVND)} ₫</span>
                                 </div>
                             </div>
@@ -807,9 +821,16 @@ const ChinaImportManagement: React.FC = () => {
                             </div>
                             <div><label className="block text-[10px] font-black uppercase text-slate-500 block mb-1">Ghi chú vận đơn</label><textarea rows={2} value={note} onChange={e => setNote(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-black bg-white shadow-sm" placeholder="Mã vận đơn, kho nhận..."></textarea></div>
                         </div>
-                        <div className="mt-auto border-t border-slate-100 pt-4">
-                            <div className="flex justify-between items-end mb-1"><span className="text-[10px] font-black uppercase text-slate-500">Tổng Tệ (¥):</span><span className="text-xl font-black text-red-600">{formatNumber(totalProductCNY + parsedShippingFeeCN)} ¥</span></div>
-                            <div className="flex justify-between items-end mb-4"><span className="text-[10px] font-black uppercase text-slate-500">Tổng VNĐ:</span><span className="text-2xl font-black text-green-700">{formatNumber(finalTotalVND)} ₫</span></div>
+                        <div className="mt-auto border-t border-slate-100 pt-4 space-y-2">
+                            <div className="flex justify-between items-end mb-1"><span className="text-[10px] font-black uppercase text-slate-500">Tổng Tệ (Hàng + Ship NĐ):</span><span className="text-xl font-black text-red-600">{formatNumber(totalProductCNY + parsedShippingFeeCN)} ¥</span></div>
+                            <div className="p-2.5 bg-blue-50 rounded-xl border border-blue-200 flex justify-between items-center">
+                                <div>
+                                    <span className="font-black text-blue-900 uppercase block text-xs">TIỀN CHUYỂN (TỆ + SHIP NĐ × TỶ GIÁ):</span>
+                                    <span className="text-[10px] text-blue-600 font-bold">(Chưa có phí vận chuyển VN)</span>
+                                </div>
+                                <span className="font-black text-blue-700 text-base">{formatNumber((totalProductCNY + parsedShippingFeeCN) * parsedExchangeRate)} ₫</span>
+                            </div>
+                            <div className="flex justify-between items-end pt-1"><span className="text-[10px] font-black uppercase text-slate-500">Tổng VNĐ (Về tay):</span><span className="text-2xl font-black text-green-700">{formatNumber(finalTotalVND)} ₫</span></div>
                             <button onClick={handleSave} disabled={isProcessing} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black shadow-lg flex items-center justify-center uppercase transition active:scale-95 disabled:bg-slate-300 text-sm tracking-widest">{isProcessing ? <Loader className="animate-spin mr-2"/> : <Save className="mr-2" size={20}/>} Lưu Phiếu Nhập</button>
                         </div>
                     </div>
