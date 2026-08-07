@@ -236,8 +236,8 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [shippers, setShippers] = useState<Shipper[]>([]);
 
-  const [startDate, setStartDate] = useState(getInitialStartDate);
-  const [endDate, setEndDate] = useState(getInitialEndDate);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [shippingFilter, setShippingFilter] = useState<'all' | 'shipped' | 'pending' | 'order'>('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'paid' | 'debt'>('all');
   const [customerTypeFilter, setCustomerTypeFilter] = useState<'all' | 'wholesale' | 'retail'>('all');
@@ -301,7 +301,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
     setTimeout(() => {
         setLoading(true);
     }, 0);
-    const unsubscribe = onSnapshot(query(collection(db, "sales"), orderBy("createdAt", "desc"), limit(500)), (snapshot) => {
+    const unsubscribe = onSnapshot(query(collection(db, "sales"), orderBy("createdAt", "desc"), limit(5000)), (snapshot) => {
       setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
       setLoading(false);
     }, (err) => { setError("Lỗi kết nối."); setLoading(false); });
@@ -497,14 +497,19 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                       type="text" 
                       placeholder="Tìm tên/SĐT khách..." 
                       value={customerSearch} 
-                      onChange={e => { setCustomerSearch(e.target.value); setIsCustomerDropdownOpen(true); }} 
+                      onChange={e => { setCustomerSearch(e.target.value); setIsCustomerDropdownOpen(true); setCurrentPage(1); }} 
                       onFocus={() => setIsCustomerDropdownOpen(true)}
-                      className="w-full pl-8 pr-2 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" 
+                      className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" 
                   />
+                  {customerSearch && (
+                      <button onClick={() => { setCustomerSearch(''); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X size={14}/>
+                      </button>
+                  )}
                   {isCustomerDropdownOpen && suggestedCustomers.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-xl z-[100] max-h-48 overflow-y-auto">
                           {suggestedCustomers.map(c => (
-                              <button key={c.id} onClick={() => { setCustomerSearch(c.name); setIsCustomerDropdownOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 flex justify-between items-center transition-colors">
+                              <button key={c.id} onClick={() => { setCustomerSearch(c.name); setIsCustomerDropdownOpen(false); setCurrentPage(1); }} className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 flex justify-between items-center transition-colors">
                                   <span className="text-xs font-black text-black">{c.name}</span>
                                   <span className="text-[10px] font-bold text-slate-400">{c.phone}</span>
                               </button>
@@ -512,30 +517,54 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                       </div>
                   )}
               </div>
-              <div className="relative"><Hash className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={16}/><input type="text" placeholder="Tìm mã đơn..." value={orderIdSearch} onChange={e => setOrderIdSearch(e.target.value)} className="w-full pl-8 pr-2 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" /></div>
+              <div className="relative">
+                  <Hash className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                  <input type="text" placeholder="Tìm mã đơn..." value={orderIdSearch} onChange={e => { setOrderIdSearch(e.target.value); setCurrentPage(1); }} className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" />
+                  {orderIdSearch && (
+                      <button onClick={() => { setOrderIdSearch(''); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X size={14}/>
+                      </button>
+                  )}
+              </div>
               <div className="relative" ref={productDropdownRef}>
                   <Tag className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                   <input 
                       type="text" 
                       placeholder="Tìm tên sản phẩm..." 
                       value={productSearch} 
-                      onChange={e => { setProductSearch(e.target.value); setIsProductDropdownOpen(true); }} 
+                      onChange={e => { setProductSearch(e.target.value); setIsProductDropdownOpen(true); setCurrentPage(1); }} 
                       onFocus={() => setIsProductDropdownOpen(true)}
-                      className="w-full pl-8 pr-2 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" 
+                      className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" 
                   />
+                  {productSearch && (
+                      <button onClick={() => { setProductSearch(''); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X size={14}/>
+                      </button>
+                  )}
                   {isProductDropdownOpen && suggestedProducts.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-xl z-[100] max-h-48 overflow-y-auto">
                           {suggestedProducts.map(p => (
-                              <button key={p.id} onClick={() => { setProductSearch(p.name); setIsProductDropdownOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 transition-colors">
+                              <button key={p.id} onClick={() => { setProductSearch(p.name); setIsProductDropdownOpen(false); setCurrentPage(1); }} className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 transition-colors">
                                   <div className="text-xs font-black text-black">{p.name}</div>
                               </button>
                           ))}
                       </div>
                   )}
               </div>
-              <div className="grid grid-cols-2 gap-1">
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-1 py-2 border rounded-lg text-xs font-black outline-none" />
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-1 py-2 border rounded-lg text-xs font-black outline-none" />
+              <div className="flex flex-col justify-center">
+                <div className="grid grid-cols-2 gap-1">
+                  <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }} className="w-full px-1 py-1.5 border rounded-lg text-xs font-black outline-none" style={{ colorScheme: 'light' }} />
+                  <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }} className="w-full px-1 py-1.5 border rounded-lg text-xs font-black outline-none" style={{ colorScheme: 'light' }} />
+                </div>
+                {(startDate || endDate) ? (
+                    <button onClick={() => { setStartDate(''); setEndDate(''); setCurrentPage(1); }} className="text-[10px] text-blue-600 font-bold hover:underline text-right mt-0.5">
+                        ✕ Xóa ngày (Xem tất cả)
+                    </button>
+                ) : (
+                    <div className="text-[10px] text-emerald-600 font-bold text-right mt-0.5">
+                        ✓ Xem tất cả thời gian
+                    </div>
+                )}
               </div>
               <select value={shippingFilter} onChange={e => setShippingFilter(e.target.value as any)} className="w-full px-2 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary focus:outline-none appearance-none"><option value="all">Tất cả giao hàng</option><option value="shipped">Đã giao hàng</option><option value="pending">Chưa gởi</option><option value="order">Đặt hàng</option></select>
           </div>
