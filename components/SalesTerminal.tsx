@@ -555,125 +555,123 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
       }
       setIsProcessing(true);
       try {
-          console.log("Starting transaction...");
-          await runTransaction(db, async (transaction) => {
-              const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
-              console.log("Transaction logic executed");
-              const total = itemTotal + shippingFee;
-              const actualAmountPaid = isDebt ? 0 : (amountPaidInput === '' ? total : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
-              const isPartialDebt = actualAmountPaid < total;
-              const customerName = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId)?.name : (customerSearchTerm || 'Khách vãng lai');
-              const paymentMethod = paymentMethods.find(p => p.id === selectedPaymentMethodId);
-              const selectedWarehouseName = warehouses.find(w => w.id === selectedWarehouseId)?.name || 'N/A';
-              
-              const selectedDateObj = new Date(saleDate);
+          const batch = writeBatch(db);
+          const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
+          const total = itemTotal + shippingFee;
+          const actualAmountPaid = isDebt ? 0 : (amountPaidInput === '' ? total : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
+          const customerName = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId)?.name : (customerSearchTerm || 'Khách vãng lai');
+          const paymentMethod = paymentMethods.find(p => p.id === selectedPaymentMethodId);
+          const selectedWarehouseName = warehouses.find(w => w.id === selectedWarehouseId)?.name || 'N/A';
+          
+          let finalCreatedAt: Timestamp;
+          if (saleDate) {
+              const [y, m, d] = saleDate.split('-').map(Number);
               const now = new Date();
-              selectedDateObj.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
-              const finalCreatedAt = Timestamp.fromDate(selectedDateObj);
+              const selectedDateObj = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+              finalCreatedAt = Timestamp.fromDate(selectedDateObj);
+          } else {
+              finalCreatedAt = Timestamp.now();
+          }
 
-              let currentBal = 0;
-              let accountRef = null;
-              if (actualAmountPaid > 0 && selectedPaymentMethodId) {
-                  accountRef = doc(db, 'paymentMethods', selectedPaymentMethodId);
-                  const accSnap = await transaction.get(accountRef);
-                  if (accSnap.exists()) currentBal = Number((accSnap.data() as any).balance) || 0;
-              }
+          const saleRef = doc(collection(db, 'sales'));
+          const initialPaymentHistory = actualAmountPaid === 0 ? [] : [{ date: finalCreatedAt, amount: actualAmountPaid, note: `Thanh toán qua ${paymentMethod?.name || 'Tiền mặt'}` }];
 
-              const saleRef = doc(collection(db, 'sales'));
-              const initialPaymentHistory = actualAmountPaid === 0 ? [] : [{ date: finalCreatedAt, amount: actualAmountPaid, note: `Thanh toán qua ${paymentMethod?.name || 'Tiền mặt'}` }];
+          batch.set(saleRef, { 
+            items: cart.map(i => ({ 
+                productId: i.productId || '', 
+                productName: i.productName || '', 
+                quantity: i.quantity || 0, 
+                price: i.price || 0, 
+                importPrice: i.currentImportPrice || 0, 
+                isCombo: i.isCombo || false 
+            })), 
+            productIds: cart.map(i => i.productId),
+            total, 
+            shippingFee,
+            amountPaid: actualAmountPaid, 
+            paymentHistory: initialPaymentHistory,
+            customerId: selectedCustomerId || null, 
+            customerName: customerName || 'Khách vãng lai', 
+            warehouseId: selectedWarehouseId, 
+            warehouseName: selectedWarehouseName, 
+            paymentMethodId: actualAmountPaid > 0 ? (selectedPaymentMethodId || null) : null, 
+            paymentMethodName: actualAmountPaid > 0 ? (paymentMethod?.name || null) : null, 
+            status: (actualAmountPaid < total) ? 'debt' : 'paid', 
+            shippingStatus: shippingMode || 'shipped', 
+            shippingPayer: shippingPayer || 'customer', 
+            shipperId: selectedShipperId || null, 
+            shipperName: shippers.find(s => s.id === selectedShipperId)?.name || null, 
+            issueInvoice: issueInvoice || false, 
+            createdAt: finalCreatedAt, 
+            creatorName: user?.displayName || user?.email || 'POS' 
+          });
 
-              transaction.set(saleRef, { 
-                items: cart.map(i => ({ 
-                    productId: i.productId || '', 
-                    productName: i.productName || '', 
-                    quantity: i.quantity || 0, 
-                    price: i.price || 0, 
-                    importPrice: i.currentImportPrice || 0, 
-                    isCombo: i.isCombo || false 
-                })), 
-                productIds: cart.map(i => i.productId),
-                total, 
-                shippingFee,
-                amountPaid: actualAmountPaid, 
-                paymentHistory: initialPaymentHistory,
-                customerId: selectedCustomerId || null, 
-                customerName: customerName || 'Khách vãng lai', 
-                warehouseId: selectedWarehouseId, 
-                warehouseName: selectedWarehouseName, 
-                paymentMethodId: actualAmountPaid > 0 ? (selectedPaymentMethodId || null) : null, 
-                paymentMethodName: actualAmountPaid > 0 ? (paymentMethod?.name || null) : null, 
-                status: (actualAmountPaid < total) ? 'debt' : 'paid', 
-                shippingStatus: shippingMode || 'shipped', 
-                shippingPayer: shippingPayer || 'customer', 
-                shipperId: selectedShipperId || null, 
-                shipperName: shippers.find(s => s.id === selectedShipperId)?.name || null, 
-                issueInvoice: issueInvoice || false, 
+          if (actualAmountPaid > 0 && selectedPaymentMethodId) {
+              const accountRef = doc(db, 'paymentMethods', selectedPaymentMethodId);
+              batch.update(accountRef, { balance: increment(actualAmountPaid) });
+              
+              const currentBal = paymentMethod?.balance || 0;
+              batch.set(doc(collection(db, 'paymentLogs')), { 
+                paymentMethodId: selectedPaymentMethodId, 
+                paymentMethodName: paymentMethod?.name || 'N/A', 
+                type: 'deposit', 
+                amount: actualAmountPaid, 
+                balanceAfter: currentBal + actualAmountPaid, 
+                note: `Đơn hàng ${customerName}`, 
+                relatedId: saleRef.id, 
+                relatedType: 'sale', 
                 createdAt: finalCreatedAt, 
                 creatorName: user?.displayName || user?.email || 'POS' 
               });
+          }
 
-              if (actualAmountPaid > 0 && accountRef) {
-                  const finalBal = currentBal + actualAmountPaid;
-                  transaction.update(accountRef, { balance: finalBal });
-                  transaction.set(doc(collection(db, 'paymentLogs')), { 
-                    paymentMethodId: selectedPaymentMethodId, 
-                    paymentMethodName: paymentMethod?.name || 'N/A', 
-                    type: 'deposit', 
-                    amount: actualAmountPaid, 
-                    balanceAfter: finalBal, 
-                    note: `Đơn hàng ${customerName}`, 
-                    relatedId: saleRef.id, 
-                    relatedType: 'sale', 
-                    createdAt: finalCreatedAt, 
-                    creatorName: user?.displayName || user?.email || 'POS' 
+          cart.forEach(i => {
+              if (i.isCombo && i.comboItems) {
+                  i.comboItems.forEach(cItem => {
+                      const totalDeduct = cItem.quantity * i.quantity;
+                      const invRef = doc(db, 'products', cItem.productId, 'inventory', selectedWarehouseId);
+                      batch.set(invRef, { 
+                          stock: increment(-totalDeduct),
+                          warehouseId: selectedWarehouseId,
+                          warehouseName: selectedWarehouseName
+                      }, { merge: true });
                   });
+              } else {
+                  const invRef = doc(db, 'products', i.productId, 'inventory', selectedWarehouseId);
+                  batch.set(invRef, { 
+                      stock: increment(-i.quantity),
+                      warehouseId: selectedWarehouseId,
+                      warehouseName: selectedWarehouseName
+                  }, { merge: true });
               }
+          });
 
+          if (issueInvoice) {
               cart.forEach(i => {
                   if (i.isCombo && i.comboItems) {
                       i.comboItems.forEach(cItem => {
                           const totalDeduct = cItem.quantity * i.quantity;
-                          const invRef = doc(db, 'products', cItem.productId, 'inventory', selectedWarehouseId);
-                          transaction.set(invRef, { 
-                              stock: increment(-totalDeduct),
-                              warehouseId: selectedWarehouseId,
-                              warehouseName: selectedWarehouseName
-                          }, { merge: true });
+                          batch.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-totalDeduct) });
                       });
                   } else {
-                      const invRef = doc(db, 'products', i.productId, 'inventory', selectedWarehouseId);
-                      transaction.set(invRef, { 
-                          stock: increment(-i.quantity),
-                          warehouseId: selectedWarehouseId,
-                          warehouseName: selectedWarehouseName
-                      }, { merge: true });
+                      batch.update(doc(db, 'products', i.productId), { totalInvoicedStock: increment(-i.quantity) });
                   }
               });
+          }
 
-              if (issueInvoice) {
-                  cart.forEach(i => {
-                      if (i.isCombo && i.comboItems) {
-                          i.comboItems.forEach(cItem => {
-                              const totalDeduct = cItem.quantity * i.quantity;
-                              transaction.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-totalDeduct) });
-                          });
-                      } else {
-                          transaction.update(doc(db, 'products', i.productId), { totalInvoicedStock: increment(-i.quantity) });
-                      }
-                  });
+          for (const i of cart) {
+              if (i.updateSellingPrice || i.updateImportPrice) {
+                  const pRef = doc(db, 'products', i.productId);
+                  const updates: any = {};
+                  if (i.updateSellingPrice) updates.sellingPrice = i.price;
+                  if (i.updateImportPrice) updates.importPrice = i.currentImportPrice;
+                  batch.update(pRef, updates);
               }
+          }
 
-              for (const i of cart) {
-                  if (i.updateSellingPrice || i.updateImportPrice) {
-                      const pRef = doc(db, 'products', i.productId);
-                      const updates: any = {};
-                      if (i.updateSellingPrice) updates.sellingPrice = i.price;
-                      if (i.updateImportPrice) updates.importPrice = i.currentImportPrice;
-                      transaction.update(pRef, updates);
-                  }
-              }
-          });
-          setCart([]); setIsDebt(false); setAmountPaidInput(''); setIssueInvoice(false); setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setSelectedPaymentMethodId(''); setSelectedShipperId(''); setShippingFee(0); setSaleDate(getTodayString()); setShippingMode('shipped'); setToast({ message: "Thanh toán thành công (Kho đã trừ)!", type: 'success' });
+          await batch.commit();
+
+          setCart([]); setIsDebt(false); setAmountPaidInput(''); setIssueInvoice(false); setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setSelectedPaymentMethodId(''); setSelectedShipperId(''); setShippingFee(0); setSaleDate(getTodayString()); setShippingMode('shipped'); setToast({ message: "Thanh toán thành công! Đã cập nhật vào danh sách hôm nay.", type: 'success' });
       } catch (e: any) { console.error(e); alert("Lỗi khi thanh toán: " + e.message); } finally { setIsProcessing(false); }
   };
 
@@ -717,80 +715,72 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
       if (!selectedQuickImportProduct) return;
       setIsProcessing(true);
       try {
-          await runTransaction(db, async (transaction) => {
-              const supplier = suppliers.find(s => s.id === data.supplierId);
-              const warehouse = warehouses.find(w => w.id === data.warehouseId);
-              const method = paymentMethods.find(m => m.id === data.paymentMethodId);
-              const total = data.quantity * data.importPrice;
+          const batch = writeBatch(db);
+          const supplier = suppliers.find(s => s.id === data.supplierId);
+          const warehouse = warehouses.find(w => w.id === data.warehouseId);
+          const method = paymentMethods.find(m => m.id === data.paymentMethodId);
+          const total = data.quantity * data.importPrice;
 
-              // Đọc số dư tài khoản TRƯỚC khi thực hiện bất kỳ lệnh ghi nào
-              let currentBal = 0;
-              let accRef = null;
-              if (data.paymentStatus === 'paid' && data.paymentMethodId) {
-                  accRef = doc(db, 'paymentMethods', data.paymentMethodId);
-                  const accSnap = await transaction.get(accRef);
-                  if (accSnap.exists()) {
-                      currentBal = Number((accSnap.data() as any).balance) || 0;
-                  }
-              }
+          const receiptRef = doc(collection(db, 'goodsReceipts'));
+          batch.set(receiptRef, {
+              items: [{
+                  productId: selectedQuickImportProduct.id,
+                  productName: selectedQuickImportProduct.name,
+                  quantity: data.quantity,
+                  importPrice: data.importPrice,
+                  isCombo: !!selectedQuickImportProduct.isCombo
+              }],
+              productIds: [selectedQuickImportProduct.id],
+              total,
+              supplierId: data.supplierId,
+              supplierName: supplier?.name || 'N/A',
+              warehouseId: data.warehouseId,
+              warehouseName: warehouse?.name || 'N/A',
+              paymentStatus: data.paymentStatus,
+              paymentMethodId: data.paymentStatus === 'paid' ? data.paymentMethodId : null,
+              paymentMethodName: data.paymentStatus === 'paid' ? (method?.name || null) : null,
+              amountPaid: data.paymentStatus === 'paid' ? total : 0,
+              paidAt: data.paymentStatus === 'paid' ? serverTimestamp() : null,
+              hasInvoice: false,
+              createdAt: serverTimestamp(),
+              creatorName: user?.displayName || user?.email || 'POS'
+          });
 
-              const receiptRef = doc(collection(db, 'goodsReceipts'));
-              transaction.set(receiptRef, {
-                  items: [{
-                      productId: selectedQuickImportProduct.id,
-                      productName: selectedQuickImportProduct.name,
-                      quantity: data.quantity,
-                      importPrice: data.importPrice,
-                      isCombo: !!selectedQuickImportProduct.isCombo
-                  }],
-                  productIds: [selectedQuickImportProduct.id],
-                  total,
-                  supplierId: data.supplierId,
-                  supplierName: supplier?.name || 'N/A',
-                  warehouseId: data.warehouseId,
-                  warehouseName: warehouse?.name || 'N/A',
-                  paymentStatus: data.paymentStatus,
-                  paymentMethodId: data.paymentStatus === 'paid' ? data.paymentMethodId : null,
-                  paymentMethodName: data.paymentStatus === 'paid' ? (method?.name || null) : null,
-                  amountPaid: data.paymentStatus === 'paid' ? total : 0,
-                  paidAt: data.paymentStatus === 'paid' ? serverTimestamp() : null,
-                  hasInvoice: false,
+          const invRef = doc(db, 'products', selectedQuickImportProduct.id, 'inventory', data.warehouseId);
+          batch.set(invRef, {
+              stock: increment(data.quantity),
+              warehouseId: data.warehouseId,
+              warehouseName: warehouse?.name || 'N/A'
+          }, { merge: true });
+
+          if (data.paymentStatus === 'paid' && data.paymentMethodId) {
+              const accRef = doc(db, 'paymentMethods', data.paymentMethodId);
+              batch.update(accRef, { balance: increment(-total) });
+              
+              const currentBal = method?.balance || 0;
+              const logRef = doc(collection(db, 'paymentLogs'));
+              batch.set(logRef, {
+                  paymentMethodId: data.paymentMethodId,
+                  paymentMethodName: method?.name || 'N/A',
+                  type: 'withdraw',
+                  amount: total,
+                  balanceAfter: currentBal - total,
+                  note: `Nhập hàng nhanh (POS): ${selectedQuickImportProduct.name}`,
+                  relatedId: receiptRef.id,
+                  relatedType: 'receipt',
                   createdAt: serverTimestamp(),
                   creatorName: user?.displayName || user?.email || 'POS'
               });
+          }
 
-              const invRef = doc(db, 'products', selectedQuickImportProduct.id, 'inventory', data.warehouseId);
-              transaction.set(invRef, {
-                  stock: increment(data.quantity),
-                  warehouseId: data.warehouseId,
-                  warehouseName: warehouse?.name || 'N/A'
-              }, { merge: true });
+          if (data.updateBasePrice) {
+              batch.update(doc(db, 'products', selectedQuickImportProduct.id), {
+                  importPrice: data.importPrice
+              });
+          }
 
-              if (data.paymentStatus === 'paid' && accRef) {
-                  const finalBal = currentBal - total;
-                  transaction.update(accRef, { balance: finalBal });
-                  
-                  const logRef = doc(collection(db, 'paymentLogs'));
-                  transaction.set(logRef, {
-                      paymentMethodId: data.paymentMethodId,
-                      paymentMethodName: method?.name || 'N/A',
-                      type: 'withdraw',
-                      amount: total,
-                      balanceAfter: finalBal,
-                      note: `Nhập hàng nhanh (POS): ${selectedQuickImportProduct.name}`,
-                      relatedId: receiptRef.id,
-                      relatedType: 'receipt',
-                      createdAt: serverTimestamp(),
-                      creatorName: user?.displayName || user?.email || 'POS'
-                  });
-              }
+          await batch.commit();
 
-              if (data.updateBasePrice) {
-                  transaction.update(doc(db, 'products', selectedQuickImportProduct.id), {
-                      importPrice: data.importPrice
-                  });
-              }
-          });
           setToast({ message: "Đã nhập hàng nhanh thành công!", type: 'success' });
           setIsQuickImportOpen(false);
           setSelectedQuickImportProduct(null);
