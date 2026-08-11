@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, Timestamp, where, addDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Manufacturer, Sale, Supplier, GoodsReceipt } from '../types';
-import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart, X, History } from 'lucide-react';
+import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart, X, History, Search, Building2, ChevronDown } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 import { useToast } from './ToastContext';
@@ -433,18 +433,32 @@ const RestockPredictions: React.FC = () => {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6">
-                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-4 sticky top-0 z-30 shadow-sm rounded-t-2xl">
-                    <div className="relative flex-1 max-w-sm">
+                <div className="p-3.5 sm:p-4 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row items-stretch md:items-center gap-3 sticky top-0 z-30 shadow-sm rounded-t-2xl">
+                    {/* Tìm tên sản phẩm */}
+                    <div className="relative flex-1 min-w-[200px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                         <input 
                             type="text" 
                             placeholder="Tìm tên sản phẩm..." 
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                            className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-medium"
+                            className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs sm:text-sm font-medium bg-white"
                         />
+                        {searchTerm && (
+                            <button 
+                                onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                                title="Xóa tìm kiếm sản phẩm"
+                            >
+                                <X size={15} />
+                            </button>
+                        )}
                     </div>
-                    <div className="relative flex-1 max-w-[300px]" ref={supplierDropdownRef}>
+
+                    {/* Tìm nhà cung cấp */}
+                    <div className="relative flex-1 min-w-[220px]" ref={supplierDropdownRef}>
                         <div className="relative">
+                            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                             <input 
                                 type="text" 
                                 placeholder="Tìm nhà cung cấp..." 
@@ -456,69 +470,93 @@ const RestockPredictions: React.FC = () => {
                                     }
                                     setIsSupplierDropdownOpen(true);
                                 }} 
-                                className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-medium" 
+                                className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs sm:text-sm font-medium bg-white" 
                             />
-                            {isSupplierDropdownOpen && (
-                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">
-                                    <button 
-                                        onClick={() => { setSelectedSupplier('all'); setSupplierSearchTerm('Tất cả nhà cung cấp'); setIsSupplierDropdownOpen(false); setCurrentPage(1); }} 
-                                        className="w-full text-left px-3 py-2 hover:bg-slate-50 text-xs border-b font-black text-slate-700"
-                                    >
-                                        TẤT CẢ NHÀ CUNG CẤP
-                                    </button>
-                                    {suppliers.filter(s => {
-                                        const term = (supplierSearchTerm || '').toLowerCase();
-                                        return (s.name || '').toLowerCase().includes(term) || (s.phone || '').includes(term);
-                                    }).map(s => (
-                                        <button 
-                                            key={s.id} 
-                                            onClick={() => { setSelectedSupplier(s.id); setSupplierSearchTerm(s.name); setIsSupplierDropdownOpen(false); setCurrentPage(1); }} 
-                                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-xs border-b font-black text-black"
-                                        >
-                                            {s.name}
-                                        </button>
-                                    ))}
-                                </div>
+                            {supplierSearchTerm && supplierSearchTerm !== 'Tất cả nhà cung cấp' ? (
+                                <button 
+                                    onClick={() => {
+                                        setSelectedSupplier('all');
+                                        setSupplierSearchTerm('Tất cả nhà cung cấp');
+                                        setIsSupplierDropdownOpen(false);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                                    title="Xóa lựa chọn nhà cung cấp"
+                                >
+                                    <X size={15} />
+                                </button>
+                            ) : (
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                             )}
                         </div>
+                        {isSupplierDropdownOpen && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto divide-y divide-slate-100">
+                                <button 
+                                    onClick={() => { setSelectedSupplier('all'); setSupplierSearchTerm('Tất cả nhà cung cấp'); setIsSupplierDropdownOpen(false); setCurrentPage(1); }} 
+                                    className={`w-full text-left px-3.5 py-2.5 hover:bg-slate-50 text-xs font-black transition-colors ${selectedSupplier === 'all' ? 'text-primary bg-primary/5' : 'text-slate-700'}`}
+                                >
+                                    ✓ TẤT CẢ NHÀ CUNG CẤP
+                                </button>
+                                {suppliers.filter(s => {
+                                    const term = (supplierSearchTerm || '').toLowerCase();
+                                    if (!supplierSearchTerm || supplierSearchTerm === 'Tất cả nhà cung cấp') return true;
+                                    return (s.name || '').toLowerCase().includes(term) || (s.phone || '').includes(term);
+                                }).map(s => (
+                                    <button 
+                                        key={s.id} 
+                                        onClick={() => { setSelectedSupplier(s.id); setSupplierSearchTerm(s.name); setIsSupplierDropdownOpen(false); setCurrentPage(1); }} 
+                                        className={`w-full text-left px-3.5 py-2.5 hover:bg-blue-50 text-xs font-bold transition-colors flex items-center justify-between ${selectedSupplier === s.id ? 'text-primary bg-primary/5 font-black' : 'text-slate-900'}`}
+                                    >
+                                        <span>{s.name}</span>
+                                        {s.phone && <span className="text-[10px] text-slate-400 font-normal">{s.phone}</span>}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                    <div className="relative flex-1 max-w-[220px]">
-                        <select 
-                            value={selectedManufacturer}
-                            onChange={e => { setSelectedManufacturer(e.target.value); setCurrentPage(1); }}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-bold text-slate-700 bg-white"
-                        >
-                            <option value="all">Tất cả hãng sản xuất</option>
-                            {manufacturers.map(m => (
-                                <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
-                        </select>
+
+                    {/* Hãng sản xuất & Trạng thái */}
+                    <div className="grid grid-cols-2 md:flex md:w-auto gap-2">
+                        <div className="relative">
+                            <select 
+                                value={selectedManufacturer}
+                                onChange={e => { setSelectedManufacturer(e.target.value); setCurrentPage(1); }}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs sm:text-sm font-bold text-slate-700 bg-white"
+                            >
+                                <option value="all">Tất cả hãng</option>
+                                {manufacturers.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="relative">
+                            <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={15} />
+                            <select 
+                                value={filterStatus}
+                                onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                                className="w-full pl-8 pr-6 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-xs sm:text-sm font-bold text-slate-700 bg-white appearance-none"
+                            >
+                                <option value="all">Tất cả trạng thái</option>
+                                <option value="out_of_stock">Đã Hết Hàng</option>
+                                <option value="critical">Rất Ít</option>
+                                <option value="low_stock">Sắp Hết</option>
+                                <option value="healthy">An Toàn</option>
+                                <option value="overstocked">Tồn Nhiều</option>
+                                <option value="no_sales">Chưa Bán</option>
+                            </select>
+                        </div>
                     </div>
-                    <div className="relative">
-                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <select 
-                            value={filterStatus}
-                            onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-                            className="pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 focus:border-primary outline-none text-sm font-bold text-slate-700 bg-white appearance-none"
-                        >
-                            <option value="all">Tất cả trạng thái</option>
-                            <option value="out_of_stock">Đã Hết Hàng (Cần nhập)</option>
-                            <option value="critical">Rất Ít</option>
-                            <option value="low_stock">Sắp Hết</option>
-                            <option value="healthy">An Toàn</option>
-                            <option value="overstocked">Tồn Kho Nhiều</option>
-                            <option value="no_sales">Chưa Bán Được</option>
-                        </select>
-                    </div>
+
+                    {/* Đặt Hàng bar khi đã chọn NCC */}
                     {selectedSupplier !== 'all' && (
-                        <div className="ml-auto flex items-center gap-2">
-                            <span className="text-sm font-bold text-slate-500">
-                                Đã chọn: {Object.keys(selectedItems).length}
+                        <div className="flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200 w-full md:w-auto ml-auto">
+                            <span className="text-xs sm:text-sm font-bold text-slate-600 whitespace-nowrap">
+                                Đã chọn: <strong className="text-primary font-black">{Object.keys(selectedItems).length}</strong> sp
                             </span>
                             <button
                                 onClick={handleOpenConfirmModal}
                                 disabled={isOrdering || Object.keys(selectedItems).length === 0}
-                                className="px-4 py-2 bg-primary text-white rounded-xl font-bold flex items-center hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                                className="px-4 py-2 bg-primary text-white rounded-xl font-bold flex items-center hover:bg-primary/90 disabled:opacity-50 transition-colors text-xs sm:text-sm shadow-sm"
                             >
                                 {isOrdering ? <Loader className="animate-spin mr-2" size={16}/> : <ShoppingCart className="mr-2" size={16}/>}
                                 Đặt hàng
