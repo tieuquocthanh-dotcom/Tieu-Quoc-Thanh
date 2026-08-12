@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, Timestamp, arrayUnion, writeBatch, increment, getDocs, orderBy, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Sale, GoodsReceipt, PaymentMethod, Customer, Supplier, Shipper, Product, Warehouse } from '../types';
-import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User, Edit, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User, Edit, ChevronDown, ChevronRight, ArrowLeftRight, Repeat, Building2 } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 import SaleDetailModal from './SaleDetailModal';
@@ -397,6 +397,183 @@ const NumericInput: React.FC<{
     );
 };
 
+const DebtOffsetModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    dualInfo: {
+        partnerName: string;
+        receivableSales: Sale[];
+        payableReceipts: GoodsReceipt[];
+        receivableTotal: number;
+        payableTotal: number;
+    } | null;
+    isProcessing: boolean;
+    onConfirmOffset: (
+        partnerName: string,
+        offsetAmount: number,
+        dateString: string,
+        note: string,
+        receivableSales: Sale[],
+        payableReceipts: GoodsReceipt[]
+    ) => void;
+}> = ({ isOpen, onClose, dualInfo, isProcessing, onConfirmOffset }) => {
+    const [offsetAmount, setOffsetAmount] = useState(0);
+    const [offsetDate, setOffsetDate] = useState(getTodayString());
+    const [note, setNote] = useState('');
+
+    const receivableTotal = dualInfo?.receivableTotal || 0;
+    const payableTotal = dualInfo?.payableTotal || 0;
+    const maxOffset = Math.min(receivableTotal, payableTotal);
+
+    useEffect(() => {
+        if (isOpen && dualInfo) {
+            const maxAmt = Math.min(dualInfo.receivableTotal, dualInfo.payableTotal);
+            setOffsetAmount(maxAmt);
+            setOffsetDate(getTodayString());
+            setNote(`Khấu trừ công nợ đôi bên cho đối tác ${dualInfo.partnerName}`);
+        }
+    }, [isOpen, dualInfo]);
+
+    if (!isOpen || !dualInfo) return null;
+
+    const remainingReceivable = Math.max(0, receivableTotal - offsetAmount);
+    const remainingPayable = Math.max(0, payableTotal - offsetAmount);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
+            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-xl animate-fade-in-down overflow-hidden border-4 border-slate-800 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center p-4 border-b-2 border-slate-800 bg-amber-100">
+                    <h3 className="text-sm font-black text-amber-900 uppercase flex items-center">
+                        <ArrowLeftRight className="mr-2 text-amber-700" size={20} />
+                        Khấu trừ công nợ đôi bên (Khách & NCC)
+                    </h3>
+                    <button onClick={onClose} className="text-black hover:text-red-500 transition-colors"><X size={24} /></button>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-5">
+                    {/* Partner Header Info */}
+                    <div className="bg-slate-50 p-4 rounded-xl border-2 border-slate-200 text-center shadow-inner">
+                        <p className="text-[10px] font-black text-slate-500 uppercase">Tên Đối Tác</p>
+                        <p className="text-2xl font-black text-slate-900 uppercase mt-0.5">{dualInfo.partnerName}</p>
+                        <p className="text-xs font-bold text-amber-700 mt-1 flex items-center justify-center gap-1">
+                            <Repeat size={14} />
+                            Vừa là Khách hàng vừa là Nhà cung cấp
+                        </p>
+                    </div>
+
+                    {/* Comparison Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="bg-blue-50/80 border-2 border-blue-200 p-3.5 rounded-xl">
+                            <span className="text-[10px] font-black uppercase text-blue-600 block mb-1">1. Phải thu (Khách nợ mình)</span>
+                            <div className="text-xl font-black text-blue-800">{formatNumber(receivableTotal)} ₫</div>
+                            <div className="text-[10px] text-slate-500 font-bold mt-1">{dualInfo.receivableSales.length} đơn hàng nợ</div>
+                        </div>
+                        <div className="bg-red-50/80 border-2 border-red-200 p-3.5 rounded-xl">
+                            <span className="text-[10px] font-black uppercase text-red-600 block mb-1">2. Phải trả (Mình nợ NCC)</span>
+                            <div className="text-xl font-black text-red-800">{formatNumber(payableTotal)} ₫</div>
+                            <div className="text-[10px] text-slate-500 font-bold mt-1">{dualInfo.payableReceipts.length} phiếu nhập nợ</div>
+                        </div>
+                    </div>
+
+                    {/* Offset Amount Input */}
+                    <div className="bg-amber-50/80 p-4 rounded-xl border-2 border-amber-300 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <label className="text-xs font-black text-amber-900 uppercase">Số tiền khấu trừ đối ứng</label>
+                            <span className="text-[10px] font-black text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-lg border border-amber-300">
+                                Tối đa: {formatNumber(maxOffset)} ₫
+                            </span>
+                        </div>
+                        <NumericInput
+                            value={offsetAmount}
+                            onChange={(val) => setOffsetAmount(Math.min(val, maxOffset))}
+                            className="w-full px-4 py-3 bg-slate-900 text-amber-400 border-2 border-slate-800 rounded-xl font-black text-2xl text-right focus:border-amber-500 outline-none shadow-inner"
+                        />
+                        <div className="flex gap-2">
+                            <button 
+                                type="button"
+                                onClick={() => setOffsetAmount(maxOffset)} 
+                                className="px-3 py-1 bg-amber-200 hover:bg-amber-300 text-amber-900 text-[11px] font-black rounded-lg transition"
+                            >
+                                Khấu trừ tối đa ({formatNumber(maxOffset)}₫)
+                            </button>
+                            {maxOffset >= 1000000 && (
+                                <button 
+                                    type="button"
+                                    onClick={() => setOffsetAmount(Math.floor(maxOffset / 2))} 
+                                    className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-[11px] font-bold rounded-lg transition"
+                                >
+                                    50% ({formatNumber(Math.floor(maxOffset / 2))}₫)
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Result Preview */}
+                    <div className="bg-slate-100 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                        <div className="text-[10px] font-black text-slate-500 uppercase mb-1">Dự kiến công nợ sau khấu trừ:</div>
+                        <div className="flex justify-between font-bold">
+                            <span className="text-slate-600">Nợ Phải Thu còn lại (Khách):</span>
+                            <span className={remainingReceivable > 0 ? "text-blue-700 font-black" : "text-slate-400 font-bold"}>
+                                {formatNumber(remainingReceivable)} ₫
+                            </span>
+                        </div>
+                        <div className="flex justify-between font-bold">
+                            <span className="text-slate-600">Nợ Phải Trả còn lại (NCC):</span>
+                            <span className={remainingPayable > 0 ? "text-red-600 font-black" : "text-slate-400 font-bold"}>
+                                {formatNumber(remainingPayable)} ₫
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Date and Note */}
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ngày ghi nhận khấu trừ</label>
+                            <input 
+                                type="date" 
+                                value={offsetDate} 
+                                onChange={(e) => setOffsetDate(e.target.value)}
+                                className="w-full px-3 py-2.5 border-2 border-slate-800 rounded-xl font-black text-sm outline-none focus:border-amber-500"
+                                style={{ colorScheme: 'light' }}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ghi chú khấu trừ</label>
+                            <input 
+                                type="text" 
+                                value={note} 
+                                onChange={(e) => setNote(e.target.value)}
+                                placeholder="Nhập ghi chú..."
+                                className="w-full px-3 py-2.5 border-2 border-slate-800 rounded-xl font-bold text-sm outline-none focus:border-amber-500"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t-2 border-slate-800 flex gap-3 shrink-0">
+                    <button 
+                        type="button"
+                        onClick={onClose} 
+                        className="flex-1 py-3 bg-white border-2 border-slate-800 text-black rounded-xl font-black text-xs uppercase hover:bg-slate-100 transition active:scale-95"
+                        disabled={isProcessing}
+                    >
+                        Hủy
+                    </button>
+                    <button 
+                        type="button"
+                        onClick={() => onConfirmOffset(dualInfo.partnerName, offsetAmount, offsetDate, note, dualInfo.receivableSales, dualInfo.payableReceipts)}
+                        className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-black text-xs uppercase shadow-lg transition active:scale-95 disabled:bg-slate-300 disabled:shadow-none flex items-center justify-center gap-2"
+                        disabled={isProcessing || offsetAmount <= 0}
+                    >
+                        {isProcessing ? <Loader size={18} className="animate-spin" /> : <ArrowLeftRight size={18} />}
+                        Xác nhận khấu trừ ({formatNumber(offsetAmount)} ₫)
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const DebtManagement: React.FC = () => {
     const [activeTab, setActiveTab] = useState<DebtTab>('receivables');
     const [salesDebt, setSalesDebt] = useState<Sale[]>([]);
@@ -420,6 +597,17 @@ const DebtManagement: React.FC = () => {
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [isPayBulkModalOpen, setIsPayBulkModalOpen] = useState(false);
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
+
+    const [selectedDualInfo, setSelectedDualInfo] = useState<{
+        partnerName: string;
+        receivableSales: Sale[];
+        payableReceipts: GoodsReceipt[];
+        receivableTotal: number;
+        payableTotal: number;
+    } | null>(null);
+    const [isOffsetModalOpen, setIsOffsetModalOpen] = useState(false);
+    const [isProcessingOffset, setIsProcessingOffset] = useState(false);
+    const [showDualOnly, setShowDualOnly] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
@@ -552,9 +740,86 @@ const DebtManagement: React.FC = () => {
             .filter(item => item.totalDebt > 0);
     }, [salesDebt, receiptsDebt, activeTab]);
 
+    const normalizeName = (str?: string) => {
+        if (!str) return '';
+        return str.trim().toLowerCase().replace(/\s+/g, ' ');
+    };
+
+    const dualDebtorsMap = useMemo(() => {
+        const map = new Map<string, {
+            partnerName: string;
+            receivableSales: Sale[];
+            payableReceipts: GoodsReceipt[];
+            receivableTotal: number;
+            payableTotal: number;
+        }>();
+
+        salesDebt.forEach(sale => {
+            const remaining = (sale.total || 0) - (sale.amountPaid || 0);
+            if (remaining <= 0) return;
+            let name = sale.customerName || 'Khách vãng lai';
+            if (!sale.customerName || sale.customerName === 'Khách vãng lai') {
+                const cust = customers.find(c => c.id === sale.customerId);
+                if (cust) name = cust.name;
+            }
+            const key = normalizeName(name);
+            if (!key || key === 'khach vang lai' || key === 'khách vãng lai') return;
+
+            if (!map.has(key)) {
+                map.set(key, { partnerName: name, receivableSales: [], payableReceipts: [], receivableTotal: 0, payableTotal: 0 });
+            }
+            const entry = map.get(key)!;
+            entry.receivableSales.push(sale);
+            entry.receivableTotal += remaining;
+        });
+
+        receiptsDebt.forEach(receipt => {
+            const remaining = (receipt.total || 0) - (receipt.amountPaid || 0);
+            if (remaining <= 0) return;
+            let name = receipt.supplierName || 'Nhà cung cấp';
+            if (!receipt.supplierName || receipt.supplierName === 'Nhà cung cấp không tên') {
+                const supp = suppliers.find(s => s.id === receipt.supplierId);
+                if (supp) name = supp.name;
+            }
+            const key = normalizeName(name);
+            if (!key) return;
+
+            if (!map.has(key)) {
+                map.set(key, { partnerName: name, receivableSales: [], payableReceipts: [], receivableTotal: 0, payableTotal: 0 });
+            }
+            const entry = map.get(key)!;
+            entry.payableReceipts.push(receipt);
+            entry.payableTotal += remaining;
+        });
+
+        const dual = new Map<string, {
+            partnerName: string;
+            receivableSales: Sale[];
+            payableReceipts: GoodsReceipt[];
+            receivableTotal: number;
+            payableTotal: number;
+        }>();
+
+        map.forEach((value, key) => {
+            if (value.receivableTotal > 0 && value.payableTotal > 0) {
+                dual.set(key, value);
+            }
+        });
+
+        return dual;
+    }, [salesDebt, receiptsDebt, customers, suppliers]);
+
     const filteredSummary = useMemo(() => {
-        return currentSummary.filter(item => (item.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()));
-    }, [currentSummary, searchTerm]);
+        return currentSummary.filter(item => {
+            const matchesSearch = (item.name || '').toLowerCase().includes((searchTerm || '').toLowerCase());
+            if (!matchesSearch) return false;
+            if (showDualOnly) {
+                const norm = normalizeName(item.name);
+                return dualDebtorsMap.has(norm);
+            }
+            return true;
+        });
+    }, [currentSummary, searchTerm, showDualOnly, dualDebtorsMap]);
 
     const paginatedList = useMemo(() => {
         const startIndex = (currentPage - 1) * pageSize;
@@ -824,6 +1089,112 @@ const DebtManagement: React.FC = () => {
         }
     };
 
+    const handleConfirmOffset = async (
+        partnerName: string, 
+        offsetAmount: number, 
+        dateString: string, 
+        note: string, 
+        receivableSales: Sale[], 
+        payableReceipts: GoodsReceipt[]
+    ) => {
+        if (offsetAmount <= 0) return;
+        setIsProcessingOffset(true);
+        try {
+            const dateObj = new Date(dateString);
+            const now = new Date();
+            dateObj.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+            const ts = Timestamp.fromDate(dateObj);
+
+            await runTransaction(db, async (transaction) => {
+                const sortedSales = [...receivableSales].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+                const sortedReceipts = [...payableReceipts].sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+                let remainingSalesOffset = offsetAmount;
+                let remainingReceiptsOffset = offsetAmount;
+
+                // Apply offset to Sales (Receivables)
+                for (const sale of sortedSales) {
+                    if (remainingSalesOffset <= 0) break;
+                    const remainingDebt = (sale.total || 0) - (sale.amountPaid || 0);
+                    const paymentForThisSale = Math.min(remainingSalesOffset, remainingDebt);
+                    if (paymentForThisSale <= 0) continue;
+
+                    const saleRef = doc(db, 'sales', sale.id);
+                    const newPaid = (sale.amountPaid || 0) + paymentForThisSale;
+                    const isFull = newPaid >= (sale.total || 0);
+
+                    transaction.update(saleRef, {
+                        status: isFull ? 'paid' : 'debt',
+                        amountPaid: newPaid,
+                        paidAt: isFull ? ts : (sale.paidAt || null),
+                        paymentHistory: arrayUnion({
+                            date: ts,
+                            amount: paymentForThisSale,
+                            note: note || `Khấu trừ công nợ đôi bên với NCC ${partnerName}`,
+                            paymentMethodId: 'offset',
+                            paymentMethodName: 'Khấu trừ công nợ'
+                        })
+                    });
+
+                    remainingSalesOffset -= paymentForThisSale;
+                }
+
+                // Apply offset to GoodsReceipts (Payables)
+                for (const receipt of sortedReceipts) {
+                    if (remainingReceiptsOffset <= 0) break;
+                    const remainingDebt = (receipt.total || 0) - (receipt.amountPaid || 0);
+                    const paymentForThisReceipt = Math.min(remainingReceiptsOffset, remainingDebt);
+                    if (paymentForThisReceipt <= 0) continue;
+
+                    const receiptRef = doc(db, 'goodsReceipts', receipt.id);
+                    const newPaid = (receipt.amountPaid || 0) + paymentForThisReceipt;
+                    const isFull = newPaid >= (receipt.total || 0);
+
+                    transaction.update(receiptRef, {
+                        paymentStatus: isFull ? 'paid' : 'debt',
+                        amountPaid: newPaid,
+                        paidAt: isFull ? ts : (receipt.paidAt || null),
+                        paymentHistory: arrayUnion({
+                            date: ts,
+                            amount: paymentForThisReceipt,
+                            note: note || `Khấu trừ công nợ đôi bên với KH ${partnerName}`,
+                            paymentMethodId: 'offset',
+                            paymentMethodName: 'Khấu trừ công nợ'
+                        })
+                    });
+
+                    remainingReceiptsOffset -= paymentForThisReceipt;
+                }
+
+                // Log entry
+                const logRef = doc(collection(db, 'paymentLogs'));
+                const formattedDate = dateObj.toLocaleDateString('vi-VN');
+                const offsetAutoNote = note || `Khấu trừ công nợ đôi bên cho ${partnerName} - ${formattedDate}`;
+
+                transaction.set(logRef, {
+                    paymentMethodId: 'offset',
+                    paymentMethodName: 'Khấu trừ công nợ',
+                    type: 'offset',
+                    amount: offsetAmount,
+                    balanceAfter: 0,
+                    note: offsetAutoNote,
+                    createdAt: ts,
+                    createdBy: auth.currentUser?.uid || null,
+                    creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A'
+                });
+            });
+
+            setIsOffsetModalOpen(false);
+            setSelectedDualInfo(null);
+            alert(`Đã khấu trừ thành công ${formatNumber(offsetAmount)} ₫ công nợ đối ứng cho ${partnerName}!`);
+        } catch (err) {
+            console.error(err);
+            alert("Lỗi khi thực hiện khấu trừ công nợ.");
+        } finally {
+            setIsProcessingOffset(false);
+        }
+    };
+
     const handleViewDetail = (item: any) => {
         if (activeTab === 'receivables') {
             setSelectedSale(item as Sale);
@@ -867,6 +1238,17 @@ const DebtManagement: React.FC = () => {
                 products={products}
             />
             
+            <DebtOffsetModal 
+                isOpen={isOffsetModalOpen}
+                onClose={() => {
+                    setIsOffsetModalOpen(false);
+                    setSelectedDualInfo(null);
+                }}
+                dualInfo={selectedDualInfo}
+                isProcessing={isProcessingOffset}
+                onConfirmOffset={handleConfirmOffset}
+            />
+
             <PartialPaymentModal 
                 isOpen={isPaymentModalOpen} 
                 onClose={() => setIsPaymentModalOpen(false)} 
@@ -890,13 +1272,29 @@ const DebtManagement: React.FC = () => {
                 paymentMethods={paymentMethods}
             />
 
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                 <h1 className="text-3xl font-black text-dark flex items-center uppercase tracking-tighter">
                     <Wallet className="mr-3 text-primary" size={32}/> Quản Lý Công Nợ
                 </h1>
-                <div className="flex items-center gap-2 p-1 bg-white rounded-xl border-2 border-slate-200">
-                    <button onClick={() => setActiveTab('receivables')} className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all ${activeTab === 'receivables' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Phải Thu (Khách)</button>
-                    <button onClick={() => setActiveTab('payables')} className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all ${activeTab === 'payables' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Phải Trả (NCC)</button>
+                <div className="flex flex-wrap items-center gap-2">
+                    {dualDebtorsMap.size > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setShowDualOnly(!showDualOnly)}
+                            className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border-2 ${
+                                showDualOnly 
+                                    ? 'bg-amber-500 text-white border-amber-600 shadow-md' 
+                                    : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                            }`}
+                        >
+                            <Repeat size={16} />
+                            {showDualOnly ? 'Đang lọc: Nợ Khách & NCC' : `Nợ 2 chiều (${dualDebtorsMap.size})`}
+                        </button>
+                    )}
+                    <div className="flex items-center gap-2 p-1 bg-white rounded-xl border-2 border-slate-200">
+                        <button onClick={() => setActiveTab('receivables')} className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all ${activeTab === 'receivables' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Phải Thu (Khách)</button>
+                        <button onClick={() => setActiveTab('payables')} className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all ${activeTab === 'payables' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Phải Trả (NCC)</button>
+                    </div>
                 </div>
             </div>
 
@@ -972,6 +1370,42 @@ const DebtManagement: React.FC = () => {
                                     <div className="text-xl font-black text-yellow-400 leading-none">{formatNumber(debtor.totalDebt)} ₫</div>
                                 </div>
                             </div>
+                            
+                            {(() => {
+                                const dualInfo = dualDebtorsMap.get(normalizeName(debtor.name));
+                                if (!dualInfo) return null;
+                                return (
+                                    <div className="bg-amber-50 border-b-2 border-amber-300 p-3.5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-amber-500 text-white rounded-xl shrink-0 shadow-sm">
+                                                <Repeat size={18} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-black uppercase text-amber-900">Đối tác vừa là Khách vừa là Nhà cung cấp</span>
+                                                    <span className="px-2 py-0.5 bg-amber-200 text-amber-900 font-black text-[10px] rounded-md uppercase">Nợ 2 chiều</span>
+                                                </div>
+                                                <div className="text-xs font-bold text-amber-800 mt-0.5">
+                                                    Khách nợ mình: <strong className="text-blue-700 font-black">{formatNumber(dualInfo.receivableTotal)} ₫</strong>
+                                                    <span className="mx-2 text-slate-300">|</span>
+                                                    Mình nợ NCC: <strong className="text-red-600 font-black">{formatNumber(dualInfo.payableTotal)} ₫</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedDualInfo(dualInfo);
+                                                setIsOffsetModalOpen(true);
+                                            }}
+                                            className="w-full md:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 shrink-0 active:scale-95"
+                                        >
+                                            <ArrowLeftRight size={16} />
+                                            Khấu trừ công nợ ({formatNumber(Math.min(dualInfo.receivableTotal, dualInfo.payableTotal))} ₫)
+                                        </button>
+                                    </div>
+                                );
+                            })()}
                             
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm">
