@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sale, Customer, PaymentMethod, Shipper, SaleItem, Product } from '../types';
-import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar } from 'lucide-react';
+import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown } from 'lucide-react';
 import { doc, serverTimestamp, runTransaction, collection, Timestamp, increment, getDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
@@ -219,6 +219,28 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
     const newItems = [...editedItems];
     newItems[index] = { ...newItems[index], ...updates };
     setEditedItems(newItems);
+  };
+
+  const moveItemUp = (index: number) => {
+    if (index <= 0) return;
+    setEditedItems(prev => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index - 1];
+      next[index - 1] = temp;
+      return next;
+    });
+  };
+
+  const moveItemDown = (index: number) => {
+    if (index >= editedItems.length - 1) return;
+    setEditedItems(prev => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index + 1];
+      next[index + 1] = temp;
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -614,6 +636,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                         <table className="w-full text-left border-collapse min-w-[550px]">
                             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                 <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                    <th className="p-3 w-16 text-center">TT</th>
                                     <th className="p-3">Sản phẩm</th>
                                     <th className="p-3 text-center w-32">Số lượng</th>
                                     <th className="p-3 text-right w-40">Giá bán (₫)</th>
@@ -624,6 +647,28 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                             <tbody className="divide-y divide-slate-100">
                                 {editedItems.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 text-center">
+                                            <div className="flex items-center justify-center gap-0.5">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => moveItemUp(idx)}
+                                                    disabled={idx === 0}
+                                                    className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition"
+                                                    title="Di chuyển lên trên"
+                                                >
+                                                    <ChevronUp size={12} strokeWidth={2.5}/>
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => moveItemDown(idx)}
+                                                    disabled={idx === editedItems.length - 1}
+                                                    className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition"
+                                                    title="Di chuyển xuống dưới"
+                                                >
+                                                    <ChevronDown size={12} strokeWidth={2.5}/>
+                                                </button>
+                                            </div>
+                                        </td>
                                         <td className="p-3">
                                             <div className="font-bold text-xs text-slate-800 uppercase leading-tight line-clamp-2">{item.productName}</div>
                                             {item.isCombo && <span className="text-[8px] bg-blue-100 text-blue-700 px-1 rounded font-black uppercase">Combo</span>}

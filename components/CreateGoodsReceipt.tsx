@@ -297,12 +297,14 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   }, [selectedSupplierId]);
 
   const addToReceipt = (product: Product, quantity: number, importPrice: number) => {
+    if (quantity <= 0) return;
     const existing = receipt.find(item => item.productId === product.id);
     if (existing) {
       setReceipt(receipt.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + quantity, importPrice } : item));
     } else {
       setReceipt([...receipt, { productId: product.id, productName: product.name, quantity, importPrice, originalImportPrice: product.importPrice, updateImportPrice: false, isCombo: !!product.isCombo, comboItems: product.comboItems || [] }]);
     }
+    setToast({ message: "Đã thêm thành công!", type: 'success' });
   };
 
   const moveItemUp = (index: number) => {

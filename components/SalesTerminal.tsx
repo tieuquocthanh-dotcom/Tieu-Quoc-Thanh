@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, where, increment, collectionGroup, addDoc, Timestamp, updateDoc, getDocs, limit, arrayUnion, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, SaleItem, Customer, Warehouse, PaymentMethod, Shipper, Sale, Supplier, Manufacturer } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import SalesHistory from './SalesHistory';
 import CustomerModal from './CustomerModal';
@@ -543,7 +543,29 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     if (!keepSearch) {
         setSearchTerm('');
     }
-    setToast({ message: "Đã thêm!", type: 'success' });
+    setToast({ message: "Đã thêm thành công!", type: 'success' });
+  };
+
+  const moveItemUp = (index: number) => {
+    if (index <= 0) return;
+    setCart(prev => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index - 1];
+      next[index - 1] = temp;
+      return next;
+    });
+  };
+
+  const moveItemDown = (index: number) => {
+    if (index >= cart.length - 1) return;
+    setCart(prev => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index + 1];
+      next[index + 1] = temp;
+      return next;
+    });
   };
 
   const handleCheckout = async () => {
@@ -1063,7 +1085,34 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                         <div key={item.productId} className="bg-slate-50 p-3 rounded-xl border border-slate-200 animate-fade-in space-y-2">
                             <div className="flex justify-between items-start gap-1">
                                 <span className="font-black text-primary text-[13px] truncate uppercase leading-tight flex-1">{idx+1}. {item.productName}</span>
-                                <button onClick={() => setCart(cart.filter(i => i.productId !== item.productId))} className="text-slate-300 hover:text-red-500 flex-shrink-0"><X size={16}/></button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <button 
+                                        type="button"
+                                        onClick={() => moveItemUp(idx)}
+                                        disabled={idx === 0}
+                                        className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-sm active:scale-95"
+                                        title="Di chuyển lên trên"
+                                    >
+                                        <ChevronUp size={14} strokeWidth={2.5}/>
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => moveItemDown(idx)}
+                                        disabled={idx === cart.length - 1}
+                                        className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-sm active:scale-95"
+                                        title="Di chuyển xuống dưới"
+                                    >
+                                        <ChevronDown size={14} strokeWidth={2.5}/>
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setCart(cart.filter(i => i.productId !== item.productId))} 
+                                        className="text-slate-300 hover:text-red-500 p-1 transition-colors"
+                                        title="Xóa khỏi giỏ hàng"
+                                    >
+                                        <X size={16}/>
+                                    </button>
+                                </div>
                             </div>
                             
                             <div className="flex items-center gap-2 justify-between">
