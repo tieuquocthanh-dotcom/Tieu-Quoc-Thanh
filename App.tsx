@@ -35,7 +35,7 @@ import PlannedOrderManagement from './components/PlannedOrderManagement';
 import NoteManagement from './components/NoteManagement';
 import SavingsManagement from './components/SavingsManagement';
 import RestockPredictions from './components/RestockPredictions';
-import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch } from 'lucide-react';
+import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw } from 'lucide-react';
 
 type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions';
 
@@ -58,6 +58,39 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<'admin' | 'staff' | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      window.location.reload();
+    }, 250);
+  };
+
+  const formatDateTime = (date: Date) => {
+    const weekdays = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    const weekday = weekdays[date.getDay()];
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return {
+      weekday,
+      dateStr: `${day}/${month}/${year}`,
+      timeStr: `${hours}:${minutes}:${seconds}`,
+      fullStr: `${weekday}, ${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+    };
+  };
 
   useEffect(() => {
     if (view !== 'login' && view !== 'setup') {
@@ -387,16 +420,40 @@ const App: React.FC = () => {
     <div className="flex flex-col h-[100dvh] bg-slate-100 font-sans">
       <header className="w-full bg-white shadow-md p-3 z-20 border-b border-slate-200 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <div className="text-xl font-bold text-primary cursor-pointer flex items-center" onClick={() => setView('home')}>
-              <Home className="mr-2"/> Kho & Bán Hàng
-            </div>
-            {user && (
-              <div className="text-[10px] font-black text-green-600 flex items-center mt-0.5 uppercase tracking-wide">
-                <UserCircle size={12} className="mr-1"/> 
-                {user.displayName || user.email?.split('@')[0]} đang làm việc
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex flex-col">
+              <div className="text-xl font-bold text-primary cursor-pointer flex items-center hover:opacity-90 transition-opacity" onClick={() => setView('home')}>
+                <Home className="mr-2"/> Kho & Bán Hàng
               </div>
-            )}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+                {user && (
+                  <div className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center uppercase tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
+                    <UserCircle size={12} className="mr-1 text-emerald-600"/> 
+                    <span className="truncate max-w-[140px] sm:max-w-none">{user.displayName || user.email?.split('@')[0]} đang làm việc</span>
+                  </div>
+                )}
+                {(() => {
+                  const dt = formatDateTime(currentDateTime);
+                  return (
+                    <div className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 flex items-center tracking-tight">
+                      <Clock size={11} className="mr-1 text-primary"/>
+                      <span>{dt.weekday}, {dt.dateStr}</span>
+                      <span className="mx-1 text-slate-300">|</span>
+                      <span className="font-mono font-black text-primary">{dt.timeStr}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <button 
+              onClick={handleRefresh}
+              title="Làm mới / Tải lại hệ thống"
+              className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-100 active:scale-95 rounded-lg border border-slate-200 hover:border-primary/40 transition-all shadow-sm flex items-center justify-center shrink-0 self-center"
+            >
+              <RotateCw size={15} className={`${isRefreshing ? 'animate-spin text-primary' : ''}`} />
+            </button>
           </div>
           
           <nav className="flex items-center space-x-1">
