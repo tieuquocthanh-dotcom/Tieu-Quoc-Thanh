@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, ChinaImport, ChinaImportItem, ChinaImportStatus } from '../types';
-import { Plus, Trash2, Save, Search, Calculator, DollarSign, Plane, History, Loader, PlusCircle, Edit, X, Eye, Printer, FileText, Coins, RotateCcw, Check, AlertTriangle, ExternalLink, Truck, PackageCheck, AlertCircle, ShoppingCart, ListFilter } from 'lucide-react';
+import { Plus, Trash2, Save, Search, Calculator, DollarSign, Plane, History, Loader, PlusCircle, Edit, X, Eye, Printer, FileText, Coins, RotateCcw, Check, AlertTriangle, ExternalLink, Truck, PackageCheck, AlertCircle, ShoppingCart, ListFilter, ChevronUp, ChevronDown } from 'lucide-react';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import Pagination from './Pagination';
 import { ProductModal } from './ProductManagement';
@@ -664,6 +664,32 @@ const ChinaImportManagement: React.FC = () => {
         if (editingListIndex === index) setEditingListIndex(null);
     };
 
+    const moveItemUp = (index: number) => {
+        if (index <= 0) return;
+        setCart(prev => {
+            const next = [...prev];
+            const temp = next[index];
+            next[index] = next[index - 1];
+            next[index - 1] = temp;
+            return next;
+        });
+        if (editingListIndex === index) setEditingListIndex(index - 1);
+        else if (editingListIndex === index - 1) setEditingListIndex(index);
+    };
+
+    const moveItemDown = (index: number) => {
+        if (index >= cart.length - 1) return;
+        setCart(prev => {
+            const next = [...prev];
+            const temp = next[index];
+            next[index] = next[index + 1];
+            next[index + 1] = temp;
+            return next;
+        });
+        if (editingListIndex === index) setEditingListIndex(index + 1);
+        else if (editingListIndex === index + 1) setEditingListIndex(index);
+    };
+
     const handleAddOrUpdateItem = () => {
         const qtyNum = parseNumber(quantity); 
         const priceNum = parseNumber(priceCNY);
@@ -779,12 +805,51 @@ const ChinaImportManagement: React.FC = () => {
                         <div className="p-4 border-t bg-slate-50">
                             {cart.length > 0 ? (
                                 <table className="w-full text-sm text-left">
-                                    <thead className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-200"><tr><th className="pb-2">Sản phẩm</th><th className="pb-2 text-center">SL</th><th className="pb-2 text-right">Giá (¥)</th><th className="pb-2 text-right">Thành tiền (¥)</th><th className="pb-2 text-center w-20">Thao tác</th></tr></thead>
+                                    <thead className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-200">
+                                        <tr>
+                                            <th className="pb-2 w-12 text-center">TT</th>
+                                            <th className="pb-2">Sản phẩm</th>
+                                            <th className="pb-2 text-center">SL</th>
+                                            <th className="pb-2 text-right">Giá (¥)</th>
+                                            <th className="pb-2 text-right">Thành tiền (¥)</th>
+                                            <th className="pb-2 text-center w-24">Thao tác</th>
+                                        </tr>
+                                    </thead>
                                     <tbody className="divide-y divide-slate-200">
                                         {cart.map((item, index) => (
                                             <tr key={index} className={`hover:bg-white text-black transition-colors ${editingListIndex === index ? 'bg-orange-50 border-l-4 border-orange-400' : ''}`}>
-                                                <td className="py-2.5 pr-2 font-bold">{item.productName}</td><td className="py-2.5 text-center text-blue-600 font-black">{item.quantity}</td><td className="py-2.5 text-right font-medium">{formatNumber(item.priceCNY)}</td><td className="py-2.5 text-right font-black text-red-600">{formatNumber(item.totalCNY)}</td>
-                                                <td className="py-2.5 text-center"><div className="flex justify-center space-x-1"><button onClick={() => handleEditItemInList(index)} className="text-blue-600 hover:bg-blue-100 p-1.5 rounded-lg border border-blue-100 shadow-sm transition"><Edit size={14}/></button><button onClick={() => handleRemoveItem(index)} className="text-red-500 hover:bg-red-100 p-1.5 rounded-lg border border-red-100 shadow-sm transition"><Trash2 size={14}/></button></div></td>
+                                                <td className="py-2.5 text-center">
+                                                    <div className="flex items-center justify-center gap-0.5">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => moveItemUp(index)}
+                                                            disabled={index === 0}
+                                                            className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition"
+                                                            title="Di chuyển lên"
+                                                        >
+                                                            <ChevronUp size={12} strokeWidth={2.5}/>
+                                                        </button>
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => moveItemDown(index)}
+                                                            disabled={index === cart.length - 1}
+                                                            className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition"
+                                                            title="Di chuyển xuống"
+                                                        >
+                                                            <ChevronDown size={12} strokeWidth={2.5}/>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td className="py-2.5 pr-2 font-bold">{item.productName}</td>
+                                                <td className="py-2.5 text-center text-blue-600 font-black">{item.quantity}</td>
+                                                <td className="py-2.5 text-right font-medium">{formatNumber(item.priceCNY)}</td>
+                                                <td className="py-2.5 text-right font-black text-red-600">{formatNumber(item.totalCNY)}</td>
+                                                <td className="py-2.5 text-center">
+                                                    <div className="flex justify-center space-x-1">
+                                                        <button onClick={() => handleEditItemInList(index)} className="text-blue-600 hover:bg-blue-100 p-1.5 rounded-lg border border-blue-100 shadow-sm transition" title="Sửa"><Edit size={14}/></button>
+                                                        <button onClick={() => handleRemoveItem(index)} className="text-red-500 hover:bg-red-100 p-1.5 rounded-lg border border-red-100 shadow-sm transition" title="Xóa"><Trash2 size={14}/></button>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Supplier, PlannedOrder, PlannedOrderItem, Manufacturer, PlannedOrderStatus } from '../types';
-import { ClipboardList, Plus, Trash2, Search, Users, Tag, Package, Loader, X, Save, Edit, ShoppingBag, Check, RotateCcw, Printer, PlusCircle, CheckCircle2, Clock, ShoppingCart, Truck, PackageCheck, AlertCircle, ListFilter } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Search, Users, Tag, Package, Loader, X, Save, Edit, ShoppingBag, Check, RotateCcw, Printer, PlusCircle, CheckCircle2, Clock, ShoppingCart, Truck, PackageCheck, AlertCircle, ListFilter, ChevronUp, ChevronDown } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
 import { ProductModal } from './ProductManagement';
 import { User } from 'firebase/auth';
@@ -147,6 +147,28 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
         setProductSearch('');
         setSelectedProductId('');
         setQty(1);
+    };
+
+    const moveItemUp = (index: number) => {
+        if (index <= 0) return;
+        setCart(prev => {
+            const next = [...prev];
+            const temp = next[index];
+            next[index] = next[index - 1];
+            next[index - 1] = temp;
+            return next;
+        });
+    };
+
+    const moveItemDown = (index: number) => {
+        if (index >= cart.length - 1) return;
+        setCart(prev => {
+            const next = [...prev];
+            const temp = next[index];
+            next[index] = next[index + 1];
+            next[index + 1] = temp;
+            return next;
+        });
     };
 
     const handleQuickSaveProduct = async (productData: any) => {
@@ -574,6 +596,26 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                                     <div className="flex-1 font-black text-xs text-slate-700 pr-4 uppercase leading-tight">{item.productName}</div>
                                                     
                                                     <div className="flex items-center gap-1.5">
+                                                        <div className="flex items-center gap-0.5 mr-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => moveItemUp(idx)}
+                                                                disabled={idx === 0}
+                                                                className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition"
+                                                                title="Di chuyển lên trên"
+                                                            >
+                                                                <ChevronUp size={14} strokeWidth={2.5}/>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => moveItemDown(idx)}
+                                                                disabled={idx === cart.length - 1}
+                                                                className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition"
+                                                                title="Di chuyển xuống dưới"
+                                                            >
+                                                                <ChevronDown size={14} strokeWidth={2.5}/>
+                                                            </button>
+                                                        </div>
                                                         {isEditingThis ? (
                                                             <>
                                                                 <input 

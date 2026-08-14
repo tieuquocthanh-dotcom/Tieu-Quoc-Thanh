@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GoodsReceipt, Supplier, PaymentMethod, Warehouse, Product, GoodsReceiptItem } from '../types';
-import { X, Save, Edit3, CreditCard, FileCheck2, Wallet, AlertCircle, Loader, Users, Package, ShoppingBag, Trash2, Minus, Plus, Coins, Banknote, Calendar, Search } from 'lucide-react';
+import { X, Save, Edit3, CreditCard, FileCheck2, Wallet, AlertCircle, Loader, Users, Package, ShoppingBag, Trash2, Minus, Plus, Coins, Banknote, Calendar, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import { doc, serverTimestamp, runTransaction, collection, Timestamp, increment, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
@@ -161,6 +161,28 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
     const newItems = [...editedItems];
     newItems[index] = { ...newItems[index], ...updates };
     setEditedItems(newItems);
+  };
+
+  const moveItemUp = (index: number) => {
+    if (index <= 0) return;
+    setEditedItems(prev => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index - 1];
+      next[index - 1] = temp;
+      return next;
+    });
+  };
+
+  const moveItemDown = (index: number) => {
+    if (index >= editedItems.length - 1) return;
+    setEditedItems(prev => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index + 1];
+      next[index + 1] = temp;
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -522,9 +544,10 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                     </div>
 
                     <div className="flex-1 overflow-auto min-h-[300px] max-h-[500px]">
-                        <table className="w-full text-left border-collapse min-w-[550px]">
+                        <table className="w-full text-left border-collapse min-w-[600px]">
                             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                 <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                    <th className="p-3 w-16 text-center">Thứ tự</th>
                                     <th className="p-3">Sản phẩm</th>
                                     <th className="p-3 text-center w-32">Số lượng</th>
                                     <th className="p-3 text-right w-40">Giá nhập (₫)</th>
@@ -535,6 +558,29 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                             <tbody className="divide-y divide-slate-100">
                                 {editedItems.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 text-center">
+                                            <div className="flex items-center justify-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => moveItemUp(idx)}
+                                                    disabled={idx === 0}
+                                                    className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded disabled:opacity-25 disabled:cursor-not-allowed transition shadow-xs active:scale-95"
+                                                    title="Di chuyển lên trên"
+                                                >
+                                                    <ChevronUp size={13} strokeWidth={2.5} />
+                                                </button>
+                                                <span className="text-xs font-black text-slate-500 w-4 text-center">{idx + 1}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => moveItemDown(idx)}
+                                                    disabled={idx === editedItems.length - 1}
+                                                    className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded disabled:opacity-25 disabled:cursor-not-allowed transition shadow-xs active:scale-95"
+                                                    title="Di chuyển xuống dưới"
+                                                >
+                                                    <ChevronDown size={13} strokeWidth={2.5} />
+                                                </button>
+                                            </div>
+                                        </td>
                                         <td className="p-3">
                                             <div className="font-bold text-xs text-slate-800 uppercase leading-tight line-clamp-2">{item.productName}</div>
                                             {item.isCombo && <span className="text-[8px] bg-blue-100 text-blue-700 px-1 rounded font-black">COMBO</span>}

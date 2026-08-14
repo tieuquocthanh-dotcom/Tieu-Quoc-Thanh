@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, increment, setDoc, Timestamp, where, addDoc, limit, getDocs, updateDoc, deleteDoc, runTransaction, collectionGroup, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, Supplier, GoodsReceiptItem, Warehouse, PaymentMethod, Manufacturer, GoodsReceipt, PlannedOrder, ChinaImport } from '../types';
-import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck , Sparkles } from 'lucide-react';
+import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck , Sparkles } from 'lucide-react';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
@@ -303,6 +303,28 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     } else {
       setReceipt([...receipt, { productId: product.id, productName: product.name, quantity, importPrice, originalImportPrice: product.importPrice, updateImportPrice: false, isCombo: !!product.isCombo, comboItems: product.comboItems || [] }]);
     }
+  };
+
+  const moveItemUp = (index: number) => {
+    if (index <= 0) return;
+    setReceipt(prev => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index - 1];
+      next[index - 1] = temp;
+      return next;
+    });
+  };
+
+  const moveItemDown = (index: number) => {
+    if (index >= receipt.length - 1) return;
+    setReceipt(prev => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[index + 1];
+      next[index + 1] = temp;
+      return next;
+    });
   };
 
   const handleImportFromSource = (val: string) => {
@@ -718,7 +740,34 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                 <div key={item.productId} className={`bg-slate-50 p-3 rounded-xl border border-slate-200 animate-fade-in ${item.updateImportPrice ? 'border-blue-500 bg-blue-50' : ''}`}>
                                     <div className="flex justify-between items-start mb-2 gap-1">
                                         <span className="font-black text-primary text-base truncate uppercase leading-tight flex-1">{idx+1}. {item.productName}</span>
-                                        <button onClick={() => setReceipt(receipt.filter(i => i.productId !== item.productId))} className="text-slate-300 hover:text-red-500 flex-shrink-0"><X size={16}/></button>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <button 
+                                                type="button"
+                                                onClick={() => moveItemUp(idx)}
+                                                disabled={idx === 0}
+                                                className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-sm active:scale-95"
+                                                title="Di chuyển lên trên"
+                                            >
+                                                <ChevronUp size={14} strokeWidth={2.5}/>
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => moveItemDown(idx)}
+                                                disabled={idx === receipt.length - 1}
+                                                className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-sm active:scale-95"
+                                                title="Di chuyển xuống dưới"
+                                            >
+                                                <ChevronDown size={14} strokeWidth={2.5}/>
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setReceipt(receipt.filter(i => i.productId !== item.productId))} 
+                                                className="text-slate-300 hover:text-red-500 p-1 transition-colors"
+                                                title="Xóa khỏi đơn"
+                                            >
+                                                <X size={16}/>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 items-center mb-2">
                                         <div className="flex items-center space-x-2">
