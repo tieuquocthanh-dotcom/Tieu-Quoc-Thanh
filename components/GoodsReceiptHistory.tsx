@@ -215,6 +215,9 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
             const shortId = receipt.id.substring(0, 8).toUpperCase();
 
             if (receipt.paymentStatus === 'debt') {
+                if (currentBal < receipt.total) {
+                    throw new Error(`Số dư tài khoản "${receipt.paymentMethodName || ''}" (${formatNumber(currentBal)} ₫) không đủ để thanh toán ${formatNumber(receipt.total)} ₫!`);
+                }
                 const newBal = currentBal - receipt.total;
                 transaction.update(accRef, { balance: newBal });
                 transaction.update(receiptRef, { paymentStatus: 'paid', paidAt: serverTimestamp(), amountPaid: receipt.total });

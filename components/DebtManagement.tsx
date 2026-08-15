@@ -129,6 +129,8 @@ const PayBulkModal: React.FC<{
     if (!isOpen) return null;
 
     const isReceivable = type === 'receivables';
+    const selectedMethod = paymentMethods.find(m => m.id === selectedMethodId);
+    const isInsufficientBalance = !isReceivable && !!selectedMethod && payAmount > (selectedMethod.balance || 0);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
@@ -155,12 +157,35 @@ const PayBulkModal: React.FC<{
                             <select 
                                 value={selectedMethodId}
                                 onChange={(e) => setSelectedMethodId(e.target.value)}
-                                className="w-full px-3 py-3 border-2 border-slate-800 rounded-xl font-black focus:ring-2 focus:ring-primary outline-none bg-white text-black"
+                                className={`w-full px-3 py-3 border-2 rounded-xl font-black focus:ring-2 focus:ring-primary outline-none bg-white text-black ${isInsufficientBalance ? 'border-red-500' : 'border-slate-800'}`}
                             >
                                 <option value="">-- Chọn tài khoản --</option>
-                                {paymentMethods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                {paymentMethods.map(m => (
+                                    <option key={m.id} value={m.id}>
+                                        {m.name} (Số dư: {formatNumber(m.balance || 0)} ₫)
+                                    </option>
+                                ))}
                             </select>
+                            {selectedMethod && (
+                                <div className="mt-1 flex justify-between items-center text-xs px-1">
+                                    <span className="font-bold text-slate-500">Số dư trong tài khoản:</span>
+                                    <span className={`font-black ${!isReceivable && (selectedMethod.balance || 0) < payAmount ? 'text-red-600' : 'text-emerald-700'}`}>
+                                        {formatNumber(selectedMethod.balance || 0)} ₫
+                                    </span>
+                                </div>
+                            )}
                         </div>
+                        {isInsufficientBalance && (
+                            <div className="p-3 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 text-xs flex items-start gap-2">
+                                <AlertTriangle size={18} className="shrink-0 text-red-600 mt-0.5" />
+                                <div>
+                                    <p className="font-black uppercase text-red-800">Không đủ tiền trong tài khoản để trả!</p>
+                                    <p className="font-bold mt-0.5">
+                                        Số tiền trả (<strong>{formatNumber(payAmount)} ₫</strong>) lớn hơn số dư hiện có trong tài khoản <strong>{selectedMethod?.name}</strong> (<strong>{formatNumber(selectedMethod?.balance || 0)} ₫</strong>). Vui lòng chọn tài khoản khác hoặc giảm số tiền trả.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                         {type === 'payables' && (
                             <SupplierBankSelector 
                                 supplier={supplier}
@@ -202,8 +227,8 @@ const PayBulkModal: React.FC<{
                     </button>
                     <button 
                         onClick={handleConfirm} 
-                        className={`flex-1 py-3 text-white rounded-xl font-black text-xs uppercase shadow-lg transition active:scale-95 flex items-center justify-center ${isReceivable ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'} disabled:bg-slate-300 disabled:shadow-none`}
-                        disabled={isProcessing || !selectedMethodId || payAmount <= 0}
+                        className={`flex-1 py-3 text-white rounded-xl font-black text-xs uppercase shadow-lg transition active:scale-95 flex items-center justify-center ${isReceivable ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'} disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed`}
+                        disabled={isProcessing || !selectedMethodId || payAmount <= 0 || isInsufficientBalance}
                     >
                         {isProcessing ? <Loader size={18} className="animate-spin mr-2"/> : <CheckCheck size={18} className="mr-2"/>}
                         {isReceivable ? 'Xác nhận thu' : 'Xác nhận trả'}
@@ -263,6 +288,8 @@ const PartialPaymentModal: React.FC<{
     const anyItem = item as any;
     const remainingDebt = (item.total || 0) - (anyItem.amountPaid || 0);
     const supplier = type === 'receipt' ? suppliers.find(s => s.id === anyItem.supplierId) : undefined;
+    const selectedMethod = paymentMethods.find(m => m.id === selectedMethodId);
+    const isInsufficientBalance = !isSale && !!selectedMethod && payAmount > (selectedMethod.balance || 0);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
@@ -291,12 +318,35 @@ const PartialPaymentModal: React.FC<{
                             <select 
                                 value={selectedMethodId}
                                 onChange={(e) => setSelectedMethodId(e.target.value)}
-                                className="w-full px-3 py-3 border-2 border-slate-300 rounded-xl font-black focus:ring-2 focus:ring-primary outline-none bg-white text-black"
+                                className={`w-full px-3 py-3 border-2 rounded-xl font-black focus:ring-2 focus:ring-primary outline-none bg-white text-black ${isInsufficientBalance ? 'border-red-500' : 'border-slate-300'}`}
                             >
                                 <option value="">-- Chọn tài khoản --</option>
-                                {paymentMethods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                {paymentMethods.map(m => (
+                                    <option key={m.id} value={m.id}>
+                                        {m.name} (Số dư: {formatNumber(m.balance || 0)} ₫)
+                                    </option>
+                                ))}
                             </select>
+                            {selectedMethod && (
+                                <div className="mt-1 flex justify-between items-center text-xs px-1">
+                                    <span className="font-bold text-slate-500">Số dư trong tài khoản:</span>
+                                    <span className={`font-black ${!isSale && (selectedMethod.balance || 0) < payAmount ? 'text-red-600' : 'text-emerald-700'}`}>
+                                        {formatNumber(selectedMethod.balance || 0)} ₫
+                                    </span>
+                                </div>
+                            )}
                         </div>
+                        {isInsufficientBalance && (
+                            <div className="p-3 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 text-xs flex items-start gap-2">
+                                <AlertTriangle size={18} className="shrink-0 text-red-600 mt-0.5" />
+                                <div>
+                                    <p className="font-black uppercase text-red-800">Không đủ tiền trong tài khoản để trả!</p>
+                                    <p className="font-bold mt-0.5">
+                                        Số tiền trả (<strong>{formatNumber(payAmount)} ₫</strong>) lớn hơn số dư hiện có trong tài khoản <strong>{selectedMethod?.name}</strong> (<strong>{formatNumber(selectedMethod?.balance || 0)} ₫</strong>). Vui lòng chọn tài khoản khác hoặc giảm số tiền trả.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                         {type === 'receipt' && (
                             <>
                             {!supplier && <div className="text-red-500 text-xs">Không tìm thấy nhà cung cấp (ID: {anyItem.supplierId})</div>}
@@ -314,10 +364,10 @@ const PartialPaymentModal: React.FC<{
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán</label>
                             <NumericInput 
-        value={payAmount} 
-        onChange={(val) => setPayAmount(Math.min(val, remainingDebt))}
-        className="w-full px-4 py-3 bg-slate-900 text-white border-2 border-slate-800 rounded-xl font-black text-2xl text-right focus:border-primary outline-none shadow-inner"
-    />
+                                value={payAmount} 
+                                onChange={(val) => setPayAmount(Math.min(val, remainingDebt))}
+                                className="w-full px-4 py-3 bg-slate-900 text-white border-2 border-slate-800 rounded-xl font-black text-2xl text-right focus:border-primary outline-none shadow-inner"
+                            />
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ngày ghi nhận</label>
@@ -328,7 +378,7 @@ const PartialPaymentModal: React.FC<{
 
                 <div className="p-4 bg-slate-50 border-t-2 border-slate-800 flex gap-2 shrink-0">
                     <button onClick={onClose} className="flex-1 py-3 bg-white border-2 border-slate-800 rounded-xl font-black text-xs uppercase text-black" disabled={isProcessing}>Hủy</button>
-                    <button onClick={handleConfirm} className="flex-1 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg disabled:bg-slate-300 disabled:shadow-none" disabled={isProcessing || payAmount <= 0 || !selectedMethodId}>
+                    <button onClick={handleConfirm} className="flex-1 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed" disabled={isProcessing || payAmount <= 0 || !selectedMethodId || isInsufficientBalance}>
                         {isProcessing ? <Loader size={18} className="animate-spin" /> : 'Xác nhận'}
                     </button>
                 </div>
@@ -908,6 +958,9 @@ const DebtManagement: React.FC = () => {
                 }
 
                 const currentBal = accSnap.data().balance || 0;
+                if (!isSale && currentBal < amount) {
+                    throw new Error(`Số dư tài khoản "${method?.name || 'đã chọn'}" (${formatNumber(currentBal)} ₫) không đủ để thanh toán ${formatNumber(amount)} ₫!`);
+                }
                 const finalBal = isSale ? currentBal + amount : currentBal - amount;
 
                 const ref = doc(db, isSale ? 'sales' : 'goodsReceipts', item.id);
@@ -962,9 +1015,9 @@ const DebtManagement: React.FC = () => {
 
             setIsPaymentModalOpen(false);
             setPaymentItem(null);
-        } catch (err) { 
+        } catch (err: any) { 
             console.error(err);
-            alert("Lỗi cập nhật."); 
+            alert(err?.message || (typeof err === 'string' ? err : "Lỗi cập nhật.")); 
         } finally { 
             setIsProcessingPayment(false); 
         }
@@ -1017,6 +1070,9 @@ const DebtManagement: React.FC = () => {
                 }
 
                 const currentBal = accSnap.data().balance || 0;
+                if (!isReceivable && currentBal < amount) {
+                    throw new Error(`Số dư tài khoản "${method?.name || 'đã chọn'}" (${formatNumber(currentBal)} ₫) không đủ để thanh toán ${formatNumber(amount)} ₫!`);
+                }
                 let remainingToPay = amount;
                 const partnerName = selectedItemsData.debtorName;
 
@@ -1081,9 +1137,9 @@ const DebtManagement: React.FC = () => {
             setSelectedIds(new Set());
             setIsPayBulkModalOpen(false);
             alert("Đã thanh toán thành công!");
-        } catch (err) { 
+        } catch (err: any) { 
             console.error(err);
-            alert("Lỗi thanh toán hàng loạt."); 
+            alert(err?.message || (typeof err === 'string' ? err : "Lỗi thanh toán hàng loạt.")); 
         } finally { 
             setIsProcessingBulk(false); 
         }
