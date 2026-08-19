@@ -1,7 +1,7 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Warehouse } from '../types';
-import { X, GitCommit } from 'lucide-react';
+import { X, GitCommit, ArrowRightLeft, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
+import { formatNumber } from '../utils/formatting';
 
 interface InventoryTransferModalProps {
   isOpen: boolean;
@@ -13,55 +13,127 @@ interface InventoryTransferModalProps {
   initialData?: { productId: string; fromWarehouseId?: string; toWarehouseId?: string; } | null;
 }
 
-const InventoryTransferModal: React.FC<InventoryTransferModalProps> = ({ isOpen, onClose, onTransfer, products, warehouses, inventoryData, initialData }) => {
+const InventoryTransferModal: React.FC<InventoryTransferModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onTransfer, 
+  products, 
+  warehouses, 
+  inventoryData, 
+  initialData 
+}) => {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [fromWarehouseId, setFromWarehouseId] = useState('');
   const [toWarehouseId, setToWarehouseId] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [availableStock, setAvailableStock] = useState(0);
   const [error, setError] = useState('');
 
-  const inputClasses = "w-full px-3 py-2 bg-slate-100 text-dark border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none placeholder-slate-400";
+  // Ref to track if modal just transitioned to open, preventing re-render resets
+  const prevIsOpenRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
-        setTimeout(() => {
-            if (initialData) {
-                setSelectedProductId(initialData.productId);
-                // Thiết lập giá trị mặc định nhưng cho phép thay đổi (không khóa UI)
-                setFromWarehouseId(initialData.fromWarehouseId || '');
-                setToWarehouseId(initialData.toWarehouseId || '');
-            } else {
-                setSelectedProductId('');
-                setFromWarehouseId('');
-                setToWarehouseId('');
-            }
-            setQuantity(1);
-            setError('');
-        }, 0);
-    }
-  }, [initialData, isOpen]);
+    // Only initialize when modal opens (false -> true)
+    if (isOpen && !prevIsOpenRef.current) {
+      if (initialData) {
+        const pId = initialData.productId || '';
+        setSelectedProductId(pId);
 
+        const productStock = inventoryData[pId] || {};
+        const whsWithStock = warehouses.filter(w => (productStock[w.id] || 0) > 0);
 
-  useEffect(() => {
-    setTimeout(() => {
-      if (selectedProductId && fromWarehouseId) {
-        const stock = inventoryData[selectedProductId]?.[fromWarehouseId] ?? 0;
-        setAvailableStock(stock);
+        let initialFrom = initialData.fromWarehouseId || '';
+        let initialTo = initialData.toWarehouseId || '';
+
+        // If fromWarehouse not provided or has 0 stock, pick one that actually has stock
+        if (whsWithStock.length > 0) {
+          if (!initialFrom || (productStock[initialFrom] || 0) <= 0) {
+            // Find a warehouse with stock (prefer not initialTo if possible)
+            const preferredFrom = whsWithStock.find(w => w.id !== initialTo) || whsWithStock[0];
+            initialFrom = preferredFrom.id;
+          }
+        } else if (!initialFrom && warehouses.length > 0) {
+          initialFrom = warehouses[0].id;
+        }
+
+        // If toWarehouse is empty or same as fromWarehouse, pick another warehouse
+        if (!initialTo || initialTo === initialFrom) {
+          const otherWh = warehouses.find(w => w.id !== initialFrom);
+          if (otherWh) {
+            initialTo = otherWh.id;
+          }
+        }
+
+        setFromWarehouseId(initialFrom);
+        setToWarehouseId(initialTo);
       } else {
-        setAvailableStock(0);
+        setSelectedProductId('');
+        setFromWarehouseId('');
+        setToWarehouseId('');
       }
-    }, 0);
+      setQuantity(1);
+      setError('');
+    }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, initialData, warehouses, inventoryData]);
+
+  const selectedProduct = useMemo(() => {
+    return products.find(p => p.id === selectedProductId);
+  }, [products, selectedProductId]);
+
+  const availableStockFrom = useMemo(() => {
+    if (selectedProductId && fromWarehouseId) {
+      return inventoryData[selectedProductId]?.[fromWarehouseId] ?? 0;
+    }
+    return 0;
   }, [selectedProductId, fromWarehouseId, inventoryData]);
+
+  const currentStockTo = useMemo(() => {
+    if (selectedProductId && toWarehouseId) {
+      return inventoryData[selectedProductId]?.[toWarehouseId] ?? 0;
+    }
+    return 0;
+  }, [selectedProductId, toWarehouseId, inventoryData]);
+
+  const handleFromWarehouseChange = (newFromId: string) => {
+    setFromWarehouseId(newFromId);
+    setError('');
+    if (newFromId === toWarehouseId) {
+      // Pick another warehouse for destination
+      const otherWh = warehouses.find(w => w.id !== newFromId);
+      setToWarehouseId(otherWh ? otherWh.id : '');
+    }
+  };
+
+  const handleToWarehouseChange = (newToId: string) => {
+    setToWarehouseId(newToId);
+    setError('');
+    if (newToId === fromWarehouseId) {
+      // Pick another warehouse for source
+      const otherWh = warehouses.find(w => w.id !== newToId);
+      setFromWarehouseId(otherWh ? otherWh.id : '');
+    }
+  };
+
+  const handleSwapWarehouses = () => {
+    const temp = fromWarehouseId;
+    setFromWarehouseId(toWarehouseId);
+    setToWarehouseId(temp);
+    setError('');
+  };
 
   const handleQuantityChange = (newQuantity: number) => {
     setQuantity(newQuantity);
-    if (newQuantity > availableStock) {
-        setError(`Số lượng chuyển vượt quá tồn kho khả dụng (${availableStock}).`);
+    if (newQuantity > availableStockFrom) {
+      setError(`Số lượng chuyển (${newQuantity}) vượt quá tồn kho khả dụng tại nguồn (${availableStockFrom}).`);
     } else {
-        if (error.startsWith('Số lượng chuyển vượt quá')) {
-            setError('');
-        }
+      setError('');
+    }
+  };
+
+  const handleSetMaxQuantity = () => {
+    if (availableStockFrom > 0) {
+      setQuantity(availableStockFrom);
+      setError('');
     }
   };
 
@@ -70,15 +142,15 @@ const InventoryTransferModal: React.FC<InventoryTransferModalProps> = ({ isOpen,
     setError('');
 
     if (!selectedProductId || !fromWarehouseId || !toWarehouseId || quantity <= 0) {
-      setError('Vui lòng điền đầy đủ thông tin.');
+      setError('Vui lòng điền đầy đủ thông tin kho nguồn, kho đích và số lượng.');
       return;
     }
     if (fromWarehouseId === toWarehouseId) {
       setError('Kho nguồn và kho đích không được trùng nhau.');
       return;
     }
-    if (quantity > availableStock) {
-      setError('Số lượng chuyển vượt quá tồn kho khả dụng.');
+    if (quantity > availableStockFrom) {
+      setError(`Kho nguồn không đủ hàng (Hiện có: ${availableStockFrom}, Cần chuyển: ${quantity}).`);
       return;
     }
 
@@ -90,107 +162,193 @@ const InventoryTransferModal: React.FC<InventoryTransferModalProps> = ({ isOpen,
     });
   };
 
-  // Logic lọc kho nguồn: Phải có tồn kho > 0 VÀ không trùng kho đích (nếu đã chọn)
-  // Lưu ý: Nếu kho đang được chọn làm mặc định (fromWarehouseId) thì vẫn hiển thị kể cả khi chưa check tồn (để tránh lỗi UI), nhưng validation sẽ chặn sau.
-  const fromWarehouses = useMemo(() => {
-    if (!selectedProductId) return [];
-    return warehouses.filter(wh => {
-        const stock = inventoryData[selectedProductId]?.[wh.id] ?? 0;
-        const hasStock = stock > 0 || wh.id === fromWarehouseId; // Cho phép hiện kho đang chọn dù stock có thể = 0 (để user thấy và đổi)
-        const isNotDest = wh.id !== toWarehouseId;
-        return hasStock && isNotDest;
-    });
-  }, [selectedProductId, warehouses, inventoryData, toWarehouseId, fromWarehouseId]);
-
-  // Logic lọc kho đích: Không trùng kho nguồn (nếu đã chọn)
-  const toWarehouses = useMemo(() => {
-    return warehouses.filter(wh => wh.id !== fromWarehouseId);
-  }, [fromWarehouseId, warehouses]);
-
-
   if (!isOpen) return null;
 
+  const inputClasses = "w-full px-3 py-2.5 bg-slate-50 text-black border-2 border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm transition";
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg animate-fade-in-down">
-        <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-dark flex items-center"><GitCommit className="mr-3 text-primary"/> Chuyển Kho Sản Phẩm</h2>
-            <button onClick={onClose} className="p-2 text-neutral hover:bg-slate-100 rounded-full"><X size={24} /></button>
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border-4 border-slate-800 animate-fade-in-down flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="bg-orange-500 text-white p-4 flex justify-between items-center shrink-0">
+          <h2 className="text-base font-black uppercase tracking-tight flex items-center">
+            <GitCommit className="mr-2" size={20} />
+            Chuyển kho sản phẩm
+          </h2>
+          <button 
+            onClick={onClose} 
+            className="p-1 rounded-lg text-white hover:bg-orange-600 transition"
+            title="Đóng"
+          >
+            <X size={22} />
+          </button>
         </div>
-        <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-neutral mb-1">Sản phẩm cần chuyển</label>
-                    {/* Sản phẩm luôn bị khóa vì context là chuyển SẢN PHẨM ĐÓ */}
-                    <select 
-                        value={selectedProductId} 
-                        onChange={e => setSelectedProductId(e.target.value)} 
-                        className={inputClasses} 
-                        disabled
-                        required
-                    >
-                        <option value="" disabled>-- Chọn sản phẩm --</option>
-                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* FROM WAREHOUSE - Always selectable */}
-                    <div>
-                        <label className="block text-sm font-medium text-neutral mb-1">Từ kho (Nguồn)</label>
-                        <select 
-                            value={fromWarehouseId} 
-                            onChange={e => setFromWarehouseId(e.target.value)} 
-                            className={inputClasses} 
-                            disabled={!selectedProductId} 
-                            required
-                        >
-                            <option value="" disabled>-- Chọn kho có hàng --</option>
-                            {fromWarehouses.map(w => (
-                                <option key={w.id} value={w.id}>
-                                    {w.name} (Tồn: {inventoryData[selectedProductId]?.[w.id] ?? 0})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
 
-                    {/* TO WAREHOUSE - Always selectable */}
-                    <div>
-                        <label className="block text-sm font-medium text-neutral mb-1">Đến kho (Đích)</label>
-                        <select 
-                            value={toWarehouseId} 
-                            onChange={e => setToWarehouseId(e.target.value)} 
-                            className={inputClasses} 
-                            // Cho phép chọn ngay cả khi chưa chọn kho nguồn (để linh hoạt), logic lọc sẽ xử lý
-                            required
-                        >
-                            <option value="" disabled>-- Chọn kho đích --</option>
-                            {toWarehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                        </select>
-                    </div>
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium text-neutral mb-1">Số lượng chuyển</label>
-                    <input 
-                        type="number" 
-                        value={quantity}
-                        onChange={e => handleQuantityChange(e.target.value === '' ? 0 : Number(e.target.value))}
-                        onFocus={e => e.target.select()}
-                        className={inputClasses} 
-                        min="1"
-                        disabled={!fromWarehouseId}
-                        required 
-                    />
-                    {fromWarehouseId && <p className="text-xs text-neutral mt-1">Tồn kho khả dụng tại nguồn: <span className="font-semibold text-dark">{availableStock}</span></p>}
-                </div>
-            </div>
+        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 flex-1">
+          {/* Product name card */}
+          <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
+            <span className="text-[10px] font-black uppercase text-slate-400 block mb-0.5">Sản phẩm cần chuyển</span>
+            <span className="text-sm font-black text-slate-900 uppercase block">{selectedProduct?.name || 'Sản phẩm'}</span>
+          </div>
 
-            {error && <p className="mt-4 text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</p>}
-          
-            <div className="mt-8 flex justify-end space-x-3">
-                <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-200 text-neutral rounded-lg hover:bg-slate-300 transition">Hủy</button>
-                <button type="submit" className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition shadow">Xác nhận chuyển</button>
+          {/* Warehouses selector with Swap button */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr,auto,1fr] gap-2 items-center">
+              {/* FROM WAREHOUSE */}
+              <div>
+                <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                  Từ kho (Nguồn)
+                </label>
+                <select 
+                  value={fromWarehouseId} 
+                  onChange={e => handleFromWarehouseChange(e.target.value)} 
+                  className={inputClasses}
+                  required
+                >
+                  <option value="" disabled>-- Chọn kho xuất --</option>
+                  {warehouses.map(w => {
+                    const stock = inventoryData[selectedProductId]?.[w.id] ?? 0;
+                    return (
+                      <option key={w.id} value={w.id}>
+                        {w.name} (Tồn: {stock})
+                      </option>
+                    );
+                  })}
+                </select>
+                <div className="mt-1 text-right">
+                  <span className="text-[11px] font-bold text-slate-500">
+                    Tồn nguồn: <strong className={availableStockFrom > 0 ? "text-emerald-600 font-black" : "text-red-600 font-black"}>{availableStockFrom}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Swap Button */}
+              <div className="flex justify-center pt-2 sm:pt-4">
+                <button
+                  type="button"
+                  onClick={handleSwapWarehouses}
+                  className="p-2.5 bg-slate-200 hover:bg-orange-500 hover:text-white text-slate-700 rounded-xl transition shadow-sm active:scale-95 flex items-center justify-center"
+                  title="Đổi chiều chuyển kho"
+                >
+                  <ArrowRightLeft size={18} />
+                </button>
+              </div>
+
+              {/* TO WAREHOUSE */}
+              <div>
+                <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                  Đến kho (Đích)
+                </label>
+                <select 
+                  value={toWarehouseId} 
+                  onChange={e => handleToWarehouseChange(e.target.value)} 
+                  className={inputClasses}
+                  required
+                >
+                  <option value="" disabled>-- Chọn kho nhận --</option>
+                  {warehouses.map(w => {
+                    const stock = inventoryData[selectedProductId]?.[w.id] ?? 0;
+                    return (
+                      <option key={w.id} value={w.id}>
+                        {w.name} (Hiện có: {stock})
+                      </option>
+                    );
+                  })}
+                </select>
+                <div className="mt-1 text-right">
+                  <span className="text-[11px] font-bold text-slate-500">
+                    Hiện có: <strong className="text-blue-600 font-black">{currentStockTo}</strong>
+                  </span>
+                </div>
+              </div>
             </div>
+          </div>
+
+          {/* Quantity to transfer */}
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-[11px] font-black uppercase text-slate-600">
+                Số lượng chuyển
+              </label>
+              {availableStockFrom > 0 && (
+                <button
+                  type="button"
+                  onClick={handleSetMaxQuantity}
+                  className="text-[10px] font-black uppercase text-orange-600 hover:underline"
+                >
+                  Chuyển tối đa ({availableStockFrom})
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <input 
+                type="number" 
+                value={quantity === 0 ? '' : quantity}
+                onChange={e => handleQuantityChange(e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0))}
+                onFocus={e => e.target.select()}
+                className="w-full px-4 py-3 bg-slate-900 text-white font-black text-xl text-center rounded-xl border-2 border-slate-800 focus:border-orange-500 outline-none shadow-inner"
+                min="1"
+                max={availableStockFrom || undefined}
+                required 
+              />
+            </div>
+          </div>
+
+          {/* Stock Simulation Preview */}
+          {fromWarehouseId && toWarehouseId && fromWarehouseId !== toWarehouseId && (
+            <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-200 text-xs">
+              <span className="text-[10px] font-black uppercase text-slate-400 block mb-2">Xem trước biến động tồn kho:</span>
+              <div className="grid grid-cols-2 gap-3 text-center">
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 block truncate">{warehouses.find(w => w.id === fromWarehouseId)?.name || 'Kho nguồn'}</span>
+                  <div className="flex items-center justify-center gap-1.5 mt-1 font-black text-sm">
+                    <span className="text-slate-600">{availableStockFrom}</span>
+                    <ArrowRight size={14} className="text-red-500" />
+                    <span className={availableStockFrom - quantity < 0 ? "text-red-600 font-bold" : "text-emerald-700"}>
+                      {availableStockFrom - quantity}
+                    </span>
+                  </div>
+                </div>
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 block truncate">{warehouses.find(w => w.id === toWarehouseId)?.name || 'Kho đích'}</span>
+                  <div className="flex items-center justify-center gap-1.5 mt-1 font-black text-sm">
+                    <span className="text-slate-600">{currentStockTo}</span>
+                    <ArrowRight size={14} className="text-green-500" />
+                    <span className="text-blue-700">{currentStockTo + quantity}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="p-3 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 text-xs flex items-start gap-2 animate-shake">
+              <AlertCircle size={18} className="shrink-0 mt-0.5" />
+              <span className="font-bold">{error}</span>
+            </div>
+          )}
         </form>
+
+        {/* Action Buttons */}
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-3 shrink-0">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="flex-1 py-3 bg-white border-2 border-slate-800 text-black rounded-xl font-black text-xs uppercase hover:bg-slate-100 transition active:scale-95"
+          >
+            Hủy
+          </button>
+          <button 
+            type="button" 
+            onClick={handleSubmit} 
+            disabled={!selectedProductId || !fromWarehouseId || !toWarehouseId || fromWarehouseId === toWarehouseId || quantity <= 0 || quantity > availableStockFrom}
+            className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black text-xs uppercase shadow-lg transition active:scale-95 disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed flex items-center justify-center"
+          >
+            <CheckCircle2 size={18} className="mr-1.5" />
+            Xác nhận chuyển
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -539,7 +539,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     const existing = cart.find(i => i.productId === product.id);
     if (shippingMode === 'shipped' && (existing?.quantity || 0) + quantity > stockInWh) { setToast({ message: `HẾT HÀNG! (Tồn: ${stockInWh})`, type: 'error' }); return; }
     if (quantity <= 0) return;
-    setCart(prev => existing ? prev.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + quantity, price, currentImportPrice: importPrice } : i) : [...prev, { productId: product.id, productName: product.name, quantity, price, stock: stockInWh, invoicedStock: product.totalInvoicedStock || 0, originalImportPrice: product.importPrice, originalSellingPrice: product.sellingPrice, currentImportPrice: importPrice, updateImportPrice: false, updateSellingPrice: false, isCombo: product.isCombo, comboItems: product.comboItems }]);
+    setCart(prev => existing ? prev.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + quantity, price, currentImportPrice: importPrice } : i) : [...prev, { productId: product.id, productName: product.name, quantity, price, importPrice: product.importPrice, stock: stockInWh, invoicedStock: product.totalInvoicedStock || 0, originalImportPrice: product.importPrice, originalSellingPrice: product.sellingPrice, currentImportPrice: importPrice, updateImportPrice: false, updateSellingPrice: false, isCombo: product.isCombo, comboItems: product.comboItems }]);
     if (!keepSearch) {
         setSearchTerm('');
     }
@@ -957,14 +957,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
             onClose={() => setIsQuickTransferOpen(false)} 
             products={products} 
             warehouses={warehouses} 
-            inventoryData={Object.keys(detailedInventory).reduce((acc, pid) => {
-                acc[pid] = {};
-                Object.keys(detailedInventory[pid]).forEach(wid => {
-                    acc[pid][wid] = detailedInventory[pid][wid];
-                });
-                return acc;
-            }, {} as any)}
-            initialData={selectedQuickTransferProduct ? { productId: selectedQuickTransferProduct.id, fromWarehouseId: selectedWarehouseId } : null}
+            inventoryData={detailedInventory}
+            initialData={selectedQuickTransferProduct ? { productId: selectedQuickTransferProduct.id, toWarehouseId: selectedWarehouseId } : null}
             onTransfer={handleQuickTransfer}
         />
 
