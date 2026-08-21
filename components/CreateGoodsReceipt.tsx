@@ -98,7 +98,7 @@ const ImportProductCard: React.FC<{
     lastSupplierPrice?: number; 
     detailedInventory: Record<string, Record<string, number>>;
     warehouses: Warehouse[];
-    onAdd: (product: Product, quantity: number, importPrice: number) => void;
+    onAdd: (product: Product, quantity: number, importPrice: number, keepSearch?: boolean) => void;
     onUpdateImportPrice?: (productId: string, price: number) => Promise<void>;
     onCompare?: (product: Product) => void;
     onTrace?: (product: Product) => void;
@@ -159,7 +159,7 @@ const ImportProductCard: React.FC<{
                                 onClick={handleSaveBasePrice} 
                                 disabled={isSaving}
                                 className={`p-1.5 rounded-lg transition-all shadow-sm flex items-center justify-center h-7 w-7 ${lastSupplierPrice !== undefined ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-800 text-white hover:bg-black'}`}
-                                title="Lưu thành giá nhập gốc của sản phẩm"
+                                title="Lưu thành giá vốn gốc của sản phẩm"
                             >
                                 {isSaving ? <Loader size={12} className="animate-spin"/> : <Save size={12}/>}
                             </button>
@@ -195,11 +195,12 @@ const ImportProductCard: React.FC<{
             </div>
             <div className="flex space-x-2">
                 <input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg outline-none text-center font-black focus:border-primary border-slate-200" min="1" />
-                <button onClick={() => { onAdd(product, inputQty, inputImportPrice); setInputQty(1); }} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white text-[10px] font-black rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center uppercase tracking-tighter"><Plus size={14} className="mr-1"/> Nhập</button>
+                <button onClick={() => { onAdd(product, inputQty, inputImportPrice, false); setInputQty(1); }} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white text-[10px] font-black rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center uppercase tracking-tighter gap-1"><Plus size={14}/> Nhập</button>
+                <button onClick={() => { onAdd(product, inputQty, inputImportPrice, true); setInputQty(1); }} className="px-3 py-2 bg-slate-800 text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center hover:bg-slate-700 transition" title="Nhập tiếp mặt hàng này (không xóa ô tìm kiếm)"><Plus size={14}/></button>
             </div>
         </div>
     );
-}
+};
 
 const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: User | null }> = ({ userRole, user }) => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -296,13 +297,16 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
       });
   }, [selectedSupplierId]);
 
-  const addToReceipt = (product: Product, quantity: number, importPrice: number) => {
+  const addToReceipt = (product: Product, quantity: number, importPrice: number, keepSearch: boolean = false) => {
     if (quantity <= 0) return;
     const existing = receipt.find(item => item.productId === product.id);
     if (existing) {
       setReceipt(receipt.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + quantity, importPrice } : item));
     } else {
       setReceipt([...receipt, { productId: product.id, productName: product.name, quantity, importPrice, originalImportPrice: product.importPrice, updateImportPrice: false, isCombo: !!product.isCombo, comboItems: product.comboItems || [] }]);
+    }
+    if (!keepSearch) {
+      setSearchTerm('');
     }
     setToast({ message: "Đã thêm thành công!", type: 'success' });
   };
