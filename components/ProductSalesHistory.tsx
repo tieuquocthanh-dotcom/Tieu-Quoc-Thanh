@@ -300,6 +300,11 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
                                     >
                                         <Tag size={14} className="mr-2 text-blue-500"/>
                                         <span className="text-sm font-bold text-dark">{p.name}</span>
+                                        {p.shortName && (
+                                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
+                                                {p.shortName}
+                                            </span>
+                                        )}
                                     </button>
                                 ))}
                             </div>
@@ -424,7 +429,7 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
                                         <td className="p-4 text-sm font-bold text-blue-800 sticky left-0 bg-white group-hover:bg-slate-50 transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10">
                                             {item.productName}
                                             {item.shortName && (
-                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
                                                     {item.shortName}
                                                 </span>
                                             )}

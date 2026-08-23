@@ -141,7 +141,7 @@ const ImportProductCard: React.FC<{
                     >
                         {product.name}
                         {product.shortName && (
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
                                 {product.shortName}
                             </span>
                         )}
@@ -732,7 +732,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                 <Plus size={12} className="mr-1 opacity-50"/> 
                                                 {sp.name}
                                                 {sp.shortName && (
-                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300 inline-block">
                                                         {sp.shortName}
                                                     </span>
                                                 )}

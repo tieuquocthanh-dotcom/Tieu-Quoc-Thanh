@@ -193,10 +193,10 @@ export const ProductModal: React.FC<{
                 <label className="block text-xs font-black uppercase text-amber-700 mb-1">Tên viết tắt (Tìm nhanh)</label>
                 <input 
                   type="text" 
-                  placeholder="VD: IP15, S24U..." 
+                  placeholder="VD: IP15, ip15, s24u..." 
                   value={shortName} 
                   onChange={e => setShortName(e.target.value)} 
-                  className={`${inputClasses} uppercase font-bold text-amber-900 bg-amber-50/50 border-amber-200 focus:border-amber-500`} 
+                  className={`${inputClasses} font-bold text-amber-900 bg-amber-50/50 border-amber-200 focus:border-amber-500`} 
                 />
               </div>
             </div>
@@ -458,7 +458,7 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                                 <td className="p-4 font-bold text-dark text-sm uppercase">{product.name}</td>
                                 <td className="p-4">
                                     {product.shortName ? (
-                                        <span className="px-2 py-1 bg-amber-100 text-amber-900 rounded font-black text-xs border border-amber-300 uppercase tracking-wide inline-block">
+                                        <span className="px-2 py-1 bg-amber-100 text-amber-900 rounded font-black text-xs border border-amber-300 tracking-wide inline-block">
                                             {product.shortName}
                                         </span>
                                     ) : (

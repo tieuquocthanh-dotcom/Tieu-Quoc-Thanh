@@ -532,7 +532,7 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                             <td className="p-4 font-bold text-dark text-xs uppercase leading-tight">
                                 {item.productName}
                                 {item.shortName && (
-                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
                                         {item.shortName}
                                     </span>
                                 )}
@@ -622,7 +622,7 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                             <div>
                                 {productData.name}
                                 {productData.shortName && (
-                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
                                         {productData.shortName}
                                     </span>
                                 )}

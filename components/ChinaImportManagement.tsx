@@ -350,7 +350,7 @@ const EditImportModal: React.FC<{
                                                     <button key={p.id} onClick={() => handleSelectProduct(p)} className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-slate-100 last:border-0 text-black font-medium flex items-center">
                                                         <span>{p.name}</span>
                                                         {p.shortName && (
-                                                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
                                                                 {p.shortName}
                                                             </span>
                                                         )}

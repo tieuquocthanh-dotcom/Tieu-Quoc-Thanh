@@ -537,7 +537,7 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                                             <div className="font-bold">
                                                 {p.name}
                                                 {p.shortName && (
-                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300 inline-block">
                                                         {p.shortName}
                                                     </span>
                                                 )}

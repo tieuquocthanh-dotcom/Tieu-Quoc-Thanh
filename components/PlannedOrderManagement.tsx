@@ -556,7 +556,7 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                                             <Tag size={14} className="mr-2 text-slate-300 group-hover:text-blue-500"/>
                                                             <span className="font-black text-xs text-slate-700 uppercase">{p.name}</span>
                                                             {p.shortName && (
-                                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
                                                                     {p.shortName}
                                                                 </span>
                                                             )}

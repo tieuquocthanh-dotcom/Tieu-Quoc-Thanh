@@ -204,7 +204,7 @@ const InventoryTransferModal: React.FC<InventoryTransferModalProps> = ({
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-sm font-black text-slate-900 uppercase">{selectedProduct?.name || 'Sản phẩm'}</span>
               {selectedProduct?.shortName && (
-                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
                   {selectedProduct.shortName}
                 </span>
               )}

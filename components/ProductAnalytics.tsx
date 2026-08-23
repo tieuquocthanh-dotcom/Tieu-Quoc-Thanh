@@ -693,7 +693,7 @@ const ProductAnalytics: React.FC = () => {
                                                     <span className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5 flex-wrap">
                                                         {stat.productName}
                                                         {stat.shortName && (
-                                                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase">
+                                                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300">
                                                                 {stat.shortName}
                                                             </span>
                                                         )}

@@ -300,7 +300,7 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
                     >
                         {product.name}
                         {product.shortName && (
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
                                 {product.shortName}
                             </span>
                         )}
