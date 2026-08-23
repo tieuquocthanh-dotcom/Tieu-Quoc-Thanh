@@ -164,7 +164,8 @@ const PriceComparison: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     if (!searchTerm) return [];
-    return products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 10);
+    const lower = searchTerm.toLowerCase();
+    return products.filter(p => (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower)).slice(0, 10);
   }, [products, searchTerm]);
 
   const handleSelectProduct = (product: Product) => {
@@ -207,7 +208,14 @@ const PriceComparison: React.FC = () => {
                                 onClick={() => handleSelectProduct(p)}
                                 className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 group"
                             >
-                                <div className="font-medium text-gray-900">{p.name}</div>
+                                <div className="font-medium text-gray-900">
+                                    {p.name}
+                                    {p.shortName && (
+                                        <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                            {p.shortName}
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="text-xs text-gray-500 flex justify-between">
                                     <span>Giá bán: {formatNumber(p.sellingPrice)}</span>
                                     <span>Hãng: {p.manufacturerName}</span>

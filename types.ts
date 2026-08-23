@@ -3,6 +3,7 @@ import { Timestamp } from "firebase/firestore";
 export interface Product {
   id: string;
   name: string;
+  shortName?: string;
   manufacturerId: string;
   importPrice: number;
   sellingPrice: number;

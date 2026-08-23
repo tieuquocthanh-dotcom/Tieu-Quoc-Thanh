@@ -17,6 +17,7 @@ import * as XLSX from 'xlsx';
 interface FlatInventoryItem {
     productId: string;
     productName: string;
+    shortName?: string;
     manufacturerId: string;
     manufacturerName: string;
     warehouseId: string;
@@ -233,6 +234,7 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                     flatList.push({
                         productId: product.id,
                         productName: product.name,
+                        shortName: product.shortName || '',
                         manufacturerId: product.manufacturerId,
                         manufacturerName: String(manufacturerMap.get(product.manufacturerId) ?? 'Không rõ'),
                         warehouseId: warehouseId,
@@ -255,12 +257,13 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
   const suggestedProducts = useMemo(() => {
       if (!searchTerm.trim()) return [];
       const lower = searchTerm.toLowerCase();
-      return products.filter(p => p.name.toLowerCase().includes(lower)).slice(0, 10);
+      return products.filter(p => (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower)).slice(0, 10);
   }, [products, searchTerm]);
 
   const filteredInventory = useMemo(() => {
+    const lower = searchTerm.toLowerCase();
     return flatInventory.filter(item => {
-        const matchesSearchTerm = item.productName.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearchTerm = !searchTerm || (item.productName || '').toLowerCase().includes(lower) || (item.shortName || '').toLowerCase().includes(lower);
         const matchesWarehouse = selectedWarehouseId === 'all' || item.warehouseId === selectedWarehouseId;
         const matchesManufacturer = selectedManufacturerId === 'all' || item.manufacturerId === selectedManufacturerId;
         
@@ -273,12 +276,13 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
 
   // Matrix View Preparation
   const matrixData = useMemo(() => {
-      const productMap = new Map<string, {name: string, manufacturerName: string, stockByWarehouse: Map<string, number>, invoicedStock: number, importPrice: number, sellingPrice: number}>();
+      const productMap = new Map<string, {name: string, shortName?: string, manufacturerName: string, stockByWarehouse: Map<string, number>, invoicedStock: number, importPrice: number, sellingPrice: number}>();
       
       filteredInventory.forEach(item => {
           if (!productMap.has(item.productId)) {
               productMap.set(item.productId, {
                   name: item.productName,
+                  shortName: item.shortName,
                   manufacturerName: item.manufacturerName,
                   stockByWarehouse: new Map(),
                   invoicedStock: item.invoicedStock,
@@ -525,7 +529,14 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
 
                     return (
                         <tr key={`${item.productId}-${item.warehouseId}-${index}`} className={`hover:bg-slate-50 transition-colors ${isLowStock ? 'bg-red-50' : ''}`}>
-                            <td className="p-4 font-bold text-dark text-xs uppercase leading-tight">{item.productName}</td>
+                            <td className="p-4 font-bold text-dark text-xs uppercase leading-tight">
+                                {item.productName}
+                                {item.shortName && (
+                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                        {item.shortName}
+                                    </span>
+                                )}
+                            </td>
                             <td className="p-4 text-neutral text-xs font-medium uppercase">{item.manufacturerName}</td>
                             <td className="p-4 text-slate-600 text-xs font-black uppercase">{item.warehouseName}</td>
                             <td className="p-4 text-right font-bold text-slate-500 text-sm">{formatNumber(item.importPrice)} ₫</td>
@@ -603,12 +614,19 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                 </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-                {(paginatedData as [string, {name: string, manufacturerName: string, stockByWarehouse: Map<string, number>, invoicedStock: number, importPrice: number, sellingPrice: number}][]).map(([productId, productData]) => {
+                {(paginatedData as [string, {name: string, shortName?: string, manufacturerName: string, stockByWarehouse: Map<string, number>, invoicedStock: number, importPrice: number, sellingPrice: number}][]).map(([productId, productData]) => {
                     const totalPhysical = Array.from(productData.stockByWarehouse.values()).reduce((a: number, b: number) => a + b, 0);
                     return (
                     <tr key={productId} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 font-bold text-dark border border-slate-200 text-xs uppercase sticky left-0 bg-white z-10">
-                            {productData.name}
+                            <div>
+                                {productData.name}
+                                {productData.shortName && (
+                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                        {productData.shortName}
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-[10px] text-neutral italic font-normal">{productData.manufacturerName}</p>
                         </td>
                         <td className="p-3 text-right font-bold text-slate-500 border border-slate-200 text-sm">

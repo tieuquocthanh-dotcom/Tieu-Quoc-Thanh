@@ -13,6 +13,7 @@ import Pagination from './Pagination';
 interface ProductStats {
     productId: string;
     productName: string;
+    shortName?: string;
     manufacturerId: string;
     manufacturerName: string;
     importPrice: number;
@@ -128,6 +129,7 @@ const ProductAnalytics: React.FC = () => {
             statsMap.set(p.id, {
                 productId: p.id,
                 productName: p.name,
+                shortName: p.shortName || '',
                 manufacturerId: p.manufacturerId || '',
                 manufacturerName,
                 importPrice: p.importPrice || 0,
@@ -214,12 +216,13 @@ const ProductAnalytics: React.FC = () => {
             result = result.filter(item => item.totalQuantity > 0 || item.saleCount > 0);
         }
 
-        // Filter by Search term (Product name OR Manufacturer name)
+        // Filter by Search term (Product name, Short name OR Manufacturer name)
         if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase().trim();
             result = result.filter(item => 
-                item.productName.toLowerCase().includes(term) ||
-                item.manufacturerName.toLowerCase().includes(term)
+                (item.productName || '').toLowerCase().includes(term) ||
+                (item.shortName || '').toLowerCase().includes(term) ||
+                (item.manufacturerName || '').toLowerCase().includes(term)
             );
         }
 
@@ -687,8 +690,13 @@ const ProductAnalytics: React.FC = () => {
                                             {/* Product Name & Brand */}
                                             <td className="p-3.5 font-bold text-slate-900">
                                                 <div className="flex flex-col">
-                                                    <span className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+                                                    <span className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5 flex-wrap">
                                                         {stat.productName}
+                                                        {stat.shortName && (
+                                                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase">
+                                                                {stat.shortName}
+                                                            </span>
+                                                        )}
                                                         {isTopProfit && (
                                                             <span className="inline-flex items-center text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800" title="Sản phẩm có lợi nhuận cao nhất">
                                                                 🏆 LN Cao

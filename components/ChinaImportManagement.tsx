@@ -208,7 +208,8 @@ const EditImportModal: React.FC<{
 
     const filteredProducts = useMemo(() => {
         if (!searchTerm || !Array.isArray(products)) return [];
-        return products.filter(p => p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 10);
+        const lower = searchTerm.toLowerCase();
+        return products.filter(p => (p.name && p.name.toLowerCase().includes(lower)) || (p.shortName && p.shortName.toLowerCase().includes(lower))).slice(0, 10);
     }, [products, searchTerm]);
 
     const lastImportPrice = useMemo(() => {
@@ -345,7 +346,16 @@ const EditImportModal: React.FC<{
                                         <input type="text" placeholder="Tìm sản phẩm..." value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setIsDropdownOpen(true); }} onFocus={() => setIsDropdownOpen(true)} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium"/>
                                         {isDropdownOpen && searchTerm && (
                                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
-                                                {filteredProducts.map(p => <button key={p.id} onClick={() => handleSelectProduct(p)} className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-slate-100 last:border-0 text-black font-medium">{p.name}</button>)}
+                                                {filteredProducts.map(p => (
+                                                    <button key={p.id} onClick={() => handleSelectProduct(p)} className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-slate-100 last:border-0 text-black font-medium flex items-center">
+                                                        <span>{p.name}</span>
+                                                        {p.shortName && (
+                                                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                                {p.shortName}
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                ))}
                                             </div>
                                         )}
                                     </div>

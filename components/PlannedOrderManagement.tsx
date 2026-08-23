@@ -121,7 +121,7 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
     const filteredProducts = useMemo(() => {
         if (!productSearch || !Array.isArray(products)) return [];
         const lower = productSearch.toLowerCase();
-        return products.filter(p => p.name && p.name.toLowerCase().includes(lower)).slice(0, 10);
+        return products.filter(p => (p.name && p.name.toLowerCase().includes(lower)) || (p.shortName && p.shortName.toLowerCase().includes(lower))).slice(0, 10);
     }, [products, productSearch]);
 
     const handleSelectProduct = (product: Product) => {
@@ -555,6 +555,11 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                                         <button key={p.id} onClick={() => handleSelectProduct(p)} className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex items-center group transition-colors">
                                                             <Tag size={14} className="mr-2 text-slate-300 group-hover:text-blue-500"/>
                                                             <span className="font-black text-xs text-slate-700 uppercase">{p.name}</span>
+                                                            {p.shortName && (
+                                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                                    {p.shortName}
+                                                                </span>
+                                                            )}
                                                         </button>
                                                     ))
                                                 )}

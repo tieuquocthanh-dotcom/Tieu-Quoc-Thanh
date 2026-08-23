@@ -44,22 +44,35 @@ const InventoryTransferModal: React.FC<InventoryTransferModalProps> = ({
         let initialFrom = initialData.fromWarehouseId || '';
         let initialTo = initialData.toWarehouseId || '';
 
-        // If fromWarehouse not provided or has 0 stock, pick one that actually has stock
-        if (whsWithStock.length > 0) {
-          if (!initialFrom || (productStock[initialFrom] || 0) <= 0) {
-            // Find a warehouse with stock (prefer not initialTo if possible)
-            const preferredFrom = whsWithStock.find(w => w.id !== initialTo) || whsWithStock[0];
-            initialFrom = preferredFrom.id;
-          }
-        } else if (!initialFrom && warehouses.length > 0) {
-          initialFrom = warehouses[0].id;
-        }
-
-        // If toWarehouse is empty or same as fromWarehouse, pick another warehouse
-        if (!initialTo || initialTo === initialFrom) {
+        // If both provided and different, keep both
+        if (initialFrom && initialTo && initialFrom !== initialTo) {
+          // Keep as is
+        } else if (initialTo && !initialFrom) {
+          // Target is specified (e.g. Ngoài CH)
+          // Find source: prefer Trong CH or warehouse with stock other than initialTo
+          const trongWh = warehouses.find(w => (w.name.toLowerCase().includes('trong ch') || w.name.toLowerCase().includes('trong kho') || w.name.toLowerCase().includes('trong')) && w.id !== initialTo);
+          const stockWh = whsWithStock.find(w => w.id !== initialTo);
+          const otherWh = warehouses.find(w => w.id !== initialTo);
+          initialFrom = trongWh ? trongWh.id : (stockWh ? stockWh.id : (otherWh ? otherWh.id : ''));
+        } else if (initialFrom && !initialTo) {
+          // Source is specified
+          const ngoaiWh = warehouses.find(w => (w.name.toLowerCase().includes('ngoài ch') || w.name.toLowerCase().includes('ngoài cửa hàng') || w.name.toLowerCase().includes('ngoài')) && w.id !== initialFrom);
           const otherWh = warehouses.find(w => w.id !== initialFrom);
-          if (otherWh) {
-            initialTo = otherWh.id;
+          initialTo = ngoaiWh ? ngoaiWh.id : (otherWh ? otherWh.id : '');
+        } else {
+          // Neither or both identical
+          const trongWh = warehouses.find(w => w.name.toLowerCase().includes('trong ch') || w.name.toLowerCase().includes('trong kho') || w.name.toLowerCase().includes('trong'));
+          const ngoaiWh = warehouses.find(w => w.name.toLowerCase().includes('ngoài ch') || w.name.toLowerCase().includes('ngoài cửa hàng') || w.name.toLowerCase().includes('ngoài'));
+          
+          if (trongWh && ngoaiWh && trongWh.id !== ngoaiWh.id) {
+            initialFrom = trongWh.id;
+            initialTo = ngoaiWh.id;
+          } else if (warehouses.length >= 2) {
+            initialFrom = warehouses[0].id;
+            initialTo = warehouses[1].id;
+          } else if (warehouses.length === 1) {
+            initialFrom = warehouses[0].id;
+            initialTo = warehouses[0].id;
           }
         }
 
@@ -188,7 +201,14 @@ const InventoryTransferModal: React.FC<InventoryTransferModalProps> = ({
           {/* Product name card */}
           <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
             <span className="text-[10px] font-black uppercase text-slate-400 block mb-0.5">Sản phẩm cần chuyển</span>
-            <span className="text-sm font-black text-slate-900 uppercase block">{selectedProduct?.name || 'Sản phẩm'}</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-sm font-black text-slate-900 uppercase">{selectedProduct?.name || 'Sản phẩm'}</span>
+              {selectedProduct?.shortName && (
+                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                  {selectedProduct.shortName}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Warehouses selector with Swap button */}

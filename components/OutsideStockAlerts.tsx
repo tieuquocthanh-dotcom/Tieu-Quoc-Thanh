@@ -120,7 +120,7 @@ const OutsideStockAlerts: React.FC = () => {
         // Filter by Search Term
         if (searchTerm) {
             const lowerTerm = searchTerm.toLowerCase();
-            result = result.filter(p => p.name.toLowerCase().includes(lowerTerm));
+            result = result.filter(p => (p.name || '').toLowerCase().includes(lowerTerm) || (p.shortName || '').toLowerCase().includes(lowerTerm));
         }
 
         return result;
@@ -219,7 +219,14 @@ const OutsideStockAlerts: React.FC = () => {
                                 <tbody>
                                     {paginatedData.map((product) => (
                                         <tr key={product.id} className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50">
-                                            <td className="p-4 font-medium text-dark">{product.name}</td>
+                                            <td className="p-4 font-medium text-dark">
+                                                {product.name}
+                                                {product.shortName && (
+                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                        {product.shortName}
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td className="p-4 text-sm text-neutral">{product.manufacturerName}</td>
                                             <td className="p-4 text-neutral text-center">{product.outsideStockWarningThreshold}</td>
                                             <td className="p-4 text-dark font-bold text-center text-lg">{product.stockInOutside}</td>

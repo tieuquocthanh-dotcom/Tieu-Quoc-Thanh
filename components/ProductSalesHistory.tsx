@@ -23,6 +23,7 @@ interface SoldItemDetail extends SaleItem {
     totalAmount: number; // quantity * price
     profit: number; // Lợi nhuận của từng mặt hàng
     manufacturerId?: string; // Thêm ID hãng để lọc
+    shortName?: string;
 }
 
 interface ProductSalesHistoryProps {
@@ -146,7 +147,7 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
     const suggestedProducts = useMemo(() => {
         if (!productSearchTerm.trim()) return [];
         const lower = productSearchTerm.toLowerCase();
-        return products.filter(p => p.name.toLowerCase().includes(lower)).slice(0, 10);
+        return products.filter(p => (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower)).slice(0, 10);
     }, [products, productSearchTerm]);
 
     // Gợi ý khách hàng
@@ -186,7 +187,8 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
                     customerPhone: phone,
                     totalAmount: item.quantity * item.price,
                     profit: itemProfit,
-                    manufacturerId: productInfo?.manufacturerId
+                    manufacturerId: productInfo?.manufacturerId,
+                    shortName: productInfo?.shortName
                 });
             });
         });
@@ -194,10 +196,14 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
     }, [sales, customers, products]);
 
     const filteredItems = useMemo(() => {
+        const lowerProd = productSearchTerm.toLowerCase();
+        const lowerCustSearch = customerSearchTerm.toLowerCase();
+
         return flattenedItems.filter(item => {
-            const matchProduct = productSearchTerm === '' || item.productName.toLowerCase().includes(productSearchTerm.toLowerCase());
+            const matchProduct = productSearchTerm === '' || 
+                                  (item.productName || '').toLowerCase().includes(lowerProd) ||
+                                  (item.shortName || '').toLowerCase().includes(lowerProd);
             
-            const lowerCustSearch = customerSearchTerm.toLowerCase();
             const matchCustomer = customerSearchTerm === '' || 
                                   item.customerName.toLowerCase().includes(lowerCustSearch) ||
                                   (item.customerPhone && item.customerPhone.includes(lowerCustSearch));
@@ -417,6 +423,11 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
                                         <td className="p-4 text-sm font-medium text-dark max-w-[150px] truncate">{item.customerName}</td>
                                         <td className="p-4 text-sm font-bold text-blue-800 sticky left-0 bg-white group-hover:bg-slate-50 transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10">
                                             {item.productName}
+                                            {item.shortName && (
+                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                    {item.shortName}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="p-4 text-sm text-center font-black text-dark">{item.quantity}</td>
                                         <td className="p-4 text-sm text-right text-neutral whitespace-nowrap">{formatNumber(item.price)} ₫</td>

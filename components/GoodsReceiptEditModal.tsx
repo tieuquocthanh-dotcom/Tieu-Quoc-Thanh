@@ -121,7 +121,7 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
   const filteredProducts = useMemo(() => {
     if (!productSearchTerm) return products.slice(0, 10);
     const lower = productSearchTerm.toLowerCase();
-    return products.filter(p => (p.name || '').toLowerCase().includes(lower)).slice(0, 10);
+    return products.filter(p => (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower)).slice(0, 10);
   }, [products, productSearchTerm]);
 
   useEffect(() => {
@@ -534,7 +534,14 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                                             onClick={() => handleAddProduct(p)}
                                             className="w-full text-left px-4 py-2 text-slate-900 hover:bg-blue-50 border-b last:border-0 font-bold text-xs flex justify-between items-center"
                                         >
-                                            <div className="font-bold">{p.name}</div>
+                                            <div className="font-bold">
+                                                {p.name}
+                                                {p.shortName && (
+                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                        {p.shortName}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div className="text-[10px] text-slate-500 whitespace-nowrap ml-2">Giá nhập: {formatNumber(p.importPrice || 0)} ₫</div>
                                         </button>
                                     ))}

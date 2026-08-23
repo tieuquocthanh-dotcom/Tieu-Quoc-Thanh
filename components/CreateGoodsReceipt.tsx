@@ -140,6 +140,11 @@ const ImportProductCard: React.FC<{
                         onClick={() => setIsNameExpanded(!isNameExpanded)}
                     >
                         {product.name}
+                        {product.shortName && (
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                {product.shortName}
+                            </span>
+                        )}
                     </div>
                     
                     {/* Inventory display for 3 warehouses */}
@@ -591,7 +596,10 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     }
   };
 
-  const filteredProducts = useMemo(() => products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())), [products, searchTerm]);
+  const filteredProducts = useMemo(() => {
+    const lower = searchTerm.toLowerCase();
+    return products.filter(p => (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower));
+  }, [products, searchTerm]);
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredProducts, currentPage, pageSize]);
 
   const suggestedProducts = useMemo(() => {
@@ -717,10 +725,18 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         return (
                                         <button 
                                             key={sp.id} 
-                                            onClick={() => addToReceipt(sp, 1, supplierPriceHistory[sp.id] || sp.importPrice)}
+                                            onClick={() => addToReceipt(sp, 1, supplierPriceHistory[sp.id] || sp.importPrice, false)}
                                             className="px-3 py-1.5 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-lg whitespace-nowrap font-black text-[11px] hover:bg-yellow-100 flex flex-col items-start transition-colors"
                                         >
-                                            <span className="flex items-center"><Plus size={12} className="mr-1 opacity-50"/> {sp.name}</span>
+                                            <span className="flex items-center">
+                                                <Plus size={12} className="mr-1 opacity-50"/> 
+                                                {sp.name}
+                                                {sp.shortName && (
+                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                        {sp.shortName}
+                                                    </span>
+                                                )}
+                                            </span>
                                             <span className="text-[9px] opacity-70 mt-0.5">Tồn: {stock} | Lần trước: {new Intl.NumberFormat('vi-VN').format(supplierPriceHistory[sp.id] || sp.importPrice)}</span>
                                         </button>
                                     )})}

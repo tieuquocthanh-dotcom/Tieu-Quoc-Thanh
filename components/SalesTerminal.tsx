@@ -299,6 +299,11 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
                         onClick={() => setIsNameExpanded(!isNameExpanded)}
                     >
                         {product.name}
+                        {product.shortName && (
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 uppercase inline-block">
+                                {product.shortName}
+                            </span>
+                        )}
                     </div>
                     <div className="grid grid-cols-3 gap-1 text-[9px] text-neutral font-bold mt-1">
                         {top3Warehouses.map(w => (
@@ -868,8 +873,9 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
               // Khi chưa tìm kiếm: chỉ hiện sản phẩm có tồn kho (nếu là giao ngay)
               return shippingMode === 'shipped' ? calculateEffectiveStock(p, selectedWarehouseId) > 0 : true;
           }
-          // Khi có tìm kiếm: lọc theo tên, bất kể số lượng tồn
-          return (p.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+          // Khi có tìm kiếm: lọc theo tên hoặc tên viết tắt, bất kể số lượng tồn
+          const lower = searchTerm.toLowerCase();
+          return (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower);
       });
   }, [products, searchTerm, detailedInventory, selectedWarehouseId, shippingMode]);
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredProducts, currentPage, pageSize]);
@@ -953,12 +959,17 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
         />
       
         <InventoryTransferModal 
+            key={selectedQuickTransferProduct ? selectedQuickTransferProduct.id : 'closed'}
             isOpen={isQuickTransferOpen} 
             onClose={() => setIsQuickTransferOpen(false)} 
             products={products} 
             warehouses={warehouses} 
             inventoryData={detailedInventory}
-            initialData={selectedQuickTransferProduct ? { productId: selectedQuickTransferProduct.id, toWarehouseId: selectedWarehouseId } : null}
+            initialData={selectedQuickTransferProduct ? { 
+                productId: selectedQuickTransferProduct.id, 
+                fromWarehouseId: warehouses.find(w => (w.name.toLowerCase().includes('trong ch') || w.name.toLowerCase().includes('trong kho') || w.name.toLowerCase().includes('trong')) && w.id !== selectedWarehouseId)?.id || '',
+                toWarehouseId: selectedWarehouseId 
+            } : null}
             onTransfer={handleQuickTransfer}
         />
 

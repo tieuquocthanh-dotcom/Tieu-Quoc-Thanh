@@ -174,7 +174,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
   const filteredProducts = useMemo(() => {
     if (!prodSearch) return [];
     const lower = prodSearch.toLowerCase();
-    return products.filter(p => (p.name || '').toLowerCase().includes(lower)).slice(0, 10);
+    return products.filter(p => (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower)).slice(0, 10);
   }, [products, prodSearch]);
 
   useEffect(() => {
@@ -606,7 +606,14 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                                 <button key={p.id} onClick={() => handleAddProductToEdit(p)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-100 flex items-center group transition-colors">
                                                     <Tag size={14} className={`mr-3 ${lastPrice !== undefined ? 'text-orange-500' : 'text-slate-300'} group-hover:text-primary`} />
                                                     <div className="flex-1">
-                                                        <div className="text-xs font-black text-black uppercase">{p.name}</div>
+                                                        <div className="text-xs font-black text-black uppercase">
+                                                            {p.name}
+                                                            {p.shortName && (
+                                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300 uppercase inline-block">
+                                                                    {p.shortName}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="flex justify-between items-center mt-1">
                                                             <div className="text-[10px] text-slate-400">Giá niêm yết: {formatNumber(p.sellingPrice)} ₫</div>
                                                             {lastPrice !== undefined && (
