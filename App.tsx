@@ -35,18 +35,26 @@ import PlannedOrderManagement from './components/PlannedOrderManagement';
 import NoteManagement from './components/NoteManagement';
 import SavingsManagement from './components/SavingsManagement';
 import RestockPredictions from './components/RestockPredictions';
-import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw } from 'lucide-react';
-
-type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions';
+import WindowManager from './components/windows/WindowManager';
+import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw, Monitor, AppWindow } from 'lucide-react';
+import { View } from './types';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>(() => {
     try {
       const savedView = localStorage.getItem('currentView');
-      return (savedView && savedView !== 'login') ? (savedView as View) : 'home';
+      return (savedView && savedView !== 'login') ? (savedView as View) : 'sales';
     } catch (e) {
       console.warn('LocalStorage access failed:', e);
-      return 'home';
+      return 'sales';
+    }
+  });
+
+  const [viewMode, setViewMode] = useState<'windows' | 'classic'>(() => {
+    try {
+      return (localStorage.getItem('viewMode') as 'windows' | 'classic') || 'windows';
+    } catch (e) {
+      return 'windows';
     }
   });
 
@@ -101,6 +109,14 @@ const App: React.FC = () => {
       }
     }
   }, [view]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('viewMode', viewMode);
+    } catch (e) {
+      console.warn('LocalStorage write failed:', e);
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     // Safety timeout to ensure app loads even if Firebase hangs
@@ -416,6 +432,25 @@ const App: React.FC = () => {
 
   const isAdmin = userRole === 'admin';
 
+  // Windows Desktop Multi-Window Mode
+  if (user && viewMode === 'windows' && view !== 'setup') {
+    return (
+      <WindowManager
+        user={user}
+        userRole={userRole}
+        onLogout={handleLogout}
+        currentDateTime={currentDateTime}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        viewMode={viewMode}
+        onToggleViewMode={() => setViewMode('classic')}
+        unreadSalesCount={unreadSalesCount}
+        unreadReceiptsCount={unreadReceiptsCount}
+        initialView={view === 'home' ? 'sales' : view}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-[100dvh] bg-slate-100 font-sans">
       <header className="w-full bg-white shadow-md p-3 z-20 border-b border-slate-200 flex-shrink-0">
@@ -457,6 +492,22 @@ const App: React.FC = () => {
           </div>
           
           <nav className="flex items-center space-x-1">
+            {user && (
+              <button
+                onClick={() => setViewMode('windows')}
+                title="Chuyển sang Chế độ Cửa Sổ Windows (Mở nhiều tính năng cùng lúc như Win)"
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md transition-all active:scale-95 mr-1"
+              >
+                <div className="grid grid-cols-2 gap-0.5 w-3 h-3">
+                  <div className="bg-sky-200 rounded-tl-xs"></div>
+                  <div className="bg-blue-300 rounded-tr-xs"></div>
+                  <div className="bg-emerald-300 rounded-bl-xs"></div>
+                  <div className="bg-amber-300 rounded-br-xs"></div>
+                </div>
+                <span className="hidden sm:inline">Chế độ Windows</span>
+              </button>
+            )}
+
             {view !== 'home' && (
                 <button 
                     onClick={() => setView('home')}
