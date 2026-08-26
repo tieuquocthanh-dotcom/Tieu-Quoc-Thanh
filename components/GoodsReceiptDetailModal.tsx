@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { GoodsReceipt, GoodsReceiptItem, PaymentHistoryEntry } from '../types';
-import { X, Users, Warehouse, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, CreditCard, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, StickyNote } from 'lucide-react';
+import { X, Users, Warehouse, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, CreditCard, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, StickyNote, Landmark, Clock, Building2 } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import { doc, writeBatch, increment, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -50,7 +50,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
     if (!receipt) return [];
     
     const history = receipt.paymentHistory ? [...receipt.paymentHistory] : [];
-    const totalAmountInHistory = history.reduce((sum, h) => sum + h.amount, 0);
+    const totalAmountInHistory = history.reduce((sum, h) => sum + (h.amount || 0), 0);
     const amountPaid = effectiveAmountPaid;
 
     if (amountPaid > 0 && amountPaid > totalAmountInHistory) {
@@ -58,7 +58,11 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
         history.unshift({
             createdAt: receipt.createdAt,
             amount: diff,
-            note: 'Thanh toán khi tạo phiếu'
+            note: 'Thanh toán khi tạo phiếu',
+            paymentMethodName: receipt.paymentMethodName || 'Tiền mặt/Mặc định',
+            paymentMethodId: receipt.paymentMethodId,
+            supplierBankDetails: (receipt as any).supplierBankDetails || null,
+            supplierBankAccountId: (receipt as any).supplierBankAccountId || null,
         });
     }
 
@@ -236,7 +240,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
   return (
     <>
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-      <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-fade-in-down overflow-hidden border-4 border-slate-800">
+      <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in-down overflow-hidden border-4 border-slate-800">
         <div className="flex justify-between items-center mb-4 pb-4 border-b">
           <h2 className="text-xl font-black text-dark flex items-center uppercase tracking-tighter">
             <FileText className="mr-3 text-primary" /> Chi Tiết Phiếu Nhập
@@ -335,42 +339,51 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
-                                <th className="p-3 text-[10px] font-black uppercase text-slate-400">Thời gian</th>
-                                <th className="p-3 text-[10px] font-black uppercase text-slate-400">Ghi chú / Tài khoản trả</th>
-                                <th className="p-3 text-[10px] font-black uppercase text-slate-400">Ngân hàng nhận</th>
-                                <th className="p-3 text-[10px] font-black uppercase text-slate-400 text-right">Số tiền trả</th>
+                                <th className="p-3 text-[10px] font-black uppercase text-slate-500">Thời gian</th>
+                                <th className="p-3 text-[10px] font-black uppercase text-slate-500">Trả từ ngân hàng / TK</th>
+                                <th className="p-3 text-[10px] font-black uppercase text-slate-500">Ngân hàng nhận (NCC)</th>
+                                <th className="p-3 text-[10px] font-black uppercase text-slate-500">Nội dung / Ghi chú</th>
+                                <th className="p-3 text-[10px] font-black uppercase text-slate-500 text-right">Số tiền trả</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {fullPaymentHistory.length > 0 ? (
                                 fullPaymentHistory.map((payment, idx) => (
-                                    <tr key={idx} className="hover:bg-slate-50">
-                                        <td className="p-3 text-[11px] font-bold text-slate-600">
-                                            {(payment as any).createdAt?.toDate().toLocaleString('vi-VN') || (payment as any).date?.toDate().toLocaleString('vi-VN')}
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 text-[11px] font-bold text-slate-600 whitespace-nowrap">
+                                            <div className="flex items-center">
+                                                <Clock size={13} className="mr-1.5 text-slate-400 shrink-0" />
+                                                {(payment as any).createdAt?.toDate?.()?.toLocaleString('vi-VN') || (payment as any).date?.toDate?.()?.toLocaleString('vi-VN') || 'N/A'}
+                                            </div>
                                         </td>
-                                        <td className="p-3 text-[11px] font-black text-slate-800 uppercase">
-                                            {payment.note || 'Thanh toán trực tiếp'}
+                                        <td className="p-3">
+                                            <span className="inline-flex items-center px-2 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-black uppercase tracking-tight shadow-xs">
+                                                <Landmark size={12} className="mr-1 text-sky-600 shrink-0" />
+                                                {payment.paymentMethodName || 'Tiền mặt'}
+                                            </span>
                                         </td>
                                         <td className="p-3">
                                             {(payment as any).supplierBankDetails ? (
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-slate-800 text-[10px]">{(payment as any).supplierBankDetails.bankName}</span>
-                                                    <span className="text-[9px] text-slate-500 font-mono">{(payment as any).supplierBankDetails.accountNumber}</span>
+                                                    <span className="text-[9px] text-slate-500 font-mono font-semibold">{(payment as any).supplierBankDetails.accountNumber}</span>
                                                     <span className="text-[9px] font-black uppercase text-slate-400">{(payment as any).supplierBankDetails.accountName}</span>
                                                 </div>
                                             ) : (
                                                 <span className="text-[10px] italic text-slate-400">Không có</span>
                                             )}
                                         </td>
-
-                                        <td className="p-3 text-right font-black text-red-600 text-sm">
+                                        <td className="p-3 text-[11px] font-semibold text-slate-700">
+                                            {payment.note || 'Thanh toán tiền hàng'}
+                                        </td>
+                                        <td className="p-3 text-right font-black text-red-600 text-sm whitespace-nowrap">
                                             -{formatNumber(payment.amount)} ₫
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={4} className="p-8 text-center text-slate-400 text-xs italic font-medium uppercase tracking-widest">
+                                    <td colSpan={5} className="p-8 text-center text-slate-400 text-xs italic font-medium uppercase tracking-widest">
                                         Chưa phát sinh giao dịch thanh toán nào
                                     </td>
                                 </tr>

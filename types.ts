@@ -1,5 +1,10 @@
 import { Timestamp } from "firebase/firestore";
 
+export interface ComboItem {
+  productId: string;
+  quantity: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -11,7 +16,7 @@ export interface Product {
   outsideStockWarningThreshold?: number;
   totalInvoicedStock?: number;
   isCombo?: boolean;
-  comboItems?: { productId: string; quantity: number }[];
+  comboItems?: ComboItem[];
   createdAt?: Timestamp;
 }
 
@@ -192,11 +197,12 @@ export interface ChinaImportItem {
 export type ChinaImportStatus = 'ordered' | 'placed' | 'paid' | 'importing' | 'imported';
 
 export interface PaymentHistoryEntry {
-  id: string;
+  id?: string;
   amount: number;
-  paymentMethodId: string;
-  paymentMethodName: string;
-  createdAt: Timestamp;
+  paymentMethodId?: string;
+  paymentMethodName?: string;
+  createdAt?: Timestamp;
+  date?: Timestamp;
   creatorName?: string;
   note?: string;
   supplierBankAccountId?: string;

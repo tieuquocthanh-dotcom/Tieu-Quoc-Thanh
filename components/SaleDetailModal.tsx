@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sale, Product, PaymentHistoryEntry } from '../types';
-import { X, User, Warehouse, CreditCard, Truck, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, Wallet, StickyNote } from 'lucide-react';
+import { X, User, Warehouse, CreditCard, Truck, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, Wallet, StickyNote, Landmark, Clock } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import { doc, writeBatch, increment, getDoc, collection, query, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -48,7 +48,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
     if (!sale) return [];
     
     const history = sale.paymentHistory ? [...sale.paymentHistory] : [];
-    const totalAmountInHistory = history.reduce((sum, h) => sum + h.amount, 0);
+    const totalAmountInHistory = history.reduce((sum, h) => sum + (h.amount || 0), 0);
     const amountPaid = effectiveAmountPaid;
 
     if (amountPaid > 0 && amountPaid > totalAmountInHistory) {
@@ -56,7 +56,9 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
         history.unshift({
             date: sale.createdAt,
             amount: diff,
-            note: 'Thanh toán khi tạo đơn'
+            note: 'Thanh toán khi tạo đơn',
+            paymentMethodName: sale.paymentMethodName || 'Tiền mặt/Mặc định',
+            paymentMethodId: sale.paymentMethodId
         });
     }
 
@@ -378,29 +380,39 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 border-b border-slate-200">
                                 <tr>
-                                    <th className="p-3 text-[10px] font-black uppercase text-slate-400">Thời gian</th>
-                                    <th className="p-3 text-[10px] font-black uppercase text-slate-400">Ghi chú / Tài khoản</th>
-                                    <th className="p-3 text-[10px] font-black uppercase text-slate-400 text-right">Số tiền thu</th>
+                                    <th className="p-3 text-[10px] font-black uppercase text-slate-500">Thời gian</th>
+                                    <th className="p-3 text-[10px] font-black uppercase text-slate-500">Hình thức / Tài khoản thu</th>
+                                    <th className="p-3 text-[10px] font-black uppercase text-slate-500">Ghi chú / Nội dung</th>
+                                    <th className="p-3 text-[10px] font-black uppercase text-slate-500 text-right">Số tiền thu</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {fullPaymentHistory.length > 0 ? (
                                     fullPaymentHistory.map((payment, idx) => (
-                                        <tr key={idx} className="hover:bg-slate-50">
-                                            <td className="p-3 text-[11px] font-bold text-slate-600">
-                                                {payment.date?.toDate?.()?.toLocaleString('vi-VN') || 'N/A'}
+                                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-3 text-[11px] font-bold text-slate-600 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <Clock size={13} className="mr-1.5 text-slate-400 shrink-0" />
+                                                    {payment.date?.toDate?.()?.toLocaleString('vi-VN') || (payment as any).createdAt?.toDate?.()?.toLocaleString('vi-VN') || 'N/A'}
+                                                </div>
                                             </td>
-                                            <td className="p-3 text-[11px] font-black text-slate-800 uppercase">
-                                                {payment.note || 'Thanh toán trực tiếp'}
+                                            <td className="p-3">
+                                                <span className="inline-flex items-center px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-tight shadow-xs">
+                                                    <Landmark size={12} className="mr-1 text-emerald-600 shrink-0" />
+                                                    {payment.paymentMethodName || 'Tiền mặt'}
+                                                </span>
                                             </td>
-                                            <td className="p-3 text-right font-black text-green-600 text-sm">
+                                            <td className="p-3 text-[11px] font-semibold text-slate-700">
+                                                {payment.note || 'Thanh toán tiền hàng'}
+                                            </td>
+                                            <td className="p-3 text-right font-black text-green-600 text-sm whitespace-nowrap">
                                                 +{formatNumber(payment.amount)} ₫
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={3} className="p-8 text-center text-slate-400 text-xs italic font-medium uppercase tracking-widest">
+                                        <td colSpan={4} className="p-8 text-center text-slate-400 text-xs italic font-medium uppercase tracking-widest">
                                             Chưa phát sinh giao dịch thanh toán nào
                                         </td>
                                     </tr>
