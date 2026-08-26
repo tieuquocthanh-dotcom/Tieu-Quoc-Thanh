@@ -37,6 +37,7 @@ import PlannedOrderManagement from '../PlannedOrderManagement';
 import NoteManagement from '../NoteManagement';
 import SavingsManagement from '../SavingsManagement';
 import RestockPredictions from '../RestockPredictions';
+import MobileAppSwitcher from './MobileAppSwitcher';
 
 interface WindowManagerProps {
   user: User | null;
@@ -68,6 +69,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
+  const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
   const [maxZIndex, setMaxZIndex] = useState(10);
 
   // Master App Definitions
@@ -384,30 +386,31 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
         );
       }
 
-      // Responsive default size & position
+      // Responsive default size & position (used when user restores/un-maximizes)
       const screenW = window.innerWidth;
       const screenH = window.innerHeight - 48; // Sub taskbar
 
       const isMobile = screenW < 768;
-      const defaultW = isMobile ? screenW : Math.min(appDef.defaultSize?.width || 1080, screenW - 40);
-      const defaultH = isMobile ? screenH : Math.min(appDef.defaultSize?.height || 700, screenH - 40);
+      const defaultW = Math.min(appDef.defaultSize?.width || 1200, Math.max(800, screenW - 60));
+      const defaultH = Math.min(appDef.defaultSize?.height || 750, Math.max(550, screenH - 60));
 
-      // Cascade offset for subsequent windows
+      // Position when restored
       const count = prev.length;
-      const posX = isMobile ? 0 : Math.max(10, (count * 30) % (Math.max(50, screenW - defaultW)));
-      const posY = isMobile ? 0 : Math.max(10, (count * 30) % (Math.max(50, screenH - defaultH)));
+      const posX = isMobile ? 0 : Math.max(20, (count * 30) % Math.max(50, screenW - defaultW));
+      const posY = isMobile ? 0 : Math.max(20, (count * 30) % Math.max(50, screenH - defaultH));
 
       const newWindow: WindowState = {
         id: `${view}_${Date.now()}`,
         view,
         title: appDef.title,
         isMinimized: false,
-        isMaximized: isMobile, // Start maximized on small phones
+        isMaximized: true, // Always open MAXIMIZED (full screen) by default for easiest operation
         zIndex: nextZ,
         x: posX,
         y: posY,
         width: defaultW,
         height: defaultH,
+        prevPosition: { x: posX, y: posY, width: defaultW, height: defaultH },
       };
 
       setActiveWindowId(newWindow.id);
@@ -629,6 +632,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
             onClose={() => closeWindow(win.id)}
             onMinimize={() => minimizeWindow(win.id)}
             onMaximizeToggle={() => toggleMaximize(win.id)}
+            onOpenAppSwitcher={() => setIsAppSwitcherOpen(true)}
             onUpdateState={(updates) => updateWindowState(win.id, updates)}
           >
             {renderAppView(win.view)}
@@ -646,6 +650,21 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
           apps={appDefinitions}
           openWindowsCount={windows.length}
         />
+
+        {/* Mobile / Quick Apps Switcher Drawer */}
+        <MobileAppSwitcher
+          isOpen={isAppSwitcherOpen}
+          onClose={() => setIsAppSwitcherOpen(false)}
+          windows={windows}
+          activeWindowId={activeWindowId}
+          onFocusWindow={focusWindow}
+          onCloseWindow={closeWindow}
+          onCloseAllWindows={() => {
+            setWindows([]);
+            setActiveWindowId(null);
+          }}
+          onOpenStartMenu={() => setIsStartMenuOpen(true)}
+        />
       </div>
 
       {/* Windows Taskbar at the bottom */}
@@ -654,6 +673,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
         activeWindowId={activeWindowId}
         isStartMenuOpen={isStartMenuOpen}
         onToggleStartMenu={() => setIsStartMenuOpen(!isStartMenuOpen)}
+        onOpenAppSwitcher={() => setIsAppSwitcherOpen(true)}
         onFocusWindow={focusWindow}
         onMinimizeWindow={minimizeWindow}
         onCloseWindow={closeWindow}

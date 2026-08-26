@@ -12,6 +12,7 @@ export interface TaskbarProps {
   activeWindowId: string | null;
   isStartMenuOpen: boolean;
   onToggleStartMenu: () => void;
+  onOpenAppSwitcher?: () => void;
   onFocusWindow: (id: string) => void;
   onMinimizeWindow: (id: string) => void;
   onCloseWindow: (id: string) => void;
@@ -34,6 +35,7 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   activeWindowId,
   isStartMenuOpen,
   onToggleStartMenu,
+  onOpenAppSwitcher,
   onFocusWindow,
   onMinimizeWindow,
   onCloseWindow,
@@ -82,30 +84,40 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   return (
     <footer className="fixed bottom-0 left-0 right-0 h-12 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/80 z-50 flex items-center justify-between px-2 text-white select-none shadow-2xl">
       {/* Left side: Start Button & Quick Actions */}
-      <div className="flex items-center space-x-1.5 shrink-0">
+      <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
         {/* Windows Start Button */}
         <button
           id="win-start-button"
           onClick={onToggleStartMenu}
           title="Bắt đầu / Danh mục ứng dụng (Start Menu)"
-          className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all active:scale-95 ${
+          className={`flex items-center space-x-1.5 sm:space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all active:scale-95 ${
             isStartMenuOpen
               ? 'bg-primary text-white shadow-lg shadow-primary/30 ring-2 ring-primary/50'
               : 'bg-slate-800/80 hover:bg-slate-700/90 text-slate-100 hover:text-white border border-slate-700/60'
           }`}
         >
           {/* Windows 4-square logo */}
-          <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
+          <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5 shrink-0">
             <div className="bg-sky-400 rounded-tl-sm"></div>
             <div className="bg-blue-500 rounded-tr-sm"></div>
             <div className="bg-emerald-400 rounded-bl-sm"></div>
             <div className="bg-amber-400 rounded-br-sm"></div>
           </div>
-          <span className="text-xs font-bold tracking-wide hidden sm:inline">Bắt đầu</span>
+          <span className="text-xs font-bold tracking-wide">Bắt đầu</span>
+        </button>
+
+        {/* Mobile / Quick Apps Switcher Button */}
+        <button
+          onClick={onOpenAppSwitcher}
+          title="Chuyển đổi nhanh giữa các ứng dụng đang mở"
+          className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 active:scale-95 text-white font-bold text-xs border border-indigo-400/40 shadow-sm"
+        >
+          <Layers size={14} className="text-indigo-200" />
+          <span className="text-xs">{windows.length > 0 ? `Đang mở (${windows.length})` : 'Đang mở'}</span>
         </button>
 
         {/* Window Layout & Arrangement Menu */}
-        <div className="relative" ref={layoutMenuRef}>
+        <div className="relative hidden md:block" ref={layoutMenuRef}>
           <button
             onClick={() => setIsLayoutMenuOpen(!isLayoutMenuOpen)}
             title="Sắp xếp và bố cục cửa sổ (Chia đôi màn hình, Xếp 4 góc, Xếp tầng...)"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Minus, Square, Copy, X, Maximize2 } from 'lucide-react';
+import { Minus, Square, Copy, X, Maximize2, Layers } from 'lucide-react';
 import { WindowState } from '../../types/window';
 
 interface WindowFrameProps {
@@ -10,6 +10,7 @@ interface WindowFrameProps {
   onClose: () => void;
   onMinimize: () => void;
   onMaximizeToggle: () => void;
+  onOpenAppSwitcher?: () => void;
   onUpdateState: (updates: Partial<WindowState>) => void;
   children: React.ReactNode;
 }
@@ -22,6 +23,7 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
   onClose,
   onMinimize,
   onMaximizeToggle,
+  onOpenAppSwitcher,
   onUpdateState,
   children,
 }) => {
@@ -218,8 +220,23 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
           </span>
         </div>
 
-        {/* Window Control Buttons (Minimize, Maximize/Restore, Close) */}
+        {/* Window Control Buttons (Switch Apps, Minimize, Maximize/Restore, Close) */}
         <div className="flex items-center space-x-1 shrink-0 window-control-btn">
+          {/* Quick App Switcher on Mobile/Tablet */}
+          {onOpenAppSwitcher && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenAppSwitcher();
+              }}
+              title="Đổi ứng dụng nhanh (App Switcher)"
+              className="flex items-center space-x-1 px-2 py-1 h-7 rounded bg-indigo-600/80 hover:bg-indigo-500 active:scale-95 transition-all text-white text-[11px] font-bold shadow-sm"
+            >
+              <Layers size={13} />
+              <span className="hidden sm:inline">Đổi ứng dụng</span>
+            </button>
+          )}
+
           {/* Minimize */}
           <button
             onClick={(e) => {
