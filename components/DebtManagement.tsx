@@ -1119,6 +1119,8 @@ const DebtManagement: React.FC = () => {
                     ? `Khách hàng ${partnerName} thanh toán nợ GỘP (${selectedIds.size} đơn)_ ${formattedDate}`
                     : `Thanh toán nợ GỘP (${selectedIds.size} phiếu) cho nhà cung cấp ${partnerName}_ ${formattedDate}`;
 
+                const bulkItemIds = sortedItems.map(i => i.id);
+
                 transaction.set(logRef, {
                     paymentMethodId,
                     paymentMethodName: method?.name || 'N/A',
@@ -1126,6 +1128,9 @@ const DebtManagement: React.FC = () => {
                     amount: amount,
                     balanceAfter: finalBal,
                     note: bulkAutoNote,
+                    relatedId: bulkItemIds[0] || null,
+                    relatedIds: bulkItemIds,
+                    relatedType: isReceivable ? 'sale' : 'receipt',
                     createdAt: ts,
                     createdBy: auth.currentUser?.uid || null,
                     creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'N/A',

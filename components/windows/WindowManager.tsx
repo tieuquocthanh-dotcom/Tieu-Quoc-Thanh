@@ -596,7 +596,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       case 'customerAnalytics': return <CustomerAnalytics />;
       case 'inventoryLedger': return <InventoryLedger userRole={userRole} />;
       case 'priceComparison': return <PriceComparison />;
-      case 'supplierPaymentHistory': return <SupplierPaymentHistory />;
+      case 'supplierPaymentHistory': return <SupplierPaymentHistory userRole={userRole} />;
       case 'plannedOrders': return <PlannedOrderManagement user={user} />;
       case 'notes': return <NoteManagement user={user} />;
       case 'savings': return <SavingsManagement user={user} />;
