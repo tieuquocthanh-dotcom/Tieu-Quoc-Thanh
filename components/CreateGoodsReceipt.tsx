@@ -459,7 +459,14 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   };
 
   const handleConfirmReceipt = async () => {
-    if (receipt.length === 0 || !selectedSupplierId || !selectedWarehouseId) { alert("Thiếu thông tin."); return; };
+    if (receipt.length === 0 || !selectedSupplierId || !selectedWarehouseId) { 
+        alert("Vui lòng chọn đầy đủ Nhà cung cấp, Kho nhập và ít nhất 1 sản phẩm."); 
+        return; 
+    }
+    if (paymentStatus === 'paid' && !selectedPaymentMethodId) {
+        alert("Vui lòng chọn Phương thức thanh toán khi thanh toán ngay, hoặc tích chọn 'Ghi nợ NCC' nếu chưa thanh toán.");
+        return;
+    }
     setIsProcessing(true);
     try {
       await runTransaction(db, async (transaction) => {

@@ -19,7 +19,7 @@ const getInitialStartDate = () => {
     return date.toISOString().split('T')[0];
 };
 
-type SortKey = 'createdAt' | 'supplierName' | 'total';
+type SortKey = 'createdAt' | 'paidAt' | 'supplierName' | 'total';
 type SortDirection = 'asc' | 'desc';
 
 const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRole }) => {
@@ -143,7 +143,11 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
             if (!hasProduct) return false;
         }
 
-        if (paymentFilter !== 'all' && receipt.paymentStatus !== paymentFilter) return false;
+        if (paymentFilter !== 'all') {
+            const isPaid = (receipt.paymentStatus === 'paid' && (receipt.amountPaid === undefined || receipt.amountPaid > 0)) || (receipt.amountPaid && receipt.amountPaid >= (receipt.total || 0) && (receipt.total || 0) > 0);
+            if (paymentFilter === 'paid' && !isPaid) return false;
+            if (paymentFilter === 'debt' && isPaid) return false;
+        }
 
         if (invoiceFilter !== 'all') {
             const hasInv = receipt.hasInvoice === true;
@@ -161,6 +165,9 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
         if (sortConfig.key === 'createdAt') {
             valA = a.createdAt?.toMillis() || 0;
             valB = b.createdAt?.toMillis() || 0;
+        } else if (sortConfig.key === 'paidAt') {
+            valA = a.paidAt?.toMillis() || 0;
+            valB = b.paidAt?.toMillis() || 0;
         }
 
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -198,23 +205,24 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
   };
 
   const togglePaymentStatus = async (receipt: GoodsReceipt) => {
-    if (!receipt.paymentMethodId) {
-        alert("Phiếu này chưa được chọn phương thức thanh toán. Vui lòng bấm 'Sửa' để thiết lập.");
-        return;
-    }
     setUpdatingId(receipt.id);
     try {
         await runTransaction(db, async (transaction) => {
             const receiptRef = doc(db, 'goodsReceipts', receipt.id);
-            const accRef = doc(db, 'paymentMethods', receipt.paymentMethodId!);
-            
-            const accSnap = await transaction.get(accRef);
-            if (!accSnap.exists()) throw "Tài khoản không tồn tại.";
-            
-            const currentBal = accSnap.data().balance || 0;
             const shortId = receipt.id.substring(0, 8).toUpperCase();
+            
+            const isCurrentlyPaid = (receipt.paymentStatus === 'paid' && (receipt.amountPaid === undefined || receipt.amountPaid > 0)) || (receipt.amountPaid && receipt.amountPaid >= (receipt.total || 0) && (receipt.total || 0) > 0);
 
-            if (receipt.paymentStatus === 'debt') {
+            if (!isCurrentlyPaid) {
+                // Switching from Debt to Paid
+                if (!receipt.paymentMethodId) {
+                    throw new Error("Phiếu này chưa chọn phương thức thanh toán. Vui lòng bấm 'Sửa' (biểu tượng bút chì) để chọn tài khoản thanh toán.");
+                }
+                const accRef = doc(db, 'paymentMethods', receipt.paymentMethodId);
+                const accSnap = await transaction.get(accRef);
+                if (!accSnap.exists()) throw new Error("Tài khoản thanh toán không tồn tại.");
+                
+                const currentBal = accSnap.data().balance || 0;
                 if (currentBal < receipt.total) {
                     throw new Error(`Số dư tài khoản "${receipt.paymentMethodName || ''}" (${formatNumber(currentBal)} ₫) không đủ để thanh toán ${formatNumber(receipt.total)} ₫!`);
                 }
@@ -236,23 +244,34 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                     creatorName: auth.currentUser?.displayName || 'Hệ thống'
                 });
             } else {
-                const newBal = currentBal + receipt.total;
-                transaction.update(accRef, { balance: newBal });
-                transaction.update(receiptRef, { paymentStatus: 'debt', paidAt: null, amountPaid: 0 });
+                // Switching from Paid to Debt
+                if (receipt.paymentMethodId) {
+                    const accRef = doc(db, 'paymentMethods', receipt.paymentMethodId);
+                    const accSnap = await transaction.get(accRef);
+                    if (accSnap.exists()) {
+                        const currentBal = accSnap.data().balance || 0;
+                        const refundAmount = receipt.amountPaid !== undefined ? receipt.amountPaid : receipt.total;
+                        if (refundAmount > 0) {
+                            const newBal = currentBal + refundAmount;
+                            transaction.update(accRef, { balance: newBal });
 
-                const logRef = doc(collection(db, 'paymentLogs'));
-                transaction.set(logRef, {
-                    paymentMethodId: receipt.paymentMethodId,
-                    paymentMethodName: receipt.paymentMethodName || 'N/A',
-                    type: 'deposit',
-                    amount: receipt.total,
-                    balanceAfter: newBal,
-                    note: `Hoàn tiền phiếu nhập (Chuyển sang nợ): ${receipt.supplierName}_ mã ${shortId}`,
-                    relatedId: receipt.id,
-                    relatedType: 'receipt',
-                    createdAt: serverTimestamp(),
-                    creatorName: auth.currentUser?.displayName || 'Hệ thống'
-                });
+                            const logRef = doc(collection(db, 'paymentLogs'));
+                            transaction.set(logRef, {
+                                paymentMethodId: receipt.paymentMethodId,
+                                paymentMethodName: receipt.paymentMethodName || 'N/A',
+                                type: 'deposit',
+                                amount: refundAmount,
+                                balanceAfter: newBal,
+                                note: `Hoàn tiền phiếu nhập (Chuyển sang nợ): ${receipt.supplierName}_ mã ${shortId}`,
+                                relatedId: receipt.id,
+                                relatedType: 'receipt',
+                                createdAt: serverTimestamp(),
+                                creatorName: auth.currentUser?.displayName || 'Hệ thống'
+                            });
+                        }
+                    }
+                }
+                transaction.update(receiptRef, { paymentStatus: 'debt', paidAt: null, amountPaid: 0 });
             }
         });
     } catch (err: any) {
@@ -285,20 +304,28 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
       alert("Không có dữ liệu để xuất!");
       return;
     }
-    const dataToExport = filteredReceipts.map((receipt, index) => ({
-      STT: index + 1,
-      "Mã phiếu": receipt.id.substring(0, 8).toUpperCase(),
-      "Thời gian": receipt.createdAt?.toDate().toLocaleString('vi-VN'),
-      "Nhà cung cấp": receipt.supplierName || 'N/A',
-      "Kho nhập": receipt.warehouseName || 'N/A',
-      "Tổng tiền (VNĐ)": receipt.total || 0,
-      "Trạng thái": receipt.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Công nợ',
-      "Đã trả (VNĐ)": receipt.amountPaid || 0,
-      "Hóa đơn đỏ": receipt.hasInvoice ? 'Có' : 'Không',
-      "Ghi chú": receipt.paymentStatus === 'paid' && !receipt.amountPaid && receipt.total > 0 ? "Chuyển từ Nợ" : "",
-      "Phương thức thanh toán": receipt.paymentMethodName || 'N/A',
-      "Người tạo": receipt.creatorName || 'N/A'
-    }));
+    const dataToExport = filteredReceipts.map((receipt, index) => {
+      const isPaid = (receipt.paymentStatus === 'paid' && (receipt.amountPaid === undefined || receipt.amountPaid > 0)) || (receipt.amountPaid && receipt.amountPaid >= (receipt.total || 0) && (receipt.total || 0) > 0);
+      const isPartial = receipt.amountPaid && receipt.amountPaid > 0 && !isPaid;
+      const effectivePaid = receipt.amountPaid !== undefined ? receipt.amountPaid : (isPaid ? (receipt.total || 0) : 0);
+      const remaining = Math.max(0, (receipt.total || 0) - effectivePaid);
+
+      return {
+        STT: index + 1,
+        "Mã phiếu": receipt.id.substring(0, 8).toUpperCase(),
+        "Ngày nhập": receipt.createdAt?.toDate().toLocaleString('vi-VN') || 'N/A',
+        "Ngày trả": receipt.paidAt ? receipt.paidAt.toDate().toLocaleString('vi-VN') : 'Chưa trả',
+        "Nhà cung cấp": receipt.supplierName || 'N/A',
+        "Kho nhập": receipt.warehouseName || 'N/A',
+        "Tổng tiền (VNĐ)": receipt.total || 0,
+        "Đã trả (VNĐ)": effectivePaid,
+        "Còn nợ (VNĐ)": remaining,
+        "Trạng thái": isPaid ? 'Đã trả đủ' : (isPartial ? 'Trả 1 phần' : 'Ghi nợ'),
+        "Hóa đơn đỏ": receipt.hasInvoice ? 'Có' : 'Không',
+        "Phương thức thanh toán": receipt.paymentMethodName || 'N/A',
+        "Người tạo": receipt.creatorName || 'N/A'
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
@@ -443,7 +470,7 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                 <thead className="bg-slate-800 text-white">
                   <tr>
                     <th className="p-4 text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-slate-700 transition" onClick={() => requestSort('createdAt')}>Ngày Nhập {getSortIcon('createdAt')}</th>
-                    <th className="p-4 text-xs font-black uppercase tracking-widest">Ngày Thanh Toán</th>
+                    <th className="p-4 text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-slate-700 transition" onClick={() => requestSort('paidAt')}>Ngày Trả {getSortIcon('paidAt')}</th>
                     <th className="p-4 text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-slate-700 transition" onClick={() => requestSort('supplierName')}>Nhà Cung Cấp {getSortIcon('supplierName')}</th>
                     <th className="p-4 text-xs font-black uppercase tracking-widest">PT Thanh Toán</th>
                     {isAdmin && <th className="p-4 text-xs font-black uppercase tracking-widest text-right cursor-pointer hover:bg-slate-700 transition" onClick={() => requestSort('total')}>Tổng Tiền {getSortIcon('total')}</th>}
@@ -454,7 +481,11 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {paginatedReceipts.map((receipt) => (
+                  {paginatedReceipts.map((receipt) => {
+                    const isPaid = (receipt.paymentStatus === 'paid' && (receipt.amountPaid === undefined || receipt.amountPaid > 0)) || (receipt.amountPaid && receipt.amountPaid >= (receipt.total || 0) && (receipt.total || 0) > 0);
+                    const isPartial = receipt.amountPaid && receipt.amountPaid > 0 && !isPaid;
+
+                    return (
                     <tr key={receipt.id} className="hover:bg-slate-50 transition-colors group">
                       <td className="p-4 text-sm font-bold text-slate-600">
                         {receipt.createdAt?.toDate().toLocaleDateString('vi-VN')}
@@ -463,11 +494,11 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                       <td className="p-4 text-sm font-bold text-slate-600">
                         {receipt.paidAt ? (
                             <>
-                                {receipt.paidAt.toDate().toLocaleDateString('vi-VN')}
+                                <div className="font-bold text-slate-900">{receipt.paidAt.toDate().toLocaleDateString('vi-VN')}</div>
                                 <div className="text-[10px] font-normal text-slate-400">{receipt.paidAt.toDate().toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}</div>
                             </>
                         ) : (
-                            <span className="text-slate-300 font-normal italic">-</span>
+                            <span className="text-red-500 bg-red-50 px-2 py-0.5 rounded text-[11px] font-black border border-red-200 inline-block">Chưa trả</span>
                         )}
                       </td>
                       <td className="p-4 font-black text-dark uppercase text-sm">{receipt.supplierName}</td>
@@ -482,8 +513,14 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                       </td>
                       {isAdmin && <td className="p-4 font-black text-green-600 text-right">{formatNumber(receipt.total)} ₫</td>}
                       <td className="p-4 text-center">
-                        <span className={`px-2 py-1 text-[10px] font-black rounded-full uppercase ${receipt.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                            {receipt.paymentStatus === 'paid' ? 'Đã trả' : 'Ghi nợ'}
+                        <span className={`px-2.5 py-1 text-[10px] font-black rounded-full uppercase inline-block shadow-sm ${
+                            isPaid 
+                                ? 'bg-green-100 text-green-800 border border-green-300' 
+                                : isPartial 
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                                    : 'bg-red-100 text-red-800 border border-red-300'
+                        }`}>
+                            {isPaid ? 'Đã trả' : (isPartial ? 'Trả 1 phần' : 'Ghi nợ')}
                         </span>
                       </td>
                       <td className="p-4 text-center">
@@ -524,7 +561,8 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                })}
                 </tbody>
               </table>
         )}

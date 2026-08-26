@@ -1,0 +1,6 @@
+{
+  "name": "Quản Lý Bán Hàng & Kho",
+  "description": "Hệ thống quản lý bán hàng, nhập kho, công nợ và tồn kho",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
