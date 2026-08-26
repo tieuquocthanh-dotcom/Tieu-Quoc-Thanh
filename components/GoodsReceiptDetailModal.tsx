@@ -31,12 +31,27 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
 
   const isAdmin = userRole === 'admin';
 
+  // Calculate effective amount paid taking into account legacy receipts or receipts with missing amountPaid
+  const effectiveAmountPaid = useMemo(() => {
+    if (!receipt) return 0;
+    if (receipt.amountPaid !== undefined && receipt.amountPaid !== null) {
+      return receipt.amountPaid;
+    }
+    // Fallback: If paymentStatus is 'paid', full total was paid
+    return receipt.paymentStatus === 'paid' ? (receipt.total || 0) : 0;
+  }, [receipt]);
+
+  const remainingDebt = useMemo(() => {
+    if (!receipt) return 0;
+    return Math.max(0, (receipt.total || 0) - effectiveAmountPaid);
+  }, [receipt, effectiveAmountPaid]);
+
   const fullPaymentHistory = useMemo((): PaymentHistoryEntry[] => {
     if (!receipt) return [];
     
     const history = receipt.paymentHistory ? [...receipt.paymentHistory] : [];
     const totalAmountInHistory = history.reduce((sum, h) => sum + h.amount, 0);
-    const amountPaid = receipt.amountPaid || 0;
+    const amountPaid = effectiveAmountPaid;
 
     if (amountPaid > 0 && amountPaid > totalAmountInHistory) {
         const diff = amountPaid - totalAmountInHistory;
@@ -48,11 +63,9 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
     }
 
     return history.sort((a, b) => (b.createdAt?.toMillis() || b.date?.toMillis() || 0) - (a.createdAt?.toMillis() || a.date?.toMillis() || 0));
-  }, [receipt]);
+  }, [receipt, effectiveAmountPaid]);
 
   if (!isOpen || !receipt) return null;
-
-  const remainingDebt = Math.max(0, (receipt.total || 0) - (receipt.amountPaid || 0));
 
   const handlePrint = () => {
     if (!receipt) return;
@@ -130,7 +143,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
               </div>
               <div class="total-row">
                 <span>Đã thanh toán:</span>
-                <span>${isAdmin ? formatNumber(receipt.amountPaid || 0) : '***'}</span>
+                <span>${isAdmin ? formatNumber(effectiveAmountPaid) : '***'}</span>
               </div>
               <div class="total-row" style="font-weight: bold;">
                 <span>Còn nợ:</span>
@@ -283,13 +296,25 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                             <Coins size={14} className="mr-2 text-primary"/> Tóm tắt tài chính
                         </h4>
                         <div className="space-y-3">
-                            <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                            <div className="flex justify-between items-center pb-2 border-b border-slate-700">
+                                <span className="text-[10px] font-black text-slate-400 uppercase">Trạng thái:</span>
+                                <span className={`px-2 py-0.5 text-[11px] font-black rounded-full uppercase ${
+                                    remainingDebt === 0
+                                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                        : effectiveAmountPaid > 0
+                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                            : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                }`}>
+                                    {remainingDebt === 0 ? 'Đã thanh toán đủ' : (effectiveAmountPaid > 0 ? 'Thanh toán 1 phần' : 'Công nợ (Chưa trả)')}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-black text-slate-400 uppercase">Tổng cộng:</span>
                                 <span className="text-lg font-black text-primary">{formatNumber(receipt.total)} ₫</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-black text-slate-400 uppercase">Đã thanh toán:</span>
-                                <span className="text-lg font-black text-green-400">{formatNumber(receipt.amountPaid || 0)} ₫</span>
+                                <span className="text-lg font-black text-green-400">{formatNumber(effectiveAmountPaid)} ₫</span>
                             </div>
                             <div className="flex justify-between items-center pt-2 border-t border-slate-700">
                                 <span className="text-[10px] font-black text-slate-400 uppercase">Còn nợ:</span>

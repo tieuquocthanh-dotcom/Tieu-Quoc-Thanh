@@ -31,12 +31,25 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
 
   const isAdmin = userRole === 'admin';
 
+  const effectiveAmountPaid = useMemo(() => {
+    if (!sale) return 0;
+    if (sale.amountPaid !== undefined && sale.amountPaid !== null) {
+      return sale.amountPaid;
+    }
+    return sale.status === 'paid' ? (sale.total ?? 0) : 0;
+  }, [sale]);
+
+  const remainingDebt = useMemo(() => {
+    if (!sale) return 0;
+    return Math.max(0, (sale.total ?? 0) - effectiveAmountPaid);
+  }, [sale, effectiveAmountPaid]);
+
   const fullPaymentHistory = useMemo((): PaymentHistoryEntry[] => {
     if (!sale) return [];
     
     const history = sale.paymentHistory ? [...sale.paymentHistory] : [];
     const totalAmountInHistory = history.reduce((sum, h) => sum + h.amount, 0);
-    const amountPaid = sale.amountPaid || 0;
+    const amountPaid = effectiveAmountPaid;
 
     if (amountPaid > 0 && amountPaid > totalAmountInHistory) {
         const diff = amountPaid - totalAmountInHistory;
@@ -48,14 +61,12 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
     }
 
     return history.sort((a, b) => (b.date?.toMillis?.() || 0) - (a.date?.toMillis?.() || 0));
-  }, [sale]);
+  }, [sale, effectiveAmountPaid]);
 
   const handlePrint = () => {
     if (!sale) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
-    const remainingDebt = Math.max(0, (sale.total ?? 0) - (sale.amountPaid || 0));
 
     printWindow.document.write(`
       <html>
@@ -219,8 +230,6 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
     }
   };
 
-  const remainingDebt = Math.max(0, (sale.total ?? 0) - (sale.amountPaid || 0));
-
   const exportDetailToExcel = () => {
     if (!sale || !sale.items) return;
     const dataToExport = sale.items.map((item, index) => ({
@@ -338,7 +347,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-[10px] font-black text-slate-400 uppercase">Đã thanh toán:</span>
-                                    <span className="text-lg font-black text-green-400">{formatNumber(sale.amountPaid || 0)} ₫</span>
+                                    <span className="text-lg font-black text-green-400">{formatNumber(effectiveAmountPaid)} ₫</span>
                                 </div>
                                 <div className="flex justify-between items-center pt-2 border-t border-slate-700">
                                     <span className="text-[10px] font-black text-slate-400 uppercase">Còn nợ:</span>

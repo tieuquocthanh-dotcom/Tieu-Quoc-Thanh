@@ -527,6 +527,8 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
             paymentMethodId: selectedPaymentMethodId || null, 
             paymentMethodName: paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name || null, 
             paymentStatus, 
+            amountPaid: paymentStatus === 'paid' ? total : 0,
+            paidAt: paymentStatus === 'paid' ? finalCreatedAt : null,
             hasInvoice, 
             createdAt: finalCreatedAt, 
             creatorName: user?.displayName || user?.email || 'POS' 
