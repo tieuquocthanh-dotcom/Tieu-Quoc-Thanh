@@ -373,7 +373,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
 
     setWindows(prev => {
       const existing = prev.find(w => w.view === view);
-      const nextZ = maxZIndex + 1;
+      const nextZ = maxZIndex >= 500 ? 10 : maxZIndex + 1;
       setMaxZIndex(nextZ);
 
       if (existing) {
@@ -428,16 +428,18 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
   // Focus a window
   const focusWindow = useCallback((id: string) => {
     setActiveWindowId(id);
-    const nextZ = maxZIndex + 1;
-    setMaxZIndex(nextZ);
-    setWindows(prev =>
-      prev.map(w =>
-        w.id === id
-          ? { ...w, isMinimized: false, zIndex: nextZ }
-          : w
-      )
-    );
-  }, [maxZIndex]);
+    setMaxZIndex(prev => {
+      const nextZ = prev >= 500 ? 10 : prev + 1;
+      setWindows(curr =>
+        curr.map(w =>
+          w.id === id
+            ? { ...w, isMinimized: false, zIndex: nextZ }
+            : w
+        )
+      );
+      return nextZ;
+    });
+  }, []);
 
   // Minimize a window
   const minimizeWindow = useCallback((id: string) => {
@@ -638,34 +640,34 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
             {renderAppView(win.view)}
           </WindowFrame>
         ))}
-
-        {/* Start Menu Pop-up */}
-        <StartMenu
-          isOpen={isStartMenuOpen}
-          onClose={() => setIsStartMenuOpen(false)}
-          onOpenApp={openApp}
-          user={user}
-          userRole={userRole}
-          onLogout={onLogout}
-          apps={appDefinitions}
-          openWindowsCount={windows.length}
-        />
-
-        {/* Mobile / Quick Apps Switcher Drawer */}
-        <MobileAppSwitcher
-          isOpen={isAppSwitcherOpen}
-          onClose={() => setIsAppSwitcherOpen(false)}
-          windows={windows}
-          activeWindowId={activeWindowId}
-          onFocusWindow={focusWindow}
-          onCloseWindow={closeWindow}
-          onCloseAllWindows={() => {
-            setWindows([]);
-            setActiveWindowId(null);
-          }}
-          onOpenStartMenu={() => setIsStartMenuOpen(true)}
-        />
       </div>
+
+      {/* Start Menu Pop-up (Root level with highest z-index) */}
+      <StartMenu
+        isOpen={isStartMenuOpen}
+        onClose={() => setIsStartMenuOpen(false)}
+        onOpenApp={openApp}
+        user={user}
+        userRole={userRole}
+        onLogout={onLogout}
+        apps={appDefinitions}
+        openWindowsCount={windows.length}
+      />
+
+      {/* Mobile / Quick Apps Switcher Drawer */}
+      <MobileAppSwitcher
+        isOpen={isAppSwitcherOpen}
+        onClose={() => setIsAppSwitcherOpen(false)}
+        windows={windows}
+        activeWindowId={activeWindowId}
+        onFocusWindow={focusWindow}
+        onCloseWindow={closeWindow}
+        onCloseAllWindows={() => {
+          setWindows([]);
+          setActiveWindowId(null);
+        }}
+        onOpenStartMenu={() => setIsStartMenuOpen(true)}
+      />
 
       {/* Windows Taskbar at the bottom */}
       <Taskbar

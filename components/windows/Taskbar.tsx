@@ -82,15 +82,19 @@ export const Taskbar: React.FC<TaskbarProps> = ({
   const dt = formatTime(currentDateTime);
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 h-12 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/80 z-50 flex items-center justify-between px-2 text-white select-none shadow-2xl">
+    <footer className="fixed bottom-0 left-0 right-0 h-12 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/80 z-[9990] flex items-center justify-between px-2 text-white select-none shadow-2xl">
       {/* Left side: Start Button & Quick Actions */}
       <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
         {/* Windows Start Button */}
         <button
           id="win-start-button"
-          onClick={onToggleStartMenu}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleStartMenu();
+          }}
           title="Bắt đầu / Danh mục ứng dụng (Start Menu)"
-          className={`flex items-center space-x-1.5 sm:space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all active:scale-95 ${
+          className={`flex items-center space-x-1.5 sm:space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all active:scale-95 cursor-pointer ${
             isStartMenuOpen
               ? 'bg-primary text-white shadow-lg shadow-primary/30 ring-2 ring-primary/50'
               : 'bg-slate-800/80 hover:bg-slate-700/90 text-slate-100 hover:text-white border border-slate-700/60'

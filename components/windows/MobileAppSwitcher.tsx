@@ -27,7 +27,7 @@ export const MobileAppSwitcher: React.FC<MobileAppSwitcherProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-xl flex flex-col animate-fade-in text-white">
+    <div className="fixed inset-0 z-[9999] bg-slate-950/85 backdrop-blur-xl flex flex-col animate-fade-in text-white">
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-6 pb-4 border-b border-slate-800">
         <div className="flex items-center space-x-2.5">

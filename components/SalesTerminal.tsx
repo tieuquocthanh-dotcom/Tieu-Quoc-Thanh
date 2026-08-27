@@ -395,6 +395,16 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [currentPage, setCurrentPage] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const pageSize = isFullscreen ? 32 : 12;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('Khách vãng lai');
@@ -899,7 +909,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   }, [todaySales]);
 
   return (
-    <div className={`flex flex-col h-full gap-4 ${isFullscreen ? 'fixed inset-0 bg-slate-100 z-[100] p-4 overflow-y-auto' : ''}`}>
+    <div className={`flex flex-col h-full gap-4 ${isFullscreen ? 'fixed top-0 left-0 right-0 bottom-12 bg-slate-100 z-40 p-4 overflow-y-auto' : ''}`}>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         
         <SaleDetailModal 
@@ -1059,8 +1069,22 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                     <PlusCircle size={16} className="mr-2"/> TẠO SP
                                 </button>
                             )}
-                            {!isFullscreen && (
-                                <button onClick={() => setIsFullscreen(true)} className="px-4 py-3 bg-slate-800 text-white rounded-2xl flex items-center hover:bg-black transition shadow-md font-black text-xs uppercase">
+                            {isFullscreen ? (
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsFullscreen(false)} 
+                                    className="px-4 py-3 bg-amber-600 text-white rounded-2xl flex items-center hover:bg-amber-700 transition shadow-md font-black text-xs uppercase"
+                                    title="Thoát chế độ POS toàn màn hình (hoặc bấm phím Esc)"
+                                >
+                                    <Minimize2 size={16} className="mr-2"/> THOÁT POS
+                                </button>
+                            ) : (
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsFullscreen(true)} 
+                                    className="px-4 py-3 bg-slate-800 text-white rounded-2xl flex items-center hover:bg-black transition shadow-md font-black text-xs uppercase"
+                                    title="Bật giao diện POS bán hàng mở rộng"
+                                >
                                     <Maximize2 size={16} className="mr-2"/> POS
                                 </button>
                             )}
@@ -1293,10 +1317,10 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                 </div>
                                             );
                                         })}
-                                        {sale.shippingFee > 0 && (
+                                        {(sale.shippingFee || 0) > 0 && (
                                             <div className="flex justify-between items-center pt-1 border-t border-dashed border-slate-200">
                                                 <span className="text-[10px] font-black text-slate-400 uppercase">Phí vận chuyển:</span>
-                                                <span className="text-[10px] font-black text-black">{formatNumber(sale.shippingFee)} ₫</span>
+                                                <span className="text-[10px] font-black text-black">{formatNumber(sale.shippingFee || 0)} ₫</span>
                                             </div>
                                         )}
                                     </div>
