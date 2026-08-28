@@ -202,7 +202,10 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                     </div>
                   </div>
                   {app.badgeCount && app.badgeCount > 0 ? (
-                    <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                    <span 
+                      className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm"
+                      title={`${app.badgeCount} đơn mới. Bấm để mở và đánh dấu đã đọc.`}
+                    >
                       {app.badgeCount}
                     </span>
                   ) : null}

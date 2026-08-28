@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, onSnapshot as onDocSnapshot, setDoc, collection, query, where, onSnapshot, getDocs, collectionGroup, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot as onDocSnapshot, setDoc, collection, query, where, onSnapshot, getDocs, collectionGroup, updateDoc, Timestamp } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from './services/firebase';
 import FirebaseSetupGuide from './components/FirebaseSetupGuide';
 import ProductManagement from './components/ProductManagement';
@@ -254,37 +254,77 @@ const App: React.FC = () => {
   }, []);
 
 
+  const getInitialTimestamp = (key: string) => {
+    try {
+      const val = localStorage.getItem(key);
+      if (val) {
+        const num = parseInt(val, 10);
+        if (!isNaN(num) && num > 0) return num;
+      }
+    } catch (e) {
+      console.warn('LocalStorage read error:', e);
+    }
+    return Date.now();
+  };
+
   const [unreadSalesCount, setUnreadSalesCount] = useState(0);
   const [unreadReceiptsCount, setUnreadReceiptsCount] = useState(0);
 
-  const [lastViewedSales, setLastViewedSales] = useState(() => parseInt(localStorage.getItem('lastViewedSales') || Date.now().toString()));
-  const [lastViewedReceipts, setLastViewedReceipts] = useState(() => parseInt(localStorage.getItem('lastViewedReceipts') || Date.now().toString()));
+  const [lastViewedSales, setLastViewedSales] = useState<number>(() => getInitialTimestamp('lastViewedSales'));
+  const [lastViewedReceipts, setLastViewedReceipts] = useState<number>(() => getInitialTimestamp('lastViewedReceipts'));
+
+  const markSalesAsRead = useCallback(() => {
+    const now = Date.now();
+    setLastViewedSales(now);
+    setUnreadSalesCount(0);
+    try {
+      localStorage.setItem('lastViewedSales', now.toString());
+    } catch (e) {
+      console.warn('LocalStorage save error:', e);
+    }
+  }, []);
+
+  const markReceiptsAsRead = useCallback(() => {
+    const now = Date.now();
+    setLastViewedReceipts(now);
+    setUnreadReceiptsCount(0);
+    try {
+      localStorage.setItem('lastViewedReceipts', now.toString());
+    } catch (e) {
+      console.warn('LocalStorage save error:', e);
+    }
+  }, []);
 
   useEffect(() => {
-      if (view === 'sales') {
-          const now = Date.now();
-          setLastViewedSales(now);
-          localStorage.setItem('lastViewedSales', now.toString());
-      }
-      if (view === 'goodsReceipt') {
-          const now = Date.now();
-          setLastViewedReceipts(now);
-          localStorage.setItem('lastViewedReceipts', now.toString());
-      }
-  }, [view]);
+    if (view === 'sales') {
+      markSalesAsRead();
+    } else if (view === 'goodsReceipt') {
+      markReceiptsAsRead();
+    }
+  }, [view, markSalesAsRead, markReceiptsAsRead]);
 
   useEffect(() => {
-      if (!user) return;
-      const q = query(collection(db, 'sales'), where('createdAt', '>', new Date(lastViewedSales)));
-      const unsub = onSnapshot(q, (snap) => setUnreadSalesCount(snap.docs.length));
-      return () => unsub();
+    if (!user) return;
+    const safeTime = (!isNaN(lastViewedSales) && lastViewedSales > 0) ? lastViewedSales : Date.now();
+    const q = query(collection(db, 'sales'), where('createdAt', '>', Timestamp.fromMillis(safeTime)));
+    const unsub = onSnapshot(q, (snap) => {
+      setUnreadSalesCount(snap.docs.length);
+    }, (err) => {
+      console.warn('Sales unread listener notice:', err);
+    });
+    return () => unsub();
   }, [user, lastViewedSales]);
 
   useEffect(() => {
-      if (!user) return;
-      const q = query(collection(db, 'goodsReceipts'), where('createdAt', '>', new Date(lastViewedReceipts)));
-      const unsub = onSnapshot(q, (snap) => setUnreadReceiptsCount(snap.docs.length));
-      return () => unsub();
+    if (!user) return;
+    const safeTime = (!isNaN(lastViewedReceipts) && lastViewedReceipts > 0) ? lastViewedReceipts : Date.now();
+    const q = query(collection(db, 'goodsReceipts'), where('createdAt', '>', Timestamp.fromMillis(safeTime)));
+    const unsub = onSnapshot(q, (snap) => {
+      setUnreadReceiptsCount(snap.docs.length);
+    }, (err) => {
+      console.warn('Receipts unread listener notice:', err);
+    });
+    return () => unsub();
   }, [user, lastViewedReceipts]);
 
   useEffect(() => {
@@ -334,8 +374,8 @@ const App: React.FC = () => {
     switch (view) {
       case 'dashboard': return <Dashboard />;
       case 'products': return <ProductManagement userRole={userRole} />;
-      case 'sales': return <SalesTerminal userRole={userRole} user={user} />;
-      case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} />;
+      case 'sales': return <SalesTerminal userRole={userRole} user={user} unreadCount={unreadSalesCount} onMarkAsRead={markSalesAsRead} />;
+      case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} onMarkAsRead={markReceiptsAsRead} />;
       case 'manufacturers': return <ManufacturerManagement />;
       case 'suppliers': return <SupplierManagement />;
       case 'customers': return <CustomerManagement />;
@@ -382,7 +422,11 @@ const App: React.FC = () => {
 
     const handleClick = () => {
         if(onClick) onClick();
-        if (!disabled) setView(targetView);
+        if (!disabled) {
+            if (targetView === 'sales') markSalesAsRead();
+            if (targetView === 'goodsReceipt') markReceiptsAsRead();
+            setView(targetView);
+        }
     }
 
     return (
@@ -446,6 +490,8 @@ const App: React.FC = () => {
         onToggleViewMode={() => setViewMode('classic')}
         unreadSalesCount={unreadSalesCount}
         unreadReceiptsCount={unreadReceiptsCount}
+        onMarkSalesAsRead={markSalesAsRead}
+        onMarkReceiptsAsRead={markReceiptsAsRead}
         initialView={view === 'home' ? 'sales' : view}
       />
     );

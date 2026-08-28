@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Archive, History, Table, GitCommit } from 'lucide-react';
 import CreateGoodsReceipt from './CreateGoodsReceipt';
 import InventoryMatrix from './InventoryMatrix';
@@ -9,8 +9,16 @@ import { User } from 'firebase/auth';
 
 type GoodsReceiptView = 'create' | 'inventory' | 'history' | 'transfers';
 
-const GoodsReceiptPage: React.FC<{ userRole: 'admin' | 'staff' | null, user: User | null }> = ({ userRole, user }) => {
+const GoodsReceiptPage: React.FC<{ 
+    userRole: 'admin' | 'staff' | null, 
+    user: User | null,
+    onMarkAsRead?: () => void 
+}> = ({ userRole, user, onMarkAsRead }) => {
     const [activeTab, setActiveTab] = useState<GoodsReceiptView>('create');
+
+    useEffect(() => {
+        onMarkAsRead?.();
+    }, [activeTab, onMarkAsRead]);
 
     const isAdmin = userRole === 'admin';
 

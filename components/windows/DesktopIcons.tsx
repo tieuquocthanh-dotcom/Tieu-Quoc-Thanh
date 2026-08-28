@@ -55,7 +55,10 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
             </div>
 
             {app.badgeCount && app.badgeCount > 0 ? (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full border-2 border-slate-900 shadow-md">
+              <span 
+                className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full border-2 border-slate-900 shadow-md animate-pulse"
+                title={`${app.badgeCount} đơn mới. Nhấp để mở và đánh dấu đã đọc.`}
+              >
                 {app.badgeCount > 99 ? '99+' : app.badgeCount}
               </span>
             ) : null}

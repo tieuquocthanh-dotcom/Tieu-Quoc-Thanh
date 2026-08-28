@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, where, increment, collectionGroup, addDoc, Timestamp, updateDoc, getDocs, limit, arrayUnion, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, SaleItem, Customer, Warehouse, PaymentMethod, Shipper, Sale, Supplier, Manufacturer } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import SalesHistory from './SalesHistory';
 import CustomerModal from './CustomerModal';
@@ -1336,12 +1336,36 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   );
 };
 
-const SalesTerminal: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuthUser | null }> = ({ userRole, user }) => {
+const SalesTerminal: React.FC<{ 
+  userRole: 'admin' | 'staff' | null, 
+  user: FirebaseAuthUser | null,
+  unreadCount?: number,
+  onMarkAsRead?: () => void
+}> = ({ userRole, user, unreadCount = 0, onMarkAsRead }) => {
     const [activeTab, setActiveTab] = useState<'pos' | 'history' | 'items'>('pos');
+
+    // Automatically mark sales as read whenever the terminal is opened or tab changed
+    useEffect(() => {
+        onMarkAsRead?.();
+    }, [activeTab, onMarkAsRead]);
+
     return (
         <div className="flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2 flex-shrink-0">
-                 <h1 className="text-3xl font-black text-dark uppercase tracking-tighter">Bán hàng</h1>
+                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                     <h1 className="text-2xl sm:text-3xl font-black text-dark uppercase tracking-tighter">Bán hàng</h1>
+                     {unreadCount > 0 && (
+                         <button
+                             type="button"
+                             onClick={() => onMarkAsRead?.()}
+                             className="flex items-center gap-1.5 px-3 py-1 bg-red-600 hover:bg-red-700 active:scale-95 text-white rounded-full text-xs font-bold transition shadow-sm cursor-pointer hover:scale-105"
+                             title="Nhấp để xóa thông báo và đánh dấu đã xem tất cả đơn hàng mới"
+                         >
+                             <CheckCheck size={14} />
+                             <span>{unreadCount} đơn mới &bull; Đã đọc</span>
+                         </button>
+                     )}
+                 </div>
                  <div className="border-b border-slate-200 w-full md:w-auto overflow-x-auto"><nav className="flex space-x-2"><button onClick={() => setActiveTab('pos')} className={`flex items-center space-x-2 px-4 py-2 text-sm font-black uppercase tracking-tighter border-b-2 transition-all ${activeTab === 'pos' ? 'text-primary border-primary' : 'text-neutral border-transparent'}`}><ShoppingCart size={18} /><span className="hidden md:inline">Bán Hàng</span></button><button onClick={() => setActiveTab('history')} className={`flex items-center space-x-2 px-4 py-2 text-sm font-black uppercase tracking-tighter border-b-2 transition-all ${activeTab === 'history' ? 'text-primary border-primary' : 'text-neutral border-transparent'}`}><History size={18} /><span className="hidden md:inline">Lịch Sử</span></button><button onClick={() => setActiveTab('items')} className={`flex items-center space-x-2 px-4 py-2 text-sm font-black uppercase tracking-tighter border-b-2 transition-all ${activeTab === 'items' ? 'text-primary border-primary' : 'text-neutral border-transparent'}`}><List size={18} /><span className="hidden md:inline">Chi Tiết</span></button></nav></div>
             </div>
             <div className="mt-2">{activeTab === 'pos' && <POSView userRole={userRole} user={user} />}{activeTab === 'history' && <SalesHistory userRole={userRole} />}{activeTab === 'items' && <ProductSalesHistory userRole={userRole} />}</div>

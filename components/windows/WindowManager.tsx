@@ -50,6 +50,8 @@ interface WindowManagerProps {
   onToggleViewMode: () => void;
   unreadSalesCount: number;
   unreadReceiptsCount: number;
+  onMarkSalesAsRead?: () => void;
+  onMarkReceiptsAsRead?: () => void;
   initialView?: View;
 }
 
@@ -64,6 +66,8 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
   onToggleViewMode,
   unreadSalesCount,
   unreadReceiptsCount,
+  onMarkSalesAsRead,
+  onMarkReceiptsAsRead,
   initialView = 'sales',
 }) => {
   const [windows, setWindows] = useState<WindowState[]>([]);
@@ -368,6 +372,12 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
 
   // Open App as a Window
   const openApp = useCallback((view: View) => {
+    if (view === 'sales') {
+      onMarkSalesAsRead?.();
+    } else if (view === 'goodsReceipt') {
+      onMarkReceiptsAsRead?.();
+    }
+
     const appDef = appDefinitions.find(a => a.id === view);
     if (!appDef) return;
 
@@ -428,6 +438,15 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
   // Focus a window
   const focusWindow = useCallback((id: string) => {
     setActiveWindowId(id);
+    setWindows(curr => {
+      const target = curr.find(w => w.id === id);
+      if (target?.view === 'sales') {
+        onMarkSalesAsRead?.();
+      } else if (target?.view === 'goodsReceipt') {
+        onMarkReceiptsAsRead?.();
+      }
+      return curr;
+    });
     setMaxZIndex(prev => {
       const nextZ = prev >= 500 ? 10 : prev + 1;
       setWindows(curr =>
@@ -439,7 +458,18 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       );
       return nextZ;
     });
-  }, []);
+  }, [onMarkSalesAsRead, onMarkReceiptsAsRead]);
+
+  // Sync mark as read when active window is sales or goods receipt
+  useEffect(() => {
+    if (!activeWindowId) return;
+    const activeWin = windows.find(w => w.id === activeWindowId && !w.isMinimized);
+    if (activeWin?.view === 'sales') {
+      onMarkSalesAsRead?.();
+    } else if (activeWin?.view === 'goodsReceipt') {
+      onMarkReceiptsAsRead?.();
+    }
+  }, [activeWindowId, windows, onMarkSalesAsRead, onMarkReceiptsAsRead]);
 
   // Minimize a window
   const minimizeWindow = useCallback((id: string) => {
@@ -576,8 +606,8 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
     switch (view) {
       case 'dashboard': return <Dashboard />;
       case 'products': return <ProductManagement userRole={userRole} />;
-      case 'sales': return <SalesTerminal userRole={userRole} user={user} />;
-      case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} />;
+      case 'sales': return <SalesTerminal userRole={userRole} user={user} unreadCount={unreadSalesCount} onMarkAsRead={onMarkSalesAsRead} />;
+      case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} onMarkAsRead={onMarkReceiptsAsRead} />;
       case 'manufacturers': return <ManufacturerManagement />;
       case 'suppliers': return <SupplierManagement />;
       case 'customers': return <CustomerManagement />;
@@ -603,7 +633,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       case 'notes': return <NoteManagement user={user} />;
       case 'savings': return <SavingsManagement user={user} />;
       case 'restockPredictions': return <RestockPredictions />;
-      default: return <SalesTerminal userRole={userRole} user={user} />;
+      default: return <SalesTerminal userRole={userRole} user={user} unreadCount={unreadSalesCount} onMarkAsRead={onMarkSalesAsRead} />;
     }
   };
 
