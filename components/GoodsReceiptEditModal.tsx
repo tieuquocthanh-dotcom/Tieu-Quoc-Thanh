@@ -514,7 +514,7 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
 
                     <div className="p-3 border-b border-slate-200 bg-slate-50">
                         <div className="relative" ref={productDropdownRef}>
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                             <input
                                 type="text"
                                 value={productSearchTerm}
@@ -524,8 +524,21 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                                 }}
                                 onFocus={() => setIsProductDropdownOpen(true)}
                                 placeholder="Gõ tên sản phẩm để thêm vào đơn hàng..."
-                                className="w-full pl-10 pr-3 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold text-slate-900 bg-white"
+                                className="w-full pl-10 pr-9 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold text-slate-900 bg-white"
                             />
+                            {productSearchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setProductSearchTerm('');
+                                        setIsProductDropdownOpen(false);
+                                    }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-200 hover:bg-slate-300 active:scale-90 text-slate-600 hover:text-black transition"
+                                    title="Xóa nội dung"
+                                >
+                                    <X size={14} className="stroke-[2.5]" />
+                                </button>
+                            )}
                             {isProductDropdownOpen && (
                                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
                                     {filteredProducts.map(p => (

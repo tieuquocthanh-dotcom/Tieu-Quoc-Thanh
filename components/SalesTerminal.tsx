@@ -390,6 +390,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [todaySales, setTodaySales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [todaySalesSearchTerm, setTodaySalesSearchTerm] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -1057,8 +1058,29 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                         </div>
                         <div className="flex gap-2 shrink-0">
                             <div className="relative flex-1">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={20}/>
-                                <input type="text" placeholder="GÕ TÊN SẢN PHẨM ĐỂ BÁN..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-yellow-50 border-4 border-slate-800 rounded-2xl focus:border-primary outline-none font-black text-base text-black shadow-[4px_4px_0px_#0f172a]" />
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={20}/>
+                                <input 
+                                    ref={searchInputRef}
+                                    type="text" 
+                                    placeholder="GÕ TÊN SẢN PHẨM ĐỂ BÁN..." 
+                                    value={searchTerm} 
+                                    onChange={e => setSearchTerm(e.target.value)} 
+                                    className="w-full pl-12 pr-12 py-3.5 bg-yellow-50 border-4 border-slate-800 rounded-2xl focus:border-primary outline-none font-black text-base text-black shadow-[4px_4px_0px_#0f172a]" 
+                                />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            searchInputRef.current?.focus();
+                                        }}
+                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 hover:bg-slate-300 active:scale-90 text-slate-700 hover:text-black transition shadow-sm cursor-pointer z-10"
+                                        title="Xóa nội dung tìm kiếm (X)"
+                                        aria-label="Xóa nội dung tìm kiếm"
+                                    >
+                                        <X size={18} className="stroke-[3]" />
+                                    </button>
+                                )}
                             </div>
                             {isAdmin && (
                                 <button 

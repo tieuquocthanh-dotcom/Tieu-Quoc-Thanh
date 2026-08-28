@@ -585,15 +585,28 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                 <div className="bg-slate-900 p-4 rounded-xl border-4 border-slate-800 shadow-lg">
                     <div className="flex gap-2 relative">
                         <div className="flex-1 relative" ref={prodDropdownRef}>
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={20} />
                             <input 
                                 type="text"
                                 value={prodSearch}
                                 onChange={(e) => { setProdSearch(e.target.value); setIsProdDropdownOpen(true); }}
                                 onFocus={() => setIsProdDropdownOpen(true)}
                                 placeholder="THÊM SẢN PHẨM MỚI..."
-                                className="w-full pl-10 pr-4 py-3 bg-black border-2 border-slate-700 rounded-xl text-white font-black text-sm outline-none focus:border-primary shadow-inner placeholder-slate-600"
+                                className="w-full pl-10 pr-10 py-3 bg-black border-2 border-slate-700 rounded-xl text-white font-black text-sm outline-none focus:border-primary shadow-inner placeholder-slate-600"
                             />
+                            {prodSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setProdSearch('');
+                                        setIsProdDropdownOpen(false);
+                                    }}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-700 hover:bg-slate-600 active:scale-90 text-slate-300 hover:text-white transition"
+                                    title="Xóa nội dung"
+                                >
+                                    <X size={14} className="stroke-[2.5]" />
+                                </button>
+                            )}
                             {isProdDropdownOpen && prodSearch && (
                                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto">
                                     {filteredProducts.length === 0 ? (
