@@ -39,7 +39,7 @@ const UpdateShippingModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-4 border-slate-800 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
                 <div className="bg-blue-100 p-4 flex justify-between items-center border-b border-slate-200">
                     <h3 className="font-black text-black uppercase text-sm flex items-center">
                         <Truck size={18} className="mr-2 text-blue-600"/> {sale.shippingStatus === 'order' ? 'Xuất Kho' : 'Giao Hàng'}
@@ -111,7 +111,7 @@ const DebtPaymentModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-4 border-slate-800 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
                 <div className="bg-orange-100 p-4 flex justify-between items-center border-b border-slate-200">
                     <h3 className="font-black text-black uppercase text-sm flex items-center">
                         <Wallet size={18} className="mr-2 text-orange-600"/> Thu nợ khách hàng

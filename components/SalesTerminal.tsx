@@ -16,6 +16,7 @@ import InventoryLedger from './InventoryLedger';
 import { ProductModal } from './ProductManagement';
 import { ShipperModal } from './ShippingManagement';
 import { User as FirebaseAuthUser } from 'firebase/auth';
+import { StockStatusBadge } from './StockStatusBadge';
 
 const NumericInput: React.FC<{
     value: number;
@@ -143,7 +144,7 @@ const QuickImportModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-4 border-slate-800 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
                 <div className="bg-green-600 p-4 text-white flex justify-between items-center">
                     <h3 className="font-black uppercase text-sm flex items-center"><DownloadCloud className="mr-2" size={20}/> Nhập hàng nhanh</h3>
                     <button onClick={onClose}><X size={24}/></button>
@@ -285,79 +286,92 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
     useEffect(() => { setInputImportPrice(product.importPrice); }, [product.importPrice]);
 
     const top3Warehouses = warehouses.slice(0, 3);
+    const productInventory = detailedInventory[product.id] || {};
+    const totalStock = Object.values(productInventory).reduce((acc, qty) => acc + (typeof qty === 'number' ? qty : 0), 0);
 
     return (
-        <div className={`bg-white border-2 border-slate-200 rounded-xl p-3 hover:shadow-xl transition-all duration-200 flex flex-col justify-between relative group hover:border-primary ${isPOS ? 'h-full' : ''}`}>
+        <div className={`bg-white border border-slate-200/90 rounded-xl p-3 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between relative group hover:border-primary/50 ${isPOS ? 'h-full' : ''}`}>
             {product.isCombo && (
-                <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-br-lg font-black z-10 uppercase shadow-sm">COMBO</div>
+                <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-br-lg font-black z-10 uppercase shadow-2xs">COMBO</div>
             )}
-            <div className="mb-2 mt-3 flex justify-between items-start">
-                <div className="flex-1">
+            <div className="mb-2 mt-2 flex justify-between items-start">
+                <div className="flex-1 min-w-0">
                     <div 
-                        className={`font-black text-black leading-tight text-[12px] mb-1 cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'}`} 
+                        className={`font-bold text-slate-900 leading-tight text-[12px] mb-1 cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'}`} 
                         title={product.name}
                         onClick={() => setIsNameExpanded(!isNameExpanded)}
                     >
                         {product.name}
                         {product.shortName && (
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100/90 text-amber-900 text-[10px] font-bold rounded border border-amber-300 inline-block">
                                 {product.shortName}
                             </span>
                         )}
                     </div>
-                    <div className="grid grid-cols-3 gap-1 text-[9px] text-neutral font-bold mt-1">
-                        {top3Warehouses.map(w => (
-                            <div key={w.id} className="text-center">
-                                <div className="text-[8px] text-slate-400 uppercase truncate">{w.name}</div>
-                                <div className="text-primary">{(detailedInventory[product.id]?.[w.id] || 0)}</div>
-                            </div>
-                        ))}
+
+                    {/* Huy hiệu tồn kho trực quan theo mã màu */}
+                    <div className="my-1">
+                        <StockStatusBadge stock={totalStock} />
+                    </div>
+
+                    {/* Chi tiết từng kho */}
+                    <div className="grid grid-cols-3 gap-1 text-[9px] font-bold mt-1 bg-slate-50/80 p-1.5 rounded-lg border border-slate-100">
+                        {top3Warehouses.map(w => {
+                            const wStock = productInventory[w.id] || 0;
+                            const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
+                            return (
+                                <div key={w.id} className="text-center">
+                                    <div className="text-[8px] text-slate-400 uppercase truncate" title={w.name}>{w.name}</div>
+                                    <div className={colorClass}>{wStock}</div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
                 {!product.isCombo && (
-                    <div className="flex gap-1 ml-1">
+                    <div className="flex gap-1 ml-1.5 shrink-0">
                         {onQuickImport && (
                             <button 
                                 onClick={() => onQuickImport(product)} 
-                                className="p-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-600 hover:text-white transition shadow-sm"
+                                className="p-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-lg hover:bg-emerald-600 hover:text-white transition shadow-2xs"
                                 title="Nhập hàng nhanh"
                             >
-                                <DownloadCloud size={14}/>
+                                <DownloadCloud size={13}/>
                             </button>
                         )}
                         {onTransfer && (
                             <button 
                                 onClick={() => onTransfer(product)} 
-                                className="p-1.5 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-600 hover:text-white transition shadow-sm"
+                                className="p-1.5 bg-amber-50 text-amber-700 border border-amber-200/80 rounded-lg hover:bg-amber-600 hover:text-white transition shadow-2xs"
                                 title="Chuyển kho"
                             >
-                                <ArrowRightLeft size={14}/>
+                                <ArrowRightLeft size={13}/>
                             </button>
                         )}
                         {isAdmin && onCompare && (
                             <button 
                                 onClick={() => onCompare(product)} 
-                                className="p-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-sm"
+                                className="p-1.5 bg-purple-50 text-purple-700 border border-purple-200/80 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-2xs"
                                 title="So sánh giá nhập"
                             >
-                                <TrendingDown size={14}/>
+                                <TrendingDown size={13}/>
                             </button>
                         )}
                     </div>
                 )}
             </div>
-            <div className="space-y-1 mb-3">
+            <div className="space-y-1 mb-2.5">
                 {isAdmin && (
                     <div className="flex items-center gap-1">
                         <div className="relative flex-1">
                             <NumericInput 
                                 value={inputImportPrice}
                                 onChange={setInputImportPrice}
-                                className="w-full pl-6 pr-1 py-1 text-[10px] border bg-slate-50 text-slate-600 rounded font-black text-right outline-none focus:border-green-500"
+                                className="w-full pl-6 pr-1 py-1 text-[10px] border border-slate-200 bg-slate-50 text-slate-700 rounded-lg font-bold text-right outline-none focus:border-emerald-500 focus:bg-white shadow-2xs transition-colors"
                             />
-                            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 font-black">VỐN</span>
+                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 font-bold">VỐN</span>
                         </div>
-                        <button onClick={() => onUpdateImportPrice?.(product.id, inputImportPrice)} className="p-1 bg-slate-400 text-white rounded"><Save size={10}/></button>
+                        <button onClick={() => onUpdateImportPrice?.(product.id, inputImportPrice)} className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition" title="Lưu giá vốn"><Save size={11}/></button>
                     </div>
                 )}
                 <div className="flex items-center gap-1">
@@ -365,14 +379,35 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
                         <NumericInput 
                             value={inputPrice}
                             onChange={setInputPrice}
-                            className={`w-full pl-6 pr-1 py-1.5 text-base border-2 rounded-lg font-black text-right focus:ring-2 focus:ring-white outline-none transition-colors ${lastSoldPrice !== undefined ? 'bg-orange-50 border-orange-600 text-black' : 'bg-black border-black text-white'}`}
+                            className={`w-full pl-6 pr-1 py-1.5 text-base border rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none shadow-2xs transition-colors ${lastSoldPrice !== undefined ? 'bg-amber-50/80 border-amber-400 text-amber-950 focus:border-amber-500' : 'bg-slate-900 border-slate-800 text-white focus:border-primary'}`}
                         />
-                        <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-[9px] font-black ${lastSoldPrice !== undefined ? 'text-orange-600' : 'text-white/70'}`}>BÁN</span>
+                        <span className={`absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold ${lastSoldPrice !== undefined ? 'text-amber-700' : 'text-slate-400'}`}>BÁN</span>
                     </div>
-                    {isAdmin && (<button onClick={() => onUpdatePrice?.(product.id, inputPrice)} className="p-1 bg-slate-800 text-white rounded"><Save size={16}/></button>)}
+                    {isAdmin && (<button onClick={() => onUpdatePrice?.(product.id, inputPrice)} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition shadow-2xs" title="Lưu giá bán"><Save size={14}/></button>)}
                 </div>
             </div>
-            <div className="flex space-x-2"><input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg text-center font-black ${shippingMode === 'shipped' && inputQty > (detailedInventory[product.id]?.[warehouses.find(w => w.name === 'Ngoài CH')?.id || ''] || 0) ? 'border-red-500' : 'border-slate-200'}`} /><button onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice, false)} className="flex-1 py-2 bg-primary text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center gap-1"><Plus size={14}/> THÊM</button><button onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice, true)} className="px-3 py-2 bg-slate-800 text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center hover:bg-slate-700 transition" title="Thêm tiếp mặt hàng này (không xóa ô tìm kiếm)"><Plus size={14}/></button></div>
+            <div className="flex space-x-1.5">
+                <input 
+                    type="number" 
+                    value={inputQty} 
+                    onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} 
+                    onFocus={(e) => e.target.select()} 
+                    className={`w-12 px-1 py-2 text-xs border bg-slate-50 text-slate-900 rounded-lg text-center font-bold outline-none focus:border-primary focus:bg-white shadow-2xs transition-colors ${shippingMode === 'shipped' && inputQty > (detailedInventory[product.id]?.[warehouses.find(w => w.name === 'Ngoài CH')?.id || ''] || 0) ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200'}`} 
+                />
+                <button 
+                    onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice, false)} 
+                    className="flex-1 py-2 bg-primary hover:bg-primary/90 text-white text-[10px] font-bold rounded-lg shadow-xs hover:shadow-sm transition-all flex items-center justify-center gap-1 active:scale-98"
+                >
+                    <Plus size={13}/> THÊM
+                </button>
+                <button 
+                    onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice, true)} 
+                    className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold rounded-lg shadow-xs hover:shadow-sm transition-all flex items-center justify-center active:scale-98" 
+                    title="Thêm tiếp mặt hàng này (không xóa ô tìm kiếm)"
+                >
+                    <Plus size={13}/>
+                </button>
+            </div>
         </div>
     );
 };
@@ -930,8 +965,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
         />
         {isLedgerModalOpen && (
             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[250] p-4">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border-4 border-slate-800">
-                    <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200">
+                    <div className="p-4 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
                         <h2 className="text-xl font-black uppercase tracking-tighter flex items-center">
                             <History className="mr-2" size={24} />
                             Truy vết biến động kho
@@ -1058,14 +1093,14 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                         </div>
                         <div className="flex gap-2 shrink-0">
                             <div className="relative flex-1">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={20}/>
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18}/>
                                 <input 
                                     ref={searchInputRef}
                                     type="text" 
                                     placeholder="GÕ TÊN SẢN PHẨM ĐỂ BÁN..." 
                                     value={searchTerm} 
                                     onChange={e => setSearchTerm(e.target.value)} 
-                                    className="w-full pl-12 pr-12 py-3.5 bg-yellow-50 border-4 border-slate-800 rounded-2xl focus:border-primary outline-none font-black text-base text-black shadow-[4px_4px_0px_#0f172a]" 
+                                    className="w-full pl-11 pr-11 py-3 bg-amber-50/70 border border-amber-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none font-bold text-base text-slate-900 shadow-sm transition-all placeholder:text-slate-400" 
                                 />
                                 {searchTerm && (
                                     <button
@@ -1074,40 +1109,40 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                             setSearchTerm('');
                                             searchInputRef.current?.focus();
                                         }}
-                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 hover:bg-slate-300 active:scale-90 text-slate-700 hover:text-black transition shadow-sm cursor-pointer z-10"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-slate-200/80 hover:bg-slate-300 active:scale-90 text-slate-600 hover:text-slate-900 transition shadow-2xs cursor-pointer z-10"
                                         title="Xóa nội dung tìm kiếm (X)"
                                         aria-label="Xóa nội dung tìm kiếm"
                                     >
-                                        <X size={18} className="stroke-[3]" />
+                                        <X size={15} className="stroke-[2.5]" />
                                     </button>
                                 )}
                             </div>
                             {isAdmin && (
                                 <button 
                                     onClick={() => setIsProductModalOpen(true)} 
-                                    className="px-4 py-3 bg-green-600 text-white rounded-2xl flex items-center hover:bg-green-700 transition shadow-md font-black text-xs uppercase"
+                                    className="px-3.5 py-2.5 bg-emerald-600 text-white rounded-xl flex items-center hover:bg-emerald-700 transition shadow-sm font-bold text-xs uppercase"
                                     title="Tạo sản phẩm mới nhanh"
                                 >
-                                    <PlusCircle size={16} className="mr-2"/> TẠO SP
+                                    <PlusCircle size={15} className="mr-1.5"/> TẠO SP
                                 </button>
                             )}
                             {isFullscreen ? (
                                 <button 
                                     type="button"
                                     onClick={() => setIsFullscreen(false)} 
-                                    className="px-4 py-3 bg-amber-600 text-white rounded-2xl flex items-center hover:bg-amber-700 transition shadow-md font-black text-xs uppercase"
+                                    className="px-3.5 py-2.5 bg-amber-600 text-white rounded-xl flex items-center hover:bg-amber-700 transition shadow-sm font-bold text-xs uppercase"
                                     title="Thoát chế độ POS toàn màn hình (hoặc bấm phím Esc)"
                                 >
-                                    <Minimize2 size={16} className="mr-2"/> THOÁT POS
+                                    <Minimize2 size={15} className="mr-1.5"/> THOÁT POS
                                 </button>
                             ) : (
                                 <button 
                                     type="button"
                                     onClick={() => setIsFullscreen(true)} 
-                                    className="px-4 py-3 bg-slate-800 text-white rounded-2xl flex items-center hover:bg-black transition shadow-md font-black text-xs uppercase"
+                                    className="px-3.5 py-2.5 bg-slate-800 text-white rounded-xl flex items-center hover:bg-slate-900 transition shadow-sm font-bold text-xs uppercase"
                                     title="Bật giao diện POS bán hàng mở rộng"
                                 >
-                                    <Maximize2 size={16} className="mr-2"/> POS
+                                    <Maximize2 size={15} className="mr-1.5"/> POS
                                 </button>
                             )}
                         </div>
@@ -1117,66 +1152,66 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                 </div>
             </div>
             <div className={`flex flex-col ${isFullscreen ? 'lg:w-[35%]' : 'lg:w-2/5'}`}>
-                <div className="bg-white rounded-2xl shadow-xl flex flex-col border-2 border-slate-800 overflow-hidden flex-shrink-0 transition-all duration-300">
-                    <div className="bg-slate-800 p-3 text-white flex justify-between items-center flex-shrink-0">
-                        <h2 className="text-sm font-black flex items-center tracking-tighter uppercase"><ShoppingCart className="mr-1.5" size={18}/> Giỏ hàng</h2>
+                <div className="bg-white rounded-xl shadow-md flex flex-col border border-slate-200 overflow-hidden flex-shrink-0 transition-all duration-300">
+                    <div className="bg-slate-900 px-4 py-3 text-white flex justify-between items-center flex-shrink-0 border-b border-slate-800">
+                        <h2 className="text-sm font-bold flex items-center tracking-tight uppercase"><ShoppingCart className="mr-2" size={17}/> Giỏ hàng</h2>
                         <div className="flex gap-2">
                             {isAdmin && (
-                                <span className="bg-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black border border-blue-500 shadow-sm flex items-center">
+                                <span className="bg-blue-600/90 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-blue-500 shadow-2xs flex items-center">
                                     <ProfitIcon size={10} className="mr-1"/> LN: {formatNumber(totals.profit)} ₫
                                 </span>
                             )}
-                            <span className="bg-primary px-2 py-0.5 rounded-full text-[10px] font-black border border-blue-700">{cart.length} SP</span>
+                            <span className="bg-primary px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-blue-600">{cart.length} SP</span>
                         </div>
                     </div>
-                    <div className="p-2 space-y-1 bg-white border-b-2 border-slate-200 overflow-y-auto max-h-[300vh]">
-                    {cart.length === 0 ? <div className="h-20 flex flex-col items-center justify-center opacity-20"><ShoppingCart size={40} className="mb-2 text-black"/><p className="font-black text-[9px] text-black uppercase">Giỏ hàng trống</p></div> : cart.map((item, idx) => {
+                    <div className="p-2 space-y-1.5 bg-white border-b border-slate-200 overflow-y-auto max-h-[300vh]">
+                    {cart.length === 0 ? <div className="h-20 flex flex-col items-center justify-center opacity-30"><ShoppingCart size={36} className="mb-1 text-slate-600"/><p className="font-bold text-[10px] text-slate-500 uppercase">Giỏ hàng trống</p></div> : cart.map((item, idx) => {
                         const profit = (item.price - item.currentImportPrice) * item.quantity;
                         return (
-                        <div key={item.productId} className="bg-slate-50 p-3 rounded-xl border border-slate-200 animate-fade-in space-y-2">
+                        <div key={item.productId} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80 animate-fade-in space-y-2 shadow-2xs">
                             <div className="flex justify-between items-start gap-1">
-                                <span className="font-black text-primary text-[13px] truncate uppercase leading-tight flex-1">{idx+1}. {item.productName}</span>
+                                <span className="font-bold text-primary text-[13px] truncate uppercase leading-tight flex-1">{idx+1}. {item.productName}</span>
                                 <div className="flex items-center gap-1 shrink-0">
                                     <button 
                                         type="button"
                                         onClick={() => moveItemUp(idx)}
                                         disabled={idx === 0}
-                                        className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-sm active:scale-95"
+                                        className="p-1 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-2xs active:scale-95"
                                         title="Di chuyển lên trên"
                                     >
-                                        <ChevronUp size={14} strokeWidth={2.5}/>
+                                        <ChevronUp size={13} strokeWidth={2.5}/>
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => moveItemDown(idx)}
                                         disabled={idx === cart.length - 1}
-                                        className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-sm active:scale-95"
+                                        className="p-1 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-2xs active:scale-95"
                                         title="Di chuyển xuống dưới"
                                     >
-                                        <ChevronDown size={14} strokeWidth={2.5}/>
+                                        <ChevronDown size={13} strokeWidth={2.5}/>
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => setCart(cart.filter(i => i.productId !== item.productId))} 
-                                        className="text-slate-300 hover:text-red-500 p-1 transition-colors"
+                                        className="text-slate-400 hover:text-red-500 p-1 transition-colors"
                                         title="Xóa khỏi giỏ hàng"
                                     >
-                                        <X size={16}/>
+                                        <X size={15}/>
                                     </button>
                                 </div>
                             </div>
                             
                             <div className="flex items-center gap-2 justify-between">
                                 <div className="flex items-center space-x-1 shrink-0">
-                                    <button onClick={() => updateCartItem(item.productId, { quantity: Math.max(1, item.quantity - 1) })} className="p-1 bg-slate-300 text-black border rounded hover:bg-black transition-all"><Minus size={10}/></button>
+                                    <button onClick={() => updateCartItem(item.productId, { quantity: Math.max(1, item.quantity - 1) })} className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-all"><Minus size={11}/></button>
                                     <input 
                                       type="number" 
                                       value={item.quantity} 
                                       onChange={(e) => updateCartItem(item.productId, { quantity: Math.max(1, parseInt(e.target.value) || 0) })} 
                                       onFocus={(e) => e.target.select()}
-                                      className="w-16 text-center font-black text-lg text-primary bg-transparent border-none focus:ring-0 appearance-none p-0" 
+                                      className="w-14 text-center font-bold text-base text-primary bg-transparent border-none focus:ring-0 appearance-none p-0" 
                                     />
-                                    <button onClick={() => updateCartItem(item.productId, { quantity: item.quantity + 1 })} className="p-1 bg-slate-300 text-black border rounded hover:bg-black transition-all"><Plus size={10}/></button>
+                                    <button onClick={() => updateCartItem(item.productId, { quantity: item.quantity + 1 })} className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-all"><Plus size={11}/></button>
                                 </div>
 
                                 <div className="flex items-center gap-1 flex-1 min-w-0 max-w-[150px]">
@@ -1184,14 +1219,14 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                         <NumericInput 
                                             value={item.price} 
                                             onChange={(val) => updateCartItem(item.productId, { price: val })}
-                                            className="w-full pl-6 pr-1 py-1.5 text-right font-black text-base border-2 border-slate-800 rounded-lg focus:ring-2 focus:ring-primary outline-none text-white bg-slate-800 shadow-inner"
+                                            className="w-full pl-6 pr-1 py-1.5 text-right font-bold text-base border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/30 outline-none text-white bg-slate-900 shadow-2xs"
                                         />
-                                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-400 uppercase">Giá</span>
+                                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[8px] font-bold text-slate-400 uppercase">Giá</span>
                                     </div>
                                     {isAdmin && (
                                         <button 
                                             onClick={() => updateCartItem(item.productId, { updateSellingPrice: !item.updateSellingPrice })}
-                                            className={`p-1.5 rounded border transition-colors ${item.updateSellingPrice ? 'bg-slate-800 text-white border-black' : 'bg-white text-slate-400 border-slate-200'}`}
+                                            className={`p-1.5 rounded border transition-colors ${item.updateSellingPrice ? 'bg-slate-800 text-white border-slate-700' : 'bg-white text-slate-400 border-slate-200'}`}
                                             title="Cập nhật giá bán gốc khi lưu đơn"
                                         >
                                             <Save size={14}/>
@@ -1200,8 +1235,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 </div>
 
                                 <div className="text-right shrink-0">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase leading-none">Thành tiền</p>
-                                    <p className="text-lg font-black text-black leading-none mt-1">{formatNumber(item.price * item.quantity)} ₫</p>
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase leading-none">Thành tiền</p>
+                                    <p className="text-base font-bold text-slate-900 leading-none mt-1">{formatNumber(item.price * item.quantity)} ₫</p>
                                 </div>
                             </div>
 
@@ -1212,9 +1247,9 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                             <NumericInput 
                                                 value={item.currentImportPrice} 
                                                 onChange={(val) => updateCartItem(item.productId, { currentImportPrice: val })}
-                                                className="w-full pl-6 pr-1 py-0.5 text-right font-black text-[10px] border border-blue-200 rounded bg-blue-50/50 outline-none text-black"
+                                                className="w-full pl-6 pr-1 py-0.5 text-right font-bold text-[10px] border border-blue-200 rounded bg-blue-50/50 outline-none text-slate-800"
                                             />
-                                            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-black text-blue-400 uppercase">Vốn</span>
+                                            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-blue-400 uppercase">Vốn</span>
                                         </div>
                                         <button 
                                             onClick={() => updateCartItem(item.productId, { updateImportPrice: !item.updateImportPrice })}
@@ -1224,33 +1259,33 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                             <Save size={10}/>
                                         </button>
                                     </div>
-                                    <span className={`text-[10px] font-black ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    <span className={`text-[10px] font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                         LN: {formatNumber(profit)} ₫
                                     </span>
                                 </div>
                             )}
                         </div>
                     )})}
-                    <div className="p-3 bg-white flex-shrink-0 shadow-sm border-t border-slate-200">
+                    <div className="p-3 bg-white flex-shrink-0 shadow-2xs border-t border-slate-200">
                         <div className="grid grid-cols-2 gap-4 mb-3">
                           <div className="space-y-1">
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Phí vận chuyển</span>
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Phí vận chuyển</span>
                               <div className="relative">
                                   <NumericInput 
                                       value={shippingFee} 
                                       onChange={setShippingFee}
-                                      className="w-full px-3 py-2 border-2 border-slate-800 rounded-xl font-black text-lg text-right focus:ring-2 focus:ring-primary outline-none text-white bg-slate-800 shadow-inner"
+                                      className="w-full pl-8 pr-2 py-2 border border-slate-700 rounded-xl font-bold text-base text-right focus:ring-2 focus:ring-primary/30 outline-none text-white bg-slate-900 shadow-2xs"
                                   />
-                                  <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                                  <Truck size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"/>
                               </div>
                           </div>
                           <div className="text-right flex flex-col justify-end">
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng cộng (Đơn + Ship)</span>
-                              <span className="font-black text-primary leading-none text-3xl">{formatNumber(totals.revenue)}<span className="text-xs ml-0.5 font-black">₫</span></span>
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tổng cộng (Đơn + Ship)</span>
+                              <span className="font-black text-primary leading-none text-2xl sm:text-3xl">{formatNumber(totals.revenue)}<span className="text-xs ml-0.5 font-bold">₫</span></span>
                           </div>
                         </div>
-                        <button onClick={handleCheckout} disabled={isProcessing || cart.length === 0} className="w-full py-4 bg-white border-2 border-blue-600 text-blue-600 rounded-2xl font-black text-lg shadow-lg active:scale-95 disabled:bg-slate-200 flex items-center justify-center uppercase">
-                            {isProcessing ? <Loader className="animate-spin mr-2" size={20}/> : <Banknote className="mr-2" size={24}/>}
+                        <button onClick={handleCheckout} disabled={isProcessing || cart.length === 0} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base shadow-md active:scale-98 disabled:bg-slate-200 disabled:text-slate-400 transition-all flex items-center justify-center uppercase tracking-wide">
+                            {isProcessing ? <Loader className="animate-spin mr-2" size={20}/> : <Banknote className="mr-2" size={22}/>}
                             {(() => {
                                 const btnActualPaid = isDebt ? 0 : (amountPaidInput === '' ? totals.revenue : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
                                 if (isDebt || btnActualPaid === 0) return 'Ghi nợ 100%';
@@ -1260,16 +1295,16 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                         </button>
                     </div>
                   </div>
-                  <div className="p-3 bg-slate-100 border-t-4 border-slate-800 flex-1 overflow-y-auto pb-20">
+                  <div className="p-3 bg-slate-50 border-t border-slate-200 flex-1 overflow-y-auto pb-20">
                       <div className="space-y-3">
-                          <div className="bg-slate-900 p-3 rounded-xl border-2 border-slate-800 shadow-lg flex justify-between items-center text-white mb-2 sticky top-0 z-10">
+                          <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-700 shadow-md flex justify-between items-center text-white mb-2 sticky top-0 z-10">
                               <div className="flex flex-col">
-                                  <div className="flex items-center gap-2"><span className="text-[11px] font-black text-slate-400 uppercase tracking-tighter">Tổng đơn:</span><span className="text-xl font-black text-primary">{summaryToday.count}</span></div>
-                                  {isAdmin && (<div className="flex items-center gap-2"><span className="text-[11px] font-black text-slate-400 uppercase tracking-tighter">Lợi nhuận:</span><span className="text-xl font-black text-green-400">{formatNumber(summaryToday.profit)} ₫</span></div>)}
+                                  <div className="flex items-center gap-2"><span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Tổng đơn:</span><span className="text-xl font-black text-primary">{summaryToday.count}</span></div>
+                                  {isAdmin && (<div className="flex items-center gap-2"><span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Lợi nhuận:</span><span className="text-xl font-black text-emerald-400">{formatNumber(summaryToday.profit)} ₫</span></div>)}
                               </div>
                               {isAdmin && (
                                   <div className="text-right">
-                                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-tighter block">Doanh thu hôm nay</span>
+                                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight block">Doanh thu hôm nay</span>
                                       <span className="text-2xl font-black text-yellow-400">{formatNumber(summaryToday.revenue)} ₫</span>
                                   </div>
                               )}
@@ -1280,9 +1315,9 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                               <input 
                                   type="text" 
                                   placeholder="Tìm đơn hàng theo tên SP, KH, sdt..." 
-                                  value={todaySalesSearchTerm}
-                                  onChange={e => setTodaySalesSearchTerm(e.target.value)}
-                                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-black focus:border-primary focus:outline-none"
+                                  value={todaySalesSearchTerm} 
+                                  onChange={e => setTodaySalesSearchTerm(e.target.value)} 
+                                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none shadow-2xs"
                               />
                           </div>
 
@@ -1300,12 +1335,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                               if (sale.shippingStatus === 'pending') { shipLabel = "Chờ gởi"; shipColor = "bg-slate-200 text-red-600"; }
                               else if (sale.shippingStatus === 'order') { shipLabel = "Đặt hàng"; shipColor = "bg-red-600 text-white"; }
                               return (
-                                <div key={sale.id} className="bg-white border-2 border-slate-800 rounded-xl overflow-hidden shadow-sm">
-                                    <div className="bg-slate-800 p-2.5 text-white">
+                                <div key={sale.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all">
+                                    <div className="bg-slate-900 px-3 py-2 text-white border-b border-slate-800">
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-2 overflow-hidden">
-                                                <span className="text-[11px] font-black uppercase truncate bg-white/20 px-2 py-0.5 rounded leading-none">{sale.customerName}</span>
-                                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase shadow-sm ${shipColor}`}>{shipLabel}</span>
+                                                <span className="text-[11px] font-bold uppercase truncate bg-white/10 px-2 py-0.5 rounded leading-none">{sale.customerName}</span>
+                                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs ${shipColor}`}>{shipLabel}</span>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
                                                 <button onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>

@@ -280,8 +280,8 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
   return (
     <>
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col animate-fade-in-down overflow-hidden border-4 border-slate-800">
-            <div className="flex justify-between items-center p-4 border-b-2 border-slate-800 bg-slate-800 text-white flex-shrink-0">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col animate-fade-in-down overflow-hidden border border-slate-200">
+            <div className="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-900 text-white flex-shrink-0">
                 <h2 className="text-lg font-black uppercase tracking-tighter flex items-center">
                     <FileText className="mr-3 text-primary" size={20} /> Đơn hàng #{sale.id.substring(0, 8)}
                 </h2>

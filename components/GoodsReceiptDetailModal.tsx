@@ -240,7 +240,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
   return (
     <>
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-      <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in-down overflow-hidden border-4 border-slate-800">
+      <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in-down overflow-hidden border border-slate-200">
         <div className="flex justify-between items-center mb-4 pb-4 border-b">
           <h2 className="text-xl font-black text-dark flex items-center uppercase tracking-tighter">
             <FileText className="mr-3 text-primary" /> Chi Tiết Phiếu Nhập

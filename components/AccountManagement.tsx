@@ -36,7 +36,7 @@ const EditLogModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[250] animate-fade-in p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border-4 border-slate-800 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border border-slate-200 overflow-hidden">
                 <div className="p-4 flex justify-between items-center text-white font-black uppercase text-sm bg-blue-600">
                     <div className="flex items-center">
                         <Edit className="mr-2" size={20}/>
@@ -113,7 +113,7 @@ const EditBalanceModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border-4 border-slate-800 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border border-slate-200 overflow-hidden">
                 <div className="p-4 flex justify-between items-center text-white font-black uppercase text-sm bg-orange-600">
                     <div className="flex items-center">
                         <Edit className="mr-2" size={20}/>
@@ -193,7 +193,7 @@ const TransactionModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border-4 border-slate-800 flex flex-col overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border border-slate-200 flex flex-col overflow-hidden">
                 <div className={`p-4 flex justify-between items-center text-white font-black uppercase text-sm ${isDeposit ? 'bg-green-600' : 'bg-red-600'}`}>
                     <div className="flex items-center">
                         {isDeposit ? <PlusCircle className="mr-2" size={20}/> : <MinusCircle className="mr-2" size={20}/>}
@@ -276,7 +276,7 @@ const TransferModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border-4 border-slate-800 flex flex-col overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border border-slate-200 flex flex-col overflow-hidden">
                 <div className="p-4 flex justify-between items-center text-white font-black uppercase text-sm bg-blue-600">
                     <div className="flex items-center">
                         <ArrowRightLeft className="mr-2" size={20}/>
@@ -560,8 +560,8 @@ const HistoryModal: React.FC<{
                 message={<>Bạn có chắc chắn muốn xóa giao dịch này? <br/><span className="text-red-600 font-bold">Lưu ý: Số tiền sẽ được hoàn trả/trừ lại vào tài khoản tương ứng.</span></>} 
             />
 
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-fade-in-down border-4 border-slate-800 overflow-hidden">
-                <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-fade-in-down border border-slate-200 overflow-hidden">
+                <div className="p-4 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
                     <div className="flex items-center">
                         <History className="mr-2 text-primary" size={20}/>
                         <span className="font-black uppercase text-sm tracking-tighter">Nhật ký: {account.name}</span>
@@ -739,7 +739,7 @@ const AddAccountModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border-4 border-slate-800 flex flex-col overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down border border-slate-200 flex flex-col overflow-hidden">
                 <div className="p-4 flex justify-between items-center text-white font-black uppercase text-sm bg-primary">
                     <div className="flex items-center">
                         <PlusCircle className="mr-2" size={20}/>
@@ -1175,7 +1175,7 @@ const AccountManagement: React.FC = () => {
           <p className="text-neutral text-sm mt-1">Quản lý dòng tiền, số dư và chuyển khoản nội bộ.</p>
         </div>
         
-        <div className="bg-slate-900 p-6 rounded-3xl shadow-2xl border-4 border-slate-800 flex items-center space-x-6 min-w-[320px] transform hover:scale-105 transition-transform">
+        <div className="bg-slate-900 p-6 rounded-3xl shadow-xl border border-slate-700 flex items-center space-x-6 min-w-[320px] hover:border-slate-600 transition-all">
           <div className="p-4 bg-primary text-white rounded-2xl shadow-lg shadow-primary/30">
             <Wallet size={32}/>
           </div>

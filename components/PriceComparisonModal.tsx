@@ -131,8 +131,8 @@ const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({ isOpen, onC
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200 border-4 border-slate-800">
-                <div className="p-4 border-b-2 border-slate-800 flex justify-between items-center bg-slate-800 text-white">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200 border border-slate-200">
+                <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 text-white">
                     <div>
                         <h3 className="text-lg font-black uppercase tracking-tighter flex items-center">
                             <TrendingUp className="mr-2 text-primary" size={20}/>

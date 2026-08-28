@@ -9,6 +9,7 @@ import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
 import PriceComparisonModal from './PriceComparisonModal';
 import InventoryLedger from './InventoryLedger';
+import StockStatusBadge from './StockStatusBadge';
 import { ProductModal } from './ProductManagement';
 import { SupplierModal } from './SupplierManagement';
 import { SupplierBankSelector } from './SupplierBankSelector';
@@ -125,34 +126,39 @@ const ImportProductCard: React.FC<{
 
     // Get inventory for the first 3 warehouses
     const productInventory = detailedInventory[product.id] || {};
+    const totalStock = Object.values(productInventory).reduce((sum, v) => sum + (v || 0), 0);
     const topWarehouses = warehouses.slice(0, 3);
 
     return (
-        <div className="bg-white border-2 border-slate-200 rounded-xl p-3 hover:shadow-xl transition-all duration-200 flex flex-col justify-between relative group hover:border-primary h-full">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3 hover:shadow-md transition-all duration-200 flex flex-col justify-between relative group hover:border-primary/50 h-full shadow-2xs">
             {product.isCombo && (
-                <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-br-lg font-black z-10 uppercase shadow-sm">COMBO</div>
+                <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-br-lg font-bold z-10 uppercase shadow-2xs">COMBO</div>
             )}
-            <div className="mb-2 mt-3 flex justify-between items-start">
-                <div className="flex-1">
+            <div className="mb-2 mt-2 flex justify-between items-start">
+                <div className="flex-1 min-w-0 pr-1">
                     <div 
-                        className={`font-black text-black leading-tight text-[12px] mb-1 cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'}`}
+                        className={`font-bold text-slate-900 leading-tight text-[12px] mb-1 cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'}`}
                         title={product.name}
                         onClick={() => setIsNameExpanded(!isNameExpanded)}
                     >
                         {product.name}
                         {product.shortName && (
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded border border-amber-300/80 inline-block">
                                 {product.shortName}
                             </span>
                         )}
                     </div>
+
+                    <div className="flex items-center gap-1.5 my-1">
+                        <StockStatusBadge stock={totalStock} className="text-[10px]" />
+                    </div>
                     
                     {/* Inventory display for 3 warehouses */}
-                    <div className="grid grid-cols-3 gap-1 text-[9px] text-neutral font-bold mt-1">
+                    <div className="grid grid-cols-3 gap-1 text-[9px] font-medium mt-1 bg-slate-50/80 p-1.5 rounded-lg border border-slate-100">
                         {topWarehouses.map(w => (
                             <div key={w.id} className="text-center">
-                                <div className="text-[8px] text-slate-400 uppercase truncate">{w.name}</div>
-                                <div className="text-primary">{productInventory[w.id] || 0}</div>
+                                <div className="text-[8px] text-slate-400 uppercase truncate font-semibold">{w.name}</div>
+                                <div className="text-primary font-bold">{productInventory[w.id] || 0}</div>
                             </div>
                         ))}
                     </div>
@@ -163,7 +169,7 @@ const ImportProductCard: React.FC<{
                             <button 
                                 onClick={handleSaveBasePrice} 
                                 disabled={isSaving}
-                                className={`p-1.5 rounded-lg transition-all shadow-sm flex items-center justify-center h-7 w-7 ${lastSupplierPrice !== undefined ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-800 text-white hover:bg-black'}`}
+                                className={`p-1.5 rounded-lg transition-all shadow-2xs flex items-center justify-center h-7 w-7 ${lastSupplierPrice !== undefined ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-800 text-white hover:bg-slate-900'}`}
                                 title="Lưu thành giá vốn gốc của sản phẩm"
                             >
                                 {isSaving ? <Loader size={12} className="animate-spin"/> : <Save size={12}/>}
@@ -171,14 +177,14 @@ const ImportProductCard: React.FC<{
                         )}
                         <button 
                             onClick={() => onCompare?.(product)}
-                            className="p-1.5 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-600 hover:text-white transition shadow-sm flex items-center justify-center h-7 w-7"
+                            className="p-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-600 hover:text-white transition shadow-2xs border border-orange-200 flex items-center justify-center h-7 w-7"
                             title="So sánh giá nhập"
                         >
                             <TrendingUp size={12}/>
                         </button>
                         <button 
                             onClick={() => onTrace?.(product)}
-                            className="p-1.5 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-sm flex items-center justify-center h-7 w-7"
+                            className="p-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-2xs border border-purple-200 flex items-center justify-center h-7 w-7"
                             title="Truy vết tồn kho"
                         >
                             <History size={12}/>
@@ -186,22 +192,22 @@ const ImportProductCard: React.FC<{
                     </div>
                 )}
             </div>
-            <div className="space-y-1 mb-3">
+            <div className="space-y-1 mb-2">
                 <div className="flex items-center gap-1">
                     <div className="relative flex-1">
                         <NumericInput 
                             value={inputImportPrice}
                             onChange={setInputImportPrice}
-                            className={`w-full pl-6 pr-1 py-1.5 text-base border-2 rounded-lg font-black text-right focus:ring-2 focus:ring-white outline-none shadow-sm transition-colors ${lastSupplierPrice !== undefined ? 'bg-red-50 border-red-600 text-black' : 'bg-slate-900 border-black text-white'}`}
+                            className={`w-full pl-7 pr-2 py-1.5 text-sm border rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none shadow-2xs transition-colors ${lastSupplierPrice !== undefined ? 'bg-amber-50/60 border-amber-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'}`}
                         />
-                        <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-[9px] font-black ${lastSupplierPrice !== undefined ? 'text-red-600' : 'text-white/70'}`}>VỐN</span>
+                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold ${lastSupplierPrice !== undefined ? 'text-amber-700' : 'text-slate-400'}`}>VỐN</span>
                     </div>
                 </div>
             </div>
-            <div className="flex space-x-2">
-                <input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="w-12 px-1 py-2 text-xs border-2 bg-slate-50 text-black rounded-lg outline-none text-center font-black focus:border-primary border-slate-200" min="1" />
-                <button onClick={() => { onAdd(product, inputQty, inputImportPrice, false); setInputQty(1); }} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white text-[10px] font-black rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center uppercase tracking-tighter gap-1"><Plus size={14}/> Nhập</button>
-                <button onClick={() => { onAdd(product, inputQty, inputImportPrice, true); setInputQty(1); }} className="px-3 py-2 bg-slate-800 text-white text-[10px] font-black rounded-xl shadow-lg flex items-center justify-center hover:bg-slate-700 transition" title="Nhập tiếp mặt hàng này (không xóa ô tìm kiếm)"><Plus size={14}/></button>
+            <div className="flex space-x-1.5">
+                <input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="w-12 px-1 py-1.5 text-xs border border-slate-200 bg-slate-50 text-slate-900 rounded-lg outline-none text-center font-bold focus:border-primary focus:bg-white transition" min="1" />
+                <button onClick={() => { onAdd(product, inputQty, inputImportPrice, false); setInputQty(1); }} className="flex-1 py-1.5 bg-primary hover:bg-primary-hover text-white text-[11px] font-bold rounded-lg shadow-sm transition active:scale-95 flex items-center justify-center uppercase tracking-tight gap-1"><Plus size={13}/> Nhập</button>
+                <button onClick={() => { onAdd(product, inputQty, inputImportPrice, true); setInputQty(1); }} className="px-2.5 py-1.5 bg-slate-800 text-white text-[11px] font-bold rounded-lg shadow-sm flex items-center justify-center hover:bg-slate-900 transition active:scale-95" title="Nhập tiếp mặt hàng này (không xóa ô tìm kiếm)"><Plus size={13}/></button>
             </div>
         </div>
     );
@@ -710,14 +716,14 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                         </div>
                         <div className="flex gap-2 shrink-0">
                             <div className="relative flex-1">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={20}/>
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18}/>
                                 <input 
                                     ref={searchInputRef}
                                     type="text" 
                                     placeholder="GÕ TÊN SẢN PHẨM ĐỂ NHẬP..." 
                                     value={searchTerm} 
                                     onChange={e => setSearchTerm(e.target.value)} 
-                                    className="w-full pl-12 pr-12 py-3.5 bg-blue-50 border-4 border-slate-800 rounded-2xl focus:border-primary outline-none font-black text-base text-black shadow-[4px_4px_0px_#0f172a]" 
+                                    className="w-full pl-11 pr-11 py-3 bg-blue-50/70 border border-blue-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none font-bold text-base text-slate-900 shadow-sm transition-all placeholder:text-slate-400" 
                                 />
                                 {searchTerm && (
                                     <button
@@ -726,24 +732,24 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                             setSearchTerm('');
                                             searchInputRef.current?.focus();
                                         }}
-                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 hover:bg-slate-300 active:scale-90 text-slate-700 hover:text-black transition shadow-sm cursor-pointer z-10"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-slate-200/80 hover:bg-slate-300 active:scale-90 text-slate-600 hover:text-slate-900 transition shadow-2xs cursor-pointer z-10"
                                         title="Xóa nội dung tìm kiếm (X)"
                                         aria-label="Xóa nội dung tìm kiếm"
                                     >
-                                        <X size={18} className="stroke-[3]" />
+                                        <X size={15} className="stroke-[2.5]" />
                                     </button>
                                 )}
                             </div>
                             <button 
                                 onClick={() => setIsProductModalOpen(true)} 
-                                className="px-4 py-3 bg-green-600 text-white rounded-2xl flex items-center hover:bg-green-700 transition shadow-md font-black text-xs uppercase"
+                                className="px-3.5 py-2.5 bg-emerald-600 text-white rounded-xl flex items-center hover:bg-emerald-700 transition shadow-sm font-bold text-xs uppercase"
                                 title="Tạo sản phẩm mới nhanh"
                             >
-                                <PlusCircle size={16} className="mr-2"/> TẠO SP
+                                <PlusCircle size={15} className="mr-1.5"/> TẠO SP
                             </button>
                             {!isFullscreen && (
-                                <button onClick={() => setIsFullscreen(true)} className="px-4 py-3 bg-slate-800 text-white rounded-2xl flex items-center hover:bg-black transition shadow-md font-black text-xs uppercase">
-                                    <Maximize2 size={16} className="mr-2"/> POS
+                                <button onClick={() => setIsFullscreen(true)} className="px-3.5 py-2.5 bg-slate-800 text-white rounded-xl flex items-center hover:bg-slate-900 transition shadow-sm font-bold text-xs uppercase">
+                                    <Maximize2 size={15} className="mr-1.5"/> POS
                                 </button>
                             )}
                         </div>
@@ -780,25 +786,25 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                 </div>
             </div>
             <div className={`flex flex-col min-h-0 ${isFullscreen ? 'lg:w-[35%]' : 'lg:w-2/5'}`}>
-                <div className="bg-white rounded-2xl shadow-xl flex-1 flex flex-col overflow-hidden border-2 border-slate-800 overflow-y-auto">
-                    <div className="bg-slate-800 p-3 text-white flex justify-between items-center flex-shrink-0"><h2 className="text-sm font-black flex items-center uppercase uppercase"><Package className="mr-1.5" size={18}/> Giỏ hàng nhập</h2><span className="bg-primary px-2 py-0.5 rounded-full text-[10px] font-black">{receipt.length} SP</span></div>
-                    <div className="p-2 space-y-1 bg-white border-b-2 border-slate-200">
+                <div className="bg-white rounded-xl shadow-md flex-1 flex flex-col overflow-hidden border border-slate-200 overflow-y-auto">
+                    <div className="bg-slate-900 px-4 py-3 text-white flex justify-between items-center flex-shrink-0 border-b border-slate-800"><h2 className="text-sm font-bold flex items-center uppercase"><Package className="mr-1.5" size={18}/> Giỏ hàng nhập</h2><span className="bg-primary px-2.5 py-0.5 rounded-full text-[10px] font-bold">{receipt.length} SP</span></div>
+                    <div className="p-2 space-y-1.5 bg-white border-b border-slate-200">
                         {receipt.length === 0 ? (
-                            <div className="h-20 flex flex-col items-center justify-center opacity-20">
-                                <Archive size={40} className="mb-2 text-black"/>
-                                <p className="font-black text-[9px] text-black uppercase">Trống</p>
+                            <div className="h-20 flex flex-col items-center justify-center opacity-30">
+                                <Archive size={36} className="mb-1.5 text-slate-500"/>
+                                <p className="font-bold text-[10px] text-slate-500 uppercase">Trống</p>
                             </div>
                         ) : (
                             receipt.map((item, idx) => (
-                                <div key={item.productId} className={`bg-slate-50 p-3 rounded-xl border border-slate-200 animate-fade-in ${item.updateImportPrice ? 'border-blue-500 bg-blue-50' : ''}`}>
+                                <div key={item.productId} className={`bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80 animate-fade-in shadow-2xs ${item.updateImportPrice ? 'border-blue-400 bg-blue-50/40' : ''}`}>
                                     <div className="flex justify-between items-start mb-2 gap-1">
-                                        <span className="font-black text-primary text-base truncate uppercase leading-tight flex-1">{idx+1}. {item.productName}</span>
+                                        <span className="font-bold text-primary text-sm truncate uppercase leading-tight flex-1">{idx+1}. {item.productName}</span>
                                         <div className="flex items-center gap-1 shrink-0">
                                             <button 
                                                 type="button"
                                                 onClick={() => moveItemUp(idx)}
                                                 disabled={idx === 0}
-                                                className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-sm active:scale-95"
+                                                className="p-1 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-2xs active:scale-95"
                                                 title="Di chuyển lên trên"
                                             >
                                                 <ChevronUp size={14} strokeWidth={2.5}/>
@@ -807,7 +813,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                 type="button"
                                                 onClick={() => moveItemDown(idx)}
                                                 disabled={idx === receipt.length - 1}
-                                                className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-sm active:scale-95"
+                                                className="p-1 rounded bg-slate-200/80 hover:bg-slate-300 text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shadow-2xs active:scale-95"
                                                 title="Di chuyển xuống dưới"
                                             >
                                                 <ChevronDown size={14} strokeWidth={2.5}/>
@@ -815,77 +821,90 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                             <button 
                                                 type="button"
                                                 onClick={() => setReceipt(receipt.filter(i => i.productId !== item.productId))} 
-                                                className="text-slate-300 hover:text-red-500 p-1 transition-colors"
+                                                className="text-slate-400 hover:text-red-500 p-1 transition-colors"
                                                 title="Xóa khỏi đơn"
                                             >
                                                 <X size={16}/>
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 items-center mb-2">
-                                        <div className="flex items-center space-x-2">
-                                            <button onClick={() => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, quantity: i.quantity - 1} : i).filter(i => i.quantity > 0))} className="p-1.5 bg-slate-300 text-black border rounded hover:bg-black transition-all"><Minus size={12}/></button>
+                                    <div className="grid grid-cols-2 gap-3 items-center mb-2">
+                                        <div className="flex items-center space-x-1.5">
+                                            <button onClick={() => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, quantity: i.quantity - 1} : i).filter(i => i.quantity > 0))} className="p-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-all active:scale-95"><Minus size={12}/></button>
                                             <input 
                                                 type="number" 
                                                 value={item.quantity} 
                                                 onChange={(e) => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, quantity: Math.max(0, parseInt(e.target.value) || 0)} : i))}
                                                 onFocus={(e) => e.target.select()}
-                                                className="w-12 text-center font-black text-xl text-primary bg-transparent border-none focus:ring-0 appearance-none p-0" 
+                                                className="w-12 text-center font-bold text-lg text-primary bg-transparent border-none focus:ring-0 appearance-none p-0" 
                                             />
-                                            <button onClick={() => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, quantity: i.quantity + 1} : i))} className="p-1.5 bg-slate-300 text-black border rounded hover:bg-black transition-all"><Plus size={12}/></button>
+                                            <button onClick={() => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, quantity: i.quantity + 1} : i))} className="p-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-all active:scale-95"><Plus size={12}/></button>
                                         </div>
                                         <div className="text-right relative">
-                                            <NumericInput value={item.importPrice} onChange={(val) => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, importPrice: val} : i))} className="w-full p-1.5 border-2 border-slate-800 rounded font-black text-right focus:border-primary outline-none text-white bg-slate-900" />
-                                            <p className="text-[10px] font-black text-neutral mt-1">Tổng: {formatNumber(item.importPrice * item.quantity)} ₫</p>
+                                            <NumericInput value={item.importPrice} onChange={(val) => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, importPrice: val} : i))} className="w-full p-1.5 border border-slate-700 rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none text-white bg-slate-900 text-sm shadow-2xs" />
+                                            <p className="text-[10px] font-bold text-slate-500 mt-1">Tổng: {formatNumber(item.importPrice * item.quantity)} ₫</p>
                                         </div>
                                     </div>
                                     {isAdmin && (
-                                        <div className={`flex items-center mt-1 p-1 rounded border-2 cursor-pointer transition-all ${item.updateImportPrice ? 'bg-blue-600 text-white border-blue-700' : 'bg-white border-slate-200 text-slate-400'}`}>
-                                            <input type="checkbox" id={`pos-up-imp-${item.productId}`} checked={item.updateImportPrice} onChange={e => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, updateImportPrice: e.target.checked} : i))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-0 mr-1.5" />
-                                            <label htmlFor={`pos-up-imp-${item.productId}`} className="text-[9px] font-black uppercase flex-1">Cập nhật giá gốc</label>
+                                        <div className={`flex items-center mt-1 p-1 rounded-lg border cursor-pointer transition-all ${item.updateImportPrice ? 'bg-blue-50 border-blue-300 text-blue-800 font-bold' : 'bg-white border-slate-200 text-slate-500'}`}>
+                                            <input type="checkbox" id={`pos-up-imp-${item.productId}`} checked={item.updateImportPrice} onChange={e => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, updateImportPrice: e.target.checked} : i))} className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-0 mr-1.5" />
+                                            <label htmlFor={`pos-up-imp-${item.productId}`} className="text-[9px] font-bold uppercase flex-1 cursor-pointer">Cập nhật giá gốc</label>
                                         </div>
                                     )}
                                 </div>
                             ))
                         )}
                     </div>
-                    <div className="p-3 bg-white flex-shrink-0 shadow-sm"><div className="flex justify-between items-end border-t pt-1.5 mb-3"><span className="text-[10px] font-black text-black uppercase tracking-widest mb-1">Thanh toán nhập</span><span className="font-black text-primary leading-none text-3xl">{formatNumber(receipt.reduce((s,i) => s + i.importPrice*i.quantity, 0))}<span className="text-xs ml-0.5 font-black">₫</span></span></div><button onClick={handleConfirmReceipt} disabled={isProcessing || receipt.length === 0 || !selectedSupplierId || !selectedWarehouseId} className={`w-full py-4 bg-white border-2 rounded-2xl font-black text-lg shadow-lg active:scale-95 disabled:bg-slate-200 flex items-center justify-center uppercase ${paymentStatus === 'debt' ? 'border-red-600 text-red-600' : 'border-blue-600 text-blue-600'}`}>{isProcessing ? <Loader className="animate-spin mr-2" size={20}/> : <Archive className="mr-2" size={24}/>}{paymentStatus === 'debt' ? 'Ghi nợ NCC' : 'Hoàn tất nhập'}</button></div>
-                    <div className="p-3 bg-slate-100 border-t-4 border-slate-800 flex-1 overflow-y-auto pb-20">
+                    <div className="p-3 bg-white flex-shrink-0 shadow-sm border-b border-slate-200">
+                        <div className="flex justify-between items-end mb-2.5">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Thanh toán nhập</span>
+                            <span className="font-bold text-primary leading-none text-2xl">{formatNumber(receipt.reduce((s,i) => s + i.importPrice*i.quantity, 0))}<span className="text-xs ml-0.5 font-bold text-slate-500">₫</span></span>
+                        </div>
+                        <button 
+                            onClick={handleConfirmReceipt} 
+                            disabled={isProcessing || receipt.length === 0 || !selectedSupplierId || !selectedWarehouseId} 
+                            className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-md active:scale-98 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 flex items-center justify-center uppercase tracking-tight transition-all text-white ${paymentStatus === 'debt' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary hover:bg-primary-hover'}`}
+                        >
+                            {isProcessing ? <Loader className="animate-spin mr-2" size={18}/> : <Archive className="mr-2" size={18}/>}
+                            {paymentStatus === 'debt' ? 'Ghi nợ NCC' : 'Hoàn tất nhập'}
+                        </button>
+                    </div>
+                    <div className="p-3 bg-slate-50 border-t border-slate-200 flex-1 overflow-y-auto pb-20">
                         <div className="space-y-3">
                             {todayReceipts.map(r => (
-                                <div key={r.id} className="bg-white border-2 border-slate-800 rounded-xl overflow-hidden shadow-sm">
-                                    <div className="bg-slate-800 p-2.5 text-white">
+                                <div key={r.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all">
+                                    <div className="bg-slate-900 p-2.5 text-white border-b border-slate-800">
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-2 overflow-hidden">
-                                                <span className="text-[11px] font-black uppercase truncate bg-white/20 px-2 py-0.5 rounded leading-none">{r.supplierName}</span>
-                                                {r.hasInvoice && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded font-black uppercase shadow-sm">HĐ ĐỎ</span>}
+                                                <span className="text-[11px] font-bold uppercase truncate bg-white/15 px-2 py-0.5 rounded leading-none">{r.supplierName}</span>
+                                                {r.hasInvoice && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded font-bold uppercase shadow-2xs">HĐ ĐỎ</span>}
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
-                                                <button onClick={() => { setSelectedReceiptEdit(r); setIsEditModalOpen(true); }} className="p-1 bg-white/20 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
-                                                <button onClick={() => { setSelectedReceiptDetail(r); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 text-white rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
-                                                <span className="text-sm font-black text-yellow-400 ml-1">{formatNumber(r.total)} ₫</span>
+                                                <button onClick={() => { setSelectedReceiptEdit(r); setIsEditModalOpen(true); }} className="p-1 bg-white/15 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
+                                                <button onClick={() => { setSelectedReceiptDetail(r); setIsDetailModalOpen(true); }} className="p-1 bg-white/15 text-white rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
+                                                <span className="text-sm font-bold text-amber-300 ml-1">{formatNumber(r.total)} ₫</span>
                                             </div>
                                         </div>
                                         
                                         {/* CẬP NHẬT: Thông tin Trạng thái, PTTT, Kho nhập */}
                                         <div className="flex flex-wrap gap-1.5 items-center opacity-90 mt-1.5">
-                                            <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><Archive size={10} className="mr-1"/> {r.warehouseName}</span>
-                                            <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {r.paymentMethodName || 'Ghi nợ'}</span>
-                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase shadow-sm ${r.paymentStatus === 'debt' ? 'bg-red-600 text-white animate-pulse' : 'bg-green-600 text-white'}`}>
+                                            <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded"><Archive size={10} className="mr-1"/> {r.warehouseName}</span>
+                                            <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {r.paymentMethodName || 'Ghi nợ'}</span>
+                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs ${r.paymentStatus === 'debt' ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-600 text-white'}`}>
                                                 {r.paymentStatus === 'debt' ? 'CÒN NỢ' : 'ĐÃ TRẢ'}
                                             </span>
                                         </div>
                                     </div>
                                     <div className="p-2.5 space-y-2 bg-white">
                                         {r.items?.map((it, idx) => (
-                                            <div key={idx} className="flex flex-col border-b border-slate-50 last:border-0 pb-1.5">
+                                            <div key={idx} className="flex flex-col border-b border-slate-100 last:border-0 pb-1.5">
                                                 <div className="flex justify-between items-center mb-0.5">
                                                     <div className="flex items-center gap-1.5 min-w-0">
                                                         <span className="font-bold text-slate-800 text-[11px] truncate uppercase">{it.productName}</span>
-                                                        {it.isCombo && <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-1 rounded uppercase">Combo</span>}
+                                                        {it.isCombo && <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded uppercase">Combo</span>}
                                                     </div>
                                                     <div className="text-right shrink-0">
-                                                        <span className="font-black text-primary text-[10px] whitespace-nowrap">
+                                                        <span className="font-bold text-primary text-[10px] whitespace-nowrap">
                                                             {formatNumber(it.importPrice)} x {it.quantity} = {formatNumber(it.importPrice * it.quantity)} ₫
                                                         </span>
                                                     </div>
@@ -907,14 +926,14 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
         />
         {isLedgerModalOpen && (
             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border-4 border-slate-800">
-                    <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
-                        <h2 className="text-xl font-black uppercase tracking-tighter flex items-center">
-                            <History className="mr-2" size={24} />
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200">
+                    <div className="p-4 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
+                        <h2 className="text-xl font-bold uppercase tracking-tight flex items-center">
+                            <History className="mr-2" size={22} />
                             Truy vết biến động kho
                         </h2>
-                        <button onClick={() => setIsLedgerModalOpen(false)} className="hover:bg-slate-700 p-2 rounded-full transition">
-                            <X size={24} />
+                        <button onClick={() => setIsLedgerModalOpen(false)} className="hover:bg-slate-800 p-2 rounded-full transition">
+                            <X size={20} />
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
@@ -923,7 +942,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                     <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
                         <button 
                             onClick={() => setIsLedgerModalOpen(false)}
-                            className="px-6 py-2 bg-slate-800 text-white rounded-xl font-black text-xs uppercase hover:bg-slate-700 transition shadow-lg"
+                            className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase hover:bg-slate-800 transition shadow-sm"
                         >
                             Đóng
                         </button>

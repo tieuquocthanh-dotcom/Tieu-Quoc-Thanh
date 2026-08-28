@@ -181,7 +181,7 @@ const InventoryTransferModal: React.FC<InventoryTransferModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border-4 border-slate-800 animate-fade-in-down flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-fade-in-down flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="bg-orange-500 text-white p-4 flex justify-between items-center shrink-0">
           <h2 className="text-base font-black uppercase tracking-tight flex items-center">

@@ -134,8 +134,8 @@ const PayBulkModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down overflow-hidden border-4 border-slate-800 flex flex-col max-h-[90vh]">
-                <div className={`flex justify-between items-center p-4 border-b-2 border-slate-800 ${isReceivable ? 'bg-green-100' : 'bg-orange-100'}`}>
+            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-down overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+                <div className={`flex justify-between items-center p-4 border-b border-slate-200 ${isReceivable ? 'bg-green-100' : 'bg-orange-100'}`}>
                     <h3 className="text-sm font-black text-black uppercase flex items-center">
                         <CheckCheck className="mr-2" size={18} />
                         {isReceivable ? 'Xác nhận thu hồi nợ gộp' : 'Xác nhận trả nợ gộp'}
@@ -293,8 +293,8 @@ const PartialPaymentModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-sm animate-fade-in-down overflow-hidden border-4 border-slate-800 flex flex-col max-h-[90vh]">
-                <div className="flex justify-between items-center p-4 border-b-2 border-slate-800 bg-slate-100">
+            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-sm animate-fade-in-down overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center p-4 border-b border-slate-200 bg-slate-100">
                     <h3 className="text-sm font-black text-black uppercase flex items-center">
                         <CreditCard className="mr-2 text-primary" size={18} />
                         Thanh toán nợ phiếu
@@ -491,8 +491,8 @@ const DebtOffsetModal: React.FC<{
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-xl animate-fade-in-down overflow-hidden border-4 border-slate-800 flex flex-col max-h-[90vh]">
-                <div className="flex justify-between items-center p-4 border-b-2 border-slate-800 bg-amber-100">
+            <div className="bg-white p-0 rounded-2xl shadow-2xl w-full max-w-xl animate-fade-in-down overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center p-4 border-b border-amber-200 bg-amber-100">
                     <h3 className="text-sm font-black text-amber-900 uppercase flex items-center">
                         <ArrowLeftRight className="mr-2 text-amber-700" size={20} />
                         Khấu trừ công nợ đôi bên (Khách & NCC)
@@ -1554,7 +1554,7 @@ const DebtManagement: React.FC = () => {
             {/* SELECTION SUMMARY BAR (FLOATING) */}
             {selectedIds.size > 0 && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-40 animate-fade-in-up">
-                    <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border-4 border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-4">
                             <div className="bg-primary/20 p-2 rounded-xl">
                                 <CheckSquare size={32} className="text-primary" />

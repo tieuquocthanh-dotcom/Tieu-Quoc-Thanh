@@ -384,8 +384,8 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[110] animate-fade-in p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl animate-fade-in-down flex flex-col max-h-[95vh] overflow-hidden border-4 border-slate-800">
-        <div className="flex justify-between items-center p-4 border-b-2 border-slate-800 bg-slate-800 text-white flex-shrink-0">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl animate-fade-in-down flex flex-col max-h-[95vh] overflow-hidden border border-slate-200">
+        <div className="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-900 text-white flex-shrink-0">
           <h3 className="text-lg font-black uppercase tracking-tighter flex items-center">
             <Edit3 className="mr-2 text-primary" size={20} />
             Sửa Phiếu Nhập #{receipt.id.substring(0, 8)}

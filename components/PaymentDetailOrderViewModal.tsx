@@ -262,9 +262,9 @@ export const PaymentDetailOrderViewModal: React.FC<PaymentDetailOrderViewModalPr
     return (
         <>
             <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[150] p-3 sm:p-4 animate-fade-in">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col animate-fade-in-down overflow-hidden border-4 border-slate-800">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col animate-fade-in-down overflow-hidden border border-slate-200">
                     {/* Header */}
-                    <div className="flex justify-between items-center p-4 border-b-2 border-slate-800 bg-indigo-600 text-white">
+                    <div className="flex justify-between items-center p-4 border-b border-indigo-700 bg-indigo-600 text-white">
                         <div className="flex items-center space-x-3">
                             <div className="p-2.5 bg-white/20 text-white rounded-xl shadow-xs backdrop-blur-xs">
                                 <FileText size={22} />

@@ -468,8 +468,8 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[110] animate-fade-in p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl animate-fade-in-down flex flex-col max-h-[95vh] overflow-hidden border-4 border-slate-800">
-        <div className="flex justify-between items-center p-4 border-b-2 border-slate-800 bg-slate-800 text-white flex-shrink-0">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl animate-fade-in-down flex flex-col max-h-[95vh] overflow-hidden border border-slate-200">
+        <div className="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-900 text-white flex-shrink-0">
           <h3 className="text-lg font-black uppercase tracking-tighter flex items-center">
             <Edit3 className="mr-2 text-primary" size={20} />
             Sửa đơn hàng #{sale.id.substring(0, 8)}
@@ -582,7 +582,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
 
             <div className="lg:col-span-2 flex flex-col gap-4">
                 {/* Search Product Row */}
-                <div className="bg-slate-900 p-4 rounded-xl border-4 border-slate-800 shadow-lg">
+                <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-md">
                     <div className="flex gap-2 relative">
                         <div className="flex-1 relative" ref={prodDropdownRef}>
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={20} />

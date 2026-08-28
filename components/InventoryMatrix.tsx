@@ -729,8 +729,8 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
         
         {isLedgerModalOpen && (
             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border-4 border-slate-800">
-                    <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200">
+                    <div className="p-4 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
                         <h2 className="text-xl font-black uppercase tracking-tighter flex items-center">
                             <HistoryIcon className="mr-2" size={24} />
                             Truy vết biến động kho

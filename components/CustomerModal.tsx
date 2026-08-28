@@ -36,7 +36,7 @@ const CustomerModal: React.FC<CustomerModalProps> = ({ customer, onClose, onSave
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-4 border-slate-800 overflow-hidden animate-fade-in-down">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden animate-fade-in-down">
         <div className="bg-primary p-4 text-white flex justify-between items-center">
           <h3 className="font-black uppercase text-sm flex items-center"><User className="mr-2" size={20}/> {customer ? 'Sửa khách hàng' : 'Thêm khách hàng'}</h3>
           <button onClick={onClose} className="hover:bg-white/20 p-1 rounded-full transition"><X size={20}/></button>
