@@ -179,23 +179,23 @@ const ImportProductCard: React.FC<{
                 )}
             </div>
 
-            {/* Hàng tồn kho gộp chuẩn 1 dòng duy nhất: Báo trạng thái (còn nhiều, sắp hết...) + Số lượng từng kho */}
-            <div className="flex items-center justify-between gap-1 mb-2 bg-slate-50/90 px-2 py-1 rounded-lg border border-slate-100 min-w-0">
-                <StockStatusBadge stock={totalStock} className="text-[9.5px] shrink-0" />
-                
-                <div className="flex items-center gap-1.5 divide-x divide-slate-200 min-w-0 justify-end">
-                    {topWarehouses.map(w => {
-                        const wStock = productInventory[w.id] || 0;
-                        const shortName = w.name.startsWith('Ngoài') ? 'Ngoài' : (w.name.startsWith('Cửa hàng') ? 'CH' : w.name.slice(0, 3));
-                        const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
-                        return (
-                            <div key={w.id} className="flex items-center space-x-1 pl-1.5 first:pl-0 shrink-0 text-[10px]" title={`${w.name}: ${wStock}`}>
-                                <span className="text-[8.5px] text-slate-400 font-semibold uppercase">{shortName}:</span>
-                                <span className={colorClass}>{wStock}</span>
-                            </div>
-                        );
-                    })}
-                </div>
+            {/* Hàng 1: Huy hiệu tình trạng tồn kho */}
+            <div className="my-1">
+                <StockStatusBadge stock={totalStock} className="text-[10px]" />
+            </div>
+
+            {/* Hàng 2: Chi tiết số lượng từng kho */}
+            <div className="grid grid-cols-3 gap-1 text-[9px] font-bold mb-2 bg-slate-50/80 p-1 rounded-lg border border-slate-100 text-center">
+                {topWarehouses.map(w => {
+                    const wStock = productInventory[w.id] || 0;
+                    const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
+                    return (
+                        <div key={w.id} className="min-w-0" title={`${w.name}: ${wStock}`}>
+                            <div className="text-[8px] text-slate-400 uppercase truncate">{w.name}</div>
+                            <div className={colorClass}>{wStock}</div>
+                        </div>
+                    );
+                })}
             </div>
             <div className="space-y-1 mb-2">
                 <div className="flex items-center gap-1">
