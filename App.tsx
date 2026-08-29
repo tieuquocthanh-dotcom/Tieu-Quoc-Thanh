@@ -411,11 +411,10 @@ const App: React.FC = () => {
     label: string;
     disabled?: boolean;
     onClick?: () => void;
-  
     badgeCount?: number;
   }> = ({ targetView, icon, label, disabled = false, onClick, badgeCount = 0 }) => {
     const isActive = view === targetView;
-    const baseClasses = 'flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium relative';
+    const baseClasses = 'group relative flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium';
     const activeClasses = 'bg-primary text-white shadow';
     const inactiveClasses = 'text-neutral hover:bg-slate-100 hover:text-dark';
     const disabledClasses = 'text-slate-400 cursor-not-allowed';
@@ -432,9 +431,16 @@ const App: React.FC = () => {
     return (
       <button
         onClick={handleClick}
+        title={`Chức năng: ${label}`}
+        aria-label={label}
         className={`${baseClasses} ${disabled ? disabledClasses : (isActive ? activeClasses : inactiveClasses)}`}
         disabled={disabled}
       >
+        {/* Floating tooltip on hover (especially helpful when label text is hidden on small screens) */}
+        <div className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 px-2 py-0.5 bg-slate-900 text-white text-[11px] font-bold rounded shadow-lg whitespace-nowrap md:hidden">
+          {label}
+        </div>
+
         {icon}
         <span className="hidden md:inline">{label}</span>
         {badgeCount > 0 && (
@@ -458,6 +464,7 @@ const App: React.FC = () => {
                 setView(targetView);
                 setIsSettingsOpen(false);
             }}
+            title={`Chức năng: ${label}`}
             className={`w-full text-left flex items-center space-x-3 px-3 py-2 rounded-md text-sm ${isActive ? 'bg-primary text-white' : 'text-neutral hover:bg-slate-100'}`}
         >
            {icon}

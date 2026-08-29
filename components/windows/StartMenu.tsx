@@ -153,6 +153,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                     onOpenApp(app.id);
                     onClose();
                   }}
+                  title={`Chức năng: ${app.title}`}
                   className="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/40 hover:border-primary/50 transition-all hover:scale-105 active:scale-95 group text-center"
                 >
                   <div className={`p-2.5 rounded-xl ${app.color} text-white mb-2 shadow-md group-hover:shadow-primary/20`}>
@@ -188,6 +189,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
                     onOpenApp(app.id);
                     onClose();
                   }}
+                  title={`Chức năng: ${app.title} (${app.categoryLabel})`}
                   className="flex items-center space-x-3 p-2.5 rounded-xl bg-slate-800/40 hover:bg-slate-800 border border-slate-700/30 hover:border-slate-600 transition-all text-left group"
                 >
                   <div className={`p-2 rounded-lg ${app.color} text-white shrink-0 shadow-sm`}>

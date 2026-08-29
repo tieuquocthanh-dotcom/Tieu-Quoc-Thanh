@@ -38,18 +38,25 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
   });
 
   return (
-    <div className="absolute inset-0 p-4 sm:p-6 grid grid-flow-col grid-rows-6 auto-cols-[90px] sm:auto-cols-[104px] gap-4 sm:gap-6 pointer-events-auto select-none overflow-hidden">
+    <div className="absolute inset-0 p-4 sm:p-6 grid grid-flow-col grid-rows-6 auto-cols-[90px] sm:auto-cols-[108px] gap-4 sm:gap-6 pointer-events-auto select-none overflow-hidden">
       {desktopApps.map((app) => (
         <button
           key={app.id}
           onDoubleClick={() => onOpenApp(app.id)}
           onClick={() => onOpenApp(app.id)}
-          className="group flex flex-col items-center justify-start p-2 rounded-xl hover:bg-slate-800/20 active:bg-slate-800/40 border border-transparent hover:border-slate-400/30 transition-all text-center focus:outline-none focus:bg-slate-800/30 focus:border-primary/50"
+          title={`Chức năng: ${app.title} (Nhấp đúp hoặc nhấp chuột để mở)`}
+          className="group relative flex flex-col items-center justify-start p-2 rounded-xl hover:bg-slate-800/30 active:bg-slate-800/50 border border-transparent hover:border-slate-500/30 transition-all text-center focus:outline-none focus:bg-slate-800/40 focus:border-primary/50"
         >
+          {/* Hover Floating Tooltip */}
+          <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-200 z-50 px-2.5 py-1 bg-slate-950/95 text-white text-[11px] font-bold rounded-lg shadow-2xl border border-slate-700 whitespace-nowrap flex items-center space-x-1.5 backdrop-blur-md">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>{app.title}</span>
+          </div>
+
           {/* App Icon Container */}
           <div className="relative mb-1.5">
             <div
-              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${app.color} text-white flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:shadow-xl transition-transform duration-200 ring-1 ring-white/20`}
+              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${app.color} text-white flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:shadow-xl transition-transform duration-200 ring-1 ring-white/20`}
             >
               {getAppIcon(app.iconName, 26)}
             </div>
@@ -65,7 +72,7 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
           </div>
 
           {/* App Title */}
-          <span className="text-xs font-semibold text-slate-800 group-hover:text-slate-950 line-clamp-2 px-1 py-0.5 rounded bg-white/70 backdrop-blur-sm shadow-xs transition-colors">
+          <span className="text-xs font-semibold text-slate-100 group-hover:text-white line-clamp-2 px-1.5 py-0.5 rounded bg-slate-900/70 backdrop-blur-sm border border-slate-700/50 shadow-xs transition-colors">
             {app.title}
           </span>
         </button>

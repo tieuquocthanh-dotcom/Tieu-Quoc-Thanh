@@ -21,12 +21,13 @@ interface MenuCardProps {
 const MenuCard: React.FC<MenuCardProps> = ({ title, icon, description, target, colorClass, onNavigate }) => (
   <button 
     onClick={() => onNavigate(target)}
-    className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-slate-100 flex flex-col items-center text-center h-full group"
+    title={`Chức năng: ${title} - ${description}`}
+    className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-slate-100 flex flex-col items-center text-center h-full group relative"
   >
     <div className={`p-4 rounded-full mb-4 ${colorClass} group-hover:scale-110 transition-transform`}>
       {icon}
     </div>
-    <h3 className="text-xl font-bold text-dark mb-2">{title}</h3>
+    <h3 className="text-xl font-bold text-dark mb-2 group-hover:text-primary transition-colors">{title}</h3>
     <p className="text-sm text-neutral">{description}</p>
   </button>
 );
