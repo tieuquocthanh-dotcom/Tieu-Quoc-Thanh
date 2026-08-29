@@ -309,23 +309,22 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
                         )}
                     </div>
 
-                    {/* Huy hiệu tồn kho trực quan theo mã màu */}
-                    <div className="my-1">
-                        <StockStatusBadge stock={totalStock} />
-                    </div>
-
-                    {/* Chi tiết từng kho */}
-                    <div className="grid grid-cols-3 gap-1 text-[9px] font-bold mt-1 bg-slate-50/80 p-1.5 rounded-lg border border-slate-100">
-                        {top3Warehouses.map(w => {
-                            const wStock = productInventory[w.id] || 0;
-                            const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
-                            return (
-                                <div key={w.id} className="text-center">
-                                    <div className="text-[8px] text-slate-400 uppercase truncate" title={w.name}>{w.name}</div>
-                                    <div className={colorClass}>{wStock}</div>
-                                </div>
-                            );
-                        })}
+                    {/* Hàng tồn kho gộp: Báo trạng thái (còn nhiều, sắp hết...) + Số lượng từng kho trên cùng 1 hàng */}
+                    <div className="flex flex-wrap items-center justify-between gap-1 mt-1.5 bg-slate-50/90 p-1.5 rounded-lg border border-slate-100 min-w-0">
+                        <StockStatusBadge stock={totalStock} className="text-[9.5px] shrink-0" />
+                        
+                        <div className="flex items-center gap-1.5 divide-x divide-slate-200 min-w-0 justify-end">
+                            {top3Warehouses.map(w => {
+                                const wStock = productInventory[w.id] || 0;
+                                const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
+                                return (
+                                    <div key={w.id} className="flex items-center space-x-1 pl-1.5 first:pl-0 shrink-0 text-[10px]" title={`${w.name}: ${wStock}`}>
+                                        <span className="text-[8.5px] text-slate-400 font-semibold uppercase truncate max-w-[42px] sm:max-w-[55px]">{w.name}:</span>
+                                        <span className={colorClass}>{wStock}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
                 {!product.isCombo && (
