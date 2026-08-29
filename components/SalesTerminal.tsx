@@ -294,70 +294,71 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
             {product.isCombo && (
                 <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-br-lg font-black z-10 uppercase shadow-2xs">COMBO</div>
             )}
-            <div className="mb-2 mt-2 flex justify-between items-start">
-                <div className="flex-1 min-w-0">
-                    <div 
-                        className={`font-bold text-slate-900 leading-tight text-[12px] mb-1 cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'}`} 
-                        title={product.name}
-                        onClick={() => setIsNameExpanded(!isNameExpanded)}
-                    >
-                        {product.name}
-                        {product.shortName && (
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100/90 text-amber-900 text-[10px] font-bold rounded border border-amber-300 inline-block">
-                                {product.shortName}
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Hàng tồn kho gộp: Báo trạng thái (còn nhiều, sắp hết...) + Số lượng từng kho trên cùng 1 hàng */}
-                    <div className="flex flex-wrap items-center justify-between gap-1 mt-1.5 bg-slate-50/90 p-1.5 rounded-lg border border-slate-100 min-w-0">
-                        <StockStatusBadge stock={totalStock} className="text-[9.5px] shrink-0" />
-                        
-                        <div className="flex items-center gap-1.5 divide-x divide-slate-200 min-w-0 justify-end">
-                            {top3Warehouses.map(w => {
-                                const wStock = productInventory[w.id] || 0;
-                                const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
-                                return (
-                                    <div key={w.id} className="flex items-center space-x-1 pl-1.5 first:pl-0 shrink-0 text-[10px]" title={`${w.name}: ${wStock}`}>
-                                        <span className="text-[8.5px] text-slate-400 font-semibold uppercase truncate max-w-[42px] sm:max-w-[55px]">{w.name}:</span>
-                                        <span className={colorClass}>{wStock}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+            {/* Header: Product Name + Action Buttons */}
+            <div className="mb-2 mt-1 flex justify-between items-center gap-1">
+                <div 
+                    className={`font-bold text-slate-900 leading-tight text-[12px] cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'} flex-1 min-w-0 pr-1`} 
+                    title={product.name}
+                    onClick={() => setIsNameExpanded(!isNameExpanded)}
+                >
+                    {product.name}
+                    {product.shortName && (
+                        <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100/90 text-amber-900 text-[10px] font-bold rounded border border-amber-300 inline-block">
+                            {product.shortName}
+                        </span>
+                    )}
                 </div>
+
                 {!product.isCombo && (
-                    <div className="flex gap-1 ml-1.5 shrink-0">
+                    <div className="flex gap-1 shrink-0">
                         {onQuickImport && (
                             <button 
                                 onClick={() => onQuickImport(product)} 
-                                className="p-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-lg hover:bg-emerald-600 hover:text-white transition shadow-2xs"
+                                className="p-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-lg hover:bg-emerald-600 hover:text-white transition shadow-2xs flex items-center justify-center h-6 w-6"
                                 title="Nhập hàng nhanh"
                             >
-                                <DownloadCloud size={13}/>
+                                <DownloadCloud size={11}/>
                             </button>
                         )}
                         {onTransfer && (
                             <button 
                                 onClick={() => onTransfer(product)} 
-                                className="p-1.5 bg-amber-50 text-amber-700 border border-amber-200/80 rounded-lg hover:bg-amber-600 hover:text-white transition shadow-2xs"
+                                className="p-1.5 bg-amber-50 text-amber-700 border border-amber-200/80 rounded-lg hover:bg-amber-600 hover:text-white transition shadow-2xs flex items-center justify-center h-6 w-6"
                                 title="Chuyển kho"
                             >
-                                <ArrowRightLeft size={13}/>
+                                <ArrowRightLeft size={11}/>
                             </button>
                         )}
                         {isAdmin && onCompare && (
                             <button 
                                 onClick={() => onCompare(product)} 
-                                className="p-1.5 bg-purple-50 text-purple-700 border border-purple-200/80 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-2xs"
+                                className="p-1.5 bg-purple-50 text-purple-700 border border-purple-200/80 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-2xs flex items-center justify-center h-6 w-6"
                                 title="So sánh giá nhập"
                             >
-                                <TrendingDown size={13}/>
+                                <TrendingDown size={11}/>
                             </button>
                         )}
                     </div>
                 )}
+            </div>
+
+            {/* Hàng tồn kho gộp chuẩn 1 dòng duy nhất: Báo trạng thái (còn nhiều, sắp hết...) + Số lượng từng kho */}
+            <div className="flex items-center justify-between gap-1 mb-2 bg-slate-50/90 px-2 py-1 rounded-lg border border-slate-100 min-w-0">
+                <StockStatusBadge stock={totalStock} className="text-[9.5px] shrink-0" />
+                
+                <div className="flex items-center gap-1.5 divide-x divide-slate-200 min-w-0 justify-end">
+                    {top3Warehouses.map(w => {
+                        const wStock = productInventory[w.id] || 0;
+                        const shortName = w.name.startsWith('Ngoài') ? 'Ngoài' : (w.name.startsWith('Cửa hàng') ? 'CH' : w.name.slice(0, 3));
+                        const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
+                        return (
+                            <div key={w.id} className="flex items-center space-x-1 pl-1.5 first:pl-0 shrink-0 text-[10px]" title={`${w.name}: ${wStock}`}>
+                                <span className="text-[8.5px] text-slate-400 font-semibold uppercase">{shortName}:</span>
+                                <span className={colorClass}>{wStock}</span>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
             <div className="space-y-1 mb-2.5">
                 {isAdmin && (

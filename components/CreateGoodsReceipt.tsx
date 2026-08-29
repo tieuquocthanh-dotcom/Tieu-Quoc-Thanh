@@ -134,67 +134,68 @@ const ImportProductCard: React.FC<{
             {product.isCombo && (
                 <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-br-lg font-bold z-10 uppercase shadow-2xs">COMBO</div>
             )}
-            <div className="mb-2 mt-2 flex justify-between items-start">
-                <div className="flex-1 min-w-0 pr-1">
-                    <div 
-                        className={`font-bold text-slate-900 leading-tight text-[12px] mb-1 cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'}`}
-                        title={product.name}
-                        onClick={() => setIsNameExpanded(!isNameExpanded)}
-                    >
-                        {product.name}
-                        {product.shortName && (
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded border border-amber-300/80 inline-block">
-                                {product.shortName}
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Hàng tồn kho gộp: Báo trạng thái (còn nhiều, sắp hết...) + Số lượng từng kho trên cùng 1 hàng */}
-                    <div className="flex flex-wrap items-center justify-between gap-1 mt-1.5 bg-slate-50/90 p-1.5 rounded-lg border border-slate-100 min-w-0">
-                        <StockStatusBadge stock={totalStock} className="text-[9.5px] shrink-0" />
-                        
-                        <div className="flex items-center gap-1.5 divide-x divide-slate-200 min-w-0 justify-end">
-                            {topWarehouses.map(w => {
-                                const wStock = productInventory[w.id] || 0;
-                                const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
-                                return (
-                                    <div key={w.id} className="flex items-center space-x-1 pl-1.5 first:pl-0 shrink-0 text-[10px]" title={`${w.name}: ${wStock}`}>
-                                        <span className="text-[8.5px] text-slate-400 font-semibold uppercase truncate max-w-[42px] sm:max-w-[55px]">{w.name}:</span>
-                                        <span className={colorClass}>{wStock}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+            {/* Header: Product Name + Action Buttons */}
+            <div className="mb-2 mt-1 flex justify-between items-center gap-1">
+                <div 
+                    className={`font-bold text-slate-900 leading-tight text-[12px] cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'} flex-1 min-w-0 pr-1`}
+                    title={product.name}
+                    onClick={() => setIsNameExpanded(!isNameExpanded)}
+                >
+                    {product.name}
+                    {product.shortName && (
+                        <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded border border-amber-300/80 inline-block">
+                            {product.shortName}
+                        </span>
+                    )}
                 </div>
+
                 {!product.isCombo && (
-                    <div className="flex gap-1 ml-1 flex-shrink-0">
+                    <div className="flex gap-1 shrink-0">
                         {isAdmin && (
                             <button 
                                 onClick={handleSaveBasePrice} 
                                 disabled={isSaving}
-                                className={`p-1.5 rounded-lg transition-all shadow-2xs flex items-center justify-center h-7 w-7 ${lastSupplierPrice !== undefined ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-800 text-white hover:bg-slate-900'}`}
+                                className={`p-1.5 rounded-lg transition-all shadow-2xs flex items-center justify-center h-6 w-6 ${lastSupplierPrice !== undefined ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-800 text-white hover:bg-slate-900'}`}
                                 title="Lưu thành giá vốn gốc của sản phẩm"
                             >
-                                {isSaving ? <Loader size={12} className="animate-spin"/> : <Save size={12}/>}
+                                {isSaving ? <Loader size={11} className="animate-spin"/> : <Save size={11}/>}
                             </button>
                         )}
                         <button 
                             onClick={() => onCompare?.(product)}
-                            className="p-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-600 hover:text-white transition shadow-2xs border border-orange-200 flex items-center justify-center h-7 w-7"
+                            className="p-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-600 hover:text-white transition shadow-2xs border border-orange-200 flex items-center justify-center h-6 w-6"
                             title="So sánh giá nhập"
                         >
-                            <TrendingUp size={12}/>
+                            <TrendingUp size={11}/>
                         </button>
                         <button 
                             onClick={() => onTrace?.(product)}
-                            className="p-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-2xs border border-purple-200 flex items-center justify-center h-7 w-7"
+                            className="p-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-600 hover:text-white transition shadow-2xs border border-purple-200 flex items-center justify-center h-6 w-6"
                             title="Truy vết tồn kho"
                         >
-                            <History size={12}/>
+                            <History size={11}/>
                         </button>
                     </div>
                 )}
+            </div>
+
+            {/* Hàng tồn kho gộp chuẩn 1 dòng duy nhất: Báo trạng thái (còn nhiều, sắp hết...) + Số lượng từng kho */}
+            <div className="flex items-center justify-between gap-1 mb-2 bg-slate-50/90 px-2 py-1 rounded-lg border border-slate-100 min-w-0">
+                <StockStatusBadge stock={totalStock} className="text-[9.5px] shrink-0" />
+                
+                <div className="flex items-center gap-1.5 divide-x divide-slate-200 min-w-0 justify-end">
+                    {topWarehouses.map(w => {
+                        const wStock = productInventory[w.id] || 0;
+                        const shortName = w.name.startsWith('Ngoài') ? 'Ngoài' : (w.name.startsWith('Cửa hàng') ? 'CH' : w.name.slice(0, 3));
+                        const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
+                        return (
+                            <div key={w.id} className="flex items-center space-x-1 pl-1.5 first:pl-0 shrink-0 text-[10px]" title={`${w.name}: ${wStock}`}>
+                                <span className="text-[8.5px] text-slate-400 font-semibold uppercase">{shortName}:</span>
+                                <span className={colorClass}>{wStock}</span>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
             <div className="space-y-1 mb-2">
                 <div className="flex items-center gap-1">
