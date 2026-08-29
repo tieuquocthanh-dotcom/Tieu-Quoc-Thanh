@@ -238,17 +238,6 @@ export const Taskbar: React.FC<TaskbarProps> = ({
               <span className="text-xs font-medium truncate min-w-0">
                 {win.title}
               </span>
-
-              {/* Active / Running Indicator underline */}
-              <div
-                className={`absolute bottom-0 left-2 right-2 h-0.5 rounded-full transition-all ${
-                  isActive
-                    ? 'bg-primary shadow-sm shadow-primary'
-                    : isMin
-                    ? 'bg-slate-600 w-3 mx-auto'
-                    : 'bg-slate-400'
-                }`}
-              />
             </div>
           );
         })}

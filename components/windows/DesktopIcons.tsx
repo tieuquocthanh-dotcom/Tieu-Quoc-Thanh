@@ -45,10 +45,10 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
           onDoubleClick={() => onOpenApp(app.id)}
           onClick={() => onOpenApp(app.id)}
           title={`Chức năng: ${app.title} (Nhấp đúp hoặc nhấp chuột để mở)`}
-          className="group relative flex flex-col items-center justify-start p-2 rounded-xl hover:bg-slate-800/30 active:bg-slate-800/50 border border-transparent hover:border-slate-500/30 transition-all text-center focus:outline-none focus:bg-slate-800/40 focus:border-primary/50"
+          className="group relative flex flex-col items-center justify-start p-2 rounded-xl hover:bg-white/10 active:bg-white/20 transition-all text-center focus:outline-none"
         >
           {/* Hover Floating Tooltip */}
-          <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-200 z-50 px-2.5 py-1 bg-slate-950/95 text-white text-[11px] font-bold rounded-lg shadow-2xl border border-slate-700 whitespace-nowrap flex items-center space-x-1.5 backdrop-blur-md">
+          <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100 transition-all duration-200 z-50 px-2.5 py-1 bg-slate-950/95 text-white text-[11px] font-bold rounded-lg shadow-2xl border border-slate-700 whitespace-nowrap flex items-center space-x-1.5 backdrop-blur-md">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
             <span>{app.title}</span>
           </div>
@@ -56,7 +56,7 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
           {/* App Icon Container */}
           <div className="relative mb-1.5">
             <div
-              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${app.color} text-white flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:shadow-xl transition-transform duration-200 ring-1 ring-white/20`}
+              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${app.color} text-white flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:shadow-xl transition-transform duration-200 ring-1 ring-white/20`}
             >
               {getAppIcon(app.iconName, 26)}
             </div>
@@ -71,8 +71,8 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
             ) : null}
           </div>
 
-          {/* App Title */}
-          <span className="text-xs font-semibold text-slate-100 group-hover:text-white line-clamp-2 px-1.5 py-0.5 rounded bg-slate-900/70 backdrop-blur-sm border border-slate-700/50 shadow-xs transition-colors">
+          {/* App Title - Clean, elegant label without any box or underline */}
+          <span className="text-xs font-semibold text-white group-hover:text-amber-300 line-clamp-2 text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] transition-colors">
             {app.title}
           </span>
         </button>
