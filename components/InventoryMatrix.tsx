@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, doc, setDoc, writeBatch, increment, deleteDoc, updateDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Warehouse, Manufacturer } from '../types';
-import { Loader, XCircle, Package, Search, AlertTriangle, List, LayoutGrid, Edit, GitCommit, Download, Upload, Trash2, Filter, Tag, X, TrendingUp, Plus, History as HistoryIcon } from 'lucide-react';
+import { Loader, XCircle, Package, Search, AlertTriangle, List, LayoutGrid, Edit, GitCommit, Download, Upload, Trash2, Filter, Tag, X, TrendingUp, Plus, History as HistoryIcon, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import { useToast } from './ToastContext';
 import InventoryTransferModal from './InventoryTransferModal';
@@ -144,6 +144,19 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
   const [selectedManufacturerId, setSelectedManufacturerId] = useState('all');
   const [showZeroStockOnly, setShowZeroStockOnly] = useState(false);
 
+  // Sorting States
+  const [sortKey, setSortKey] = useState<string>('productName');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -276,11 +289,12 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
 
   // Matrix View Preparation
   const matrixData = useMemo(() => {
-      const productMap = new Map<string, {name: string, shortName?: string, manufacturerName: string, stockByWarehouse: Map<string, number>, invoicedStock: number, importPrice: number, sellingPrice: number}>();
+      const productMap = new Map<string, {productId: string, name: string, shortName?: string, manufacturerName: string, stockByWarehouse: Map<string, number>, invoicedStock: number, importPrice: number, sellingPrice: number}>();
       
       filteredInventory.forEach(item => {
           if (!productMap.has(item.productId)) {
               productMap.set(item.productId, {
+                  productId: item.productId,
                   name: item.productName,
                   shortName: item.shortName,
                   manufacturerName: item.manufacturerName,
@@ -296,18 +310,76 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
       return Array.from(productMap.entries());
   }, [filteredInventory]);
 
-  const totalItems = viewMode === 'list' ? filteredInventory.length : matrixData.length;
+  // Sorted List View Data
+  const sortedListInventory = useMemo(() => {
+      const list = [...filteredInventory];
+      list.sort((a, b) => {
+          let aVal: any = a[sortKey as keyof FlatInventoryItem];
+          let bVal: any = b[sortKey as keyof FlatInventoryItem];
+          if (typeof aVal === 'string') {
+              const cmp = (aVal || '').localeCompare(bVal || '', 'vi');
+              return sortDirection === 'asc' ? cmp : -cmp;
+          }
+          aVal = aVal ?? 0;
+          bVal = bVal ?? 0;
+          return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+      return list;
+  }, [filteredInventory, sortKey, sortDirection]);
+
+  // Sorted Matrix View Data
+  const sortedMatrixData = useMemo(() => {
+      const list = [...matrixData];
+      list.sort((a, b) => {
+          const aData = a[1];
+          const bData = b[1];
+          let aVal: any = 0;
+          let bVal: any = 0;
+
+          if (sortKey === 'productName' || sortKey === 'name') {
+              const cmp = (aData.name || '').localeCompare(bData.name || '', 'vi');
+              return sortDirection === 'asc' ? cmp : -cmp;
+          } else if (sortKey === 'manufacturerName') {
+              const cmp = (aData.manufacturerName || '').localeCompare(bData.manufacturerName || '', 'vi');
+              return sortDirection === 'asc' ? cmp : -cmp;
+          } else if (sortKey === 'importPrice') {
+              aVal = aData.importPrice || 0;
+              bVal = bData.importPrice || 0;
+          } else if (sortKey === 'sellingPrice') {
+              aVal = aData.sellingPrice || 0;
+              bVal = bData.sellingPrice || 0;
+          } else if (sortKey === 'invoicedStock') {
+              aVal = aData.invoicedStock || 0;
+              bVal = bData.invoicedStock || 0;
+          } else if (sortKey === 'stock' || sortKey === 'totalPhysical') {
+              aVal = Array.from(aData.stockByWarehouse.values()).reduce((s, v) => s + v, 0);
+              bVal = Array.from(bData.stockByWarehouse.values()).reduce((s, v) => s + v, 0);
+          } else if (sortKey.startsWith('wh_')) {
+              const whId = sortKey.replace('wh_', '');
+              aVal = aData.stockByWarehouse.get(whId) || 0;
+              bVal = bData.stockByWarehouse.get(whId) || 0;
+          } else {
+              const cmp = (aData.name || '').localeCompare(bData.name || '', 'vi');
+              return sortDirection === 'asc' ? cmp : -cmp;
+          }
+
+          return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+      return list;
+  }, [matrixData, sortKey, sortDirection]);
+
+  const totalItems = viewMode === 'list' ? sortedListInventory.length : sortedMatrixData.length;
 
   const paginatedData = useMemo(() => {
       const startIndex = (currentPage - 1) * pageSize;
       const endIndex = startIndex + pageSize;
 
       if (viewMode === 'list') {
-          return filteredInventory.slice(startIndex, endIndex);
+          return sortedListInventory.slice(startIndex, endIndex);
       } else {
-          return matrixData.slice(startIndex, endIndex);
+          return sortedMatrixData.slice(startIndex, endIndex);
       }
-  }, [filteredInventory, matrixData, currentPage, pageSize, viewMode]);
+  }, [sortedListInventory, sortedMatrixData, currentPage, pageSize, viewMode]);
 
 
   const handleOpenEditModal = (item: FlatInventoryItem) => {
@@ -500,18 +572,60 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
       }
   };
 
+  const renderSortIcon = (key: string) => {
+      if (sortKey === key) {
+          return sortDirection === 'asc' ? <ArrowUp size={13} className="text-primary inline ml-1 shrink-0" /> : <ArrowDown size={13} className="text-primary inline ml-1 shrink-0" />;
+      }
+      return <ArrowUpDown size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity inline ml-1 shrink-0" />;
+  };
+
   const renderListView = () => (
     <div className="overflow-auto max-h-[calc(100vh-300px)] border border-slate-200 rounded-lg shadow-inner">
         <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-black text-slate-500 tracking-widest sticky top-0 z-20">
                 <tr>
-                    <th className="p-4">Sản Phẩm</th>
-                    <th className="p-4">Hãng SX</th>
-                    <th className="p-4">Kho</th>
-                    <th className="p-4 text-right">Giá Vốn</th>
-                    <th className="p-4 text-right">Giá Bán</th>
-                    <th className="p-4 text-right">Tồn Thực</th>
-                    <th className="p-4 text-right">Tổng Có HĐ</th>
+                    <th onClick={() => handleSort('productName')} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center gap-1">
+                            <span>Sản Phẩm</span>
+                            {renderSortIcon('productName')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('manufacturerName')} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center gap-1">
+                            <span>Hãng SX</span>
+                            {renderSortIcon('manufacturerName')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('warehouseName')} className="p-4 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center gap-1">
+                            <span>Kho</span>
+                            {renderSortIcon('warehouseName')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('importPrice')} className="p-4 text-right cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center justify-end gap-1">
+                            <span>Giá Vốn</span>
+                            {renderSortIcon('importPrice')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('sellingPrice')} className="p-4 text-right cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center justify-end gap-1">
+                            <span>Giá Bán</span>
+                            {renderSortIcon('sellingPrice')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('stock')} className="p-4 text-right cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center justify-end gap-1">
+                            <span>Tồn Thực</span>
+                            {renderSortIcon('stock')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('invoicedStock')} className="p-4 text-right cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center justify-end gap-1">
+                            <span>Tổng Có HĐ</span>
+                            {renderSortIcon('invoicedStock')}
+                        </div>
+                    </th>
                     <th className="p-4 text-center">Hành động</th>
                 </tr>
             </thead>
@@ -605,12 +719,44 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
         <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-black text-slate-500 sticky top-0 z-20">
                 <tr>
-                    <th className="p-3 border border-slate-200 sticky left-0 top-0 bg-slate-50 z-30">Sản Phẩm</th>
-                    <th className="p-3 border border-slate-200 text-right w-28">Giá Vốn</th>
-                    <th className="p-3 border border-slate-200 text-right w-28">Giá Bán</th>
-                    <th className="p-3 text-blue-700 border border-slate-200 text-center w-24">Tổng HĐ</th>
-                    <th className="p-3 text-orange-600 border border-slate-200 text-center w-24">Tổng Thực</th>
-                    {displayWarehouses.map(wh => <th key={wh.id} className="p-3 border border-slate-200 text-center">{wh.name}</th>)}
+                    <th onClick={() => handleSort('productName')} className="p-3 border border-slate-200 sticky left-0 top-0 bg-slate-50 z-30 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center gap-1">
+                            <span>Sản Phẩm</span>
+                            {renderSortIcon('productName')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('importPrice')} className="p-3 border border-slate-200 text-right w-28 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center justify-end gap-1">
+                            <span>Giá Vốn</span>
+                            {renderSortIcon('importPrice')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('sellingPrice')} className="p-3 border border-slate-200 text-right w-28 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center justify-end gap-1">
+                            <span>Giá Bán</span>
+                            {renderSortIcon('sellingPrice')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('invoicedStock')} className="p-3 text-blue-700 border border-slate-200 text-center w-24 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center justify-center gap-1">
+                            <span>Tổng HĐ</span>
+                            {renderSortIcon('invoicedStock')}
+                        </div>
+                    </th>
+                    <th onClick={() => handleSort('stock')} className="p-3 text-orange-600 border border-slate-200 text-center w-24 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                        <div className="flex items-center justify-center gap-1">
+                            <span>Tổng Thực</span>
+                            {renderSortIcon('stock')}
+                        </div>
+                    </th>
+                    {displayWarehouses.map(wh => (
+                        <th key={wh.id} onClick={() => handleSort(`wh_${wh.id}`)} className="p-3 border border-slate-200 text-center cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                            <div className="flex items-center justify-center gap-1">
+                                <span>{wh.name}</span>
+                                {renderSortIcon(`wh_${wh.id}`)}
+                            </div>
+                        </th>
+                    ))}
                 </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

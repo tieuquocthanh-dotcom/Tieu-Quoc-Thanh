@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, Timestamp, where, addDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Manufacturer, Sale, Supplier, GoodsReceipt } from '../types';
-import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart, X, History, Search, Building2, ChevronDown } from 'lucide-react';
+import { Loader, PackageSearch, AlertTriangle, TrendingUp, TrendingDown, Package, Clock, Filter, Users, ShoppingCart, X, History, Search, Building2, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 import { useToast } from './ToastContext';
@@ -65,6 +65,26 @@ const RestockPredictions: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(15);
     
+    // Sorting State
+    const [sortKey, setSortKey] = useState<string>('default');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    const handleSort = (key: string) => {
+        if (sortKey === key) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortKey(key);
+            setSortDirection('asc');
+        }
+    };
+
+    const renderSortIcon = (key: string) => {
+        if (sortKey === key) {
+            return sortDirection === 'asc' ? <ArrowUp size={13} className="text-primary inline ml-1 shrink-0" /> : <ArrowDown size={13} className="text-primary inline ml-1 shrink-0" />;
+        }
+        return <ArrowUpDown size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity inline ml-1 shrink-0" />;
+    };
+
     const [selectedItems, setSelectedItems] = useState<{[productId: string]: number}>(() => {
         const saved = localStorage.getItem('restockDraft');
         return saved ? JSON.parse(saved) : {};
@@ -357,7 +377,59 @@ const RestockPredictions: React.FC = () => {
         });
     }, [predictions, searchTerm, filterStatus, selectedSupplier, supplierProductsMap, selectedManufacturer]);
 
-    const paginated = useMemo(() => filteredPredictions.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredPredictions, currentPage, pageSize]);
+    const sortedPredictions = useMemo(() => {
+        const list = [...filteredPredictions];
+        if (sortKey === 'default') {
+            return list;
+        }
+        const severity: Record<string, number> = { out_of_stock: 0, critical: 1, low_stock: 2, healthy: 3, overstocked: 4, no_sales: 5 };
+
+        list.sort((a, b) => {
+            let aVal: any = 0;
+            let bVal: any = 0;
+
+            if (sortKey === 'name') {
+                const cmp = (a.name || '').localeCompare(b.name || '', 'vi');
+                return sortDirection === 'asc' ? cmp : -cmp;
+            } else if (sortKey === 'totalStock') {
+                aVal = a.totalStock;
+                bVal = b.totalStock;
+            } else if (sortKey === 'importPrice') {
+                aVal = a.importPrice || 0;
+                bVal = b.importPrice || 0;
+            } else if (sortKey === 'salesVelocity') {
+                aVal = a.salesVelocity || 0;
+                bVal = b.salesVelocity || 0;
+            } else if (sortKey === 'status') {
+                aVal = severity[a.status] ?? 99;
+                bVal = severity[b.status] ?? 99;
+            } else if (sortKey === 'daysRemaining') {
+                aVal = a.daysRemaining === Infinity ? 999999 : a.daysRemaining;
+                bVal = b.daysRemaining === Infinity ? 999999 : b.daysRemaining;
+            } else if (sortKey === 'suggestedRestockQty') {
+                aVal = a.suggestedRestockQty || 0;
+                bVal = b.suggestedRestockQty || 0;
+            } else if (sortKey === 'estimatedCost') {
+                const getDisplayPrice = (p: ProductPrediction) => {
+                    const pInfo = productPriceInfo[p.id];
+                    if (pInfo && selectedSupplier !== 'all' && pInfo.supplierPrices[selectedSupplier]?.price !== undefined) {
+                        return pInfo.supplierPrices[selectedSupplier].price;
+                    }
+                    return pInfo?.lastPriceGlobal ?? p.importPrice ?? 0;
+                };
+                aVal = (a.suggestedRestockQty || 0) * getDisplayPrice(a);
+                bVal = (b.suggestedRestockQty || 0) * getDisplayPrice(b);
+            } else if (sortKey === 'orderQty') {
+                aVal = selectedItems[a.id] || 0;
+                bVal = selectedItems[b.id] || 0;
+            }
+
+            return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+        return list;
+    }, [filteredPredictions, sortKey, sortDirection, productPriceInfo, selectedSupplier, selectedItems]);
+
+    const paginated = useMemo(() => sortedPredictions.slice((currentPage - 1) * pageSize, currentPage * pageSize), [sortedPredictions, currentPage, pageSize]);
 
     const getStatusInfo = (status: string) => {
         switch (status) {
@@ -592,16 +664,61 @@ const RestockPredictions: React.FC = () => {
                                         />
                                     </th>
                                 )}
-                                <th className="px-4 py-3">Sản phẩm</th>
-                                <th className="px-4 py-3 text-right">Tồn Kho</th>
-                                <th className="px-4 py-3 text-right">Giá nhập lần trước</th>
-                                <th className="px-4 py-3 text-right">Tốc độ bán<br/>({config.daysToAnalyze} ngày)</th>
-                                <th className="px-4 py-3 text-center">Tình Trạng</th>
-                                <th className="px-4 py-3 text-right">Còn Bán Được</th>
-                                <th className="px-4 py-3 text-right bg-primary/5 text-primary">SL Cần Nhập<br/>(Cho {config.daysToStock} ngày)</th>
-                                <th className="px-4 py-3 text-right bg-primary/5 text-primary">Tiền Dự Kiến</th>
+                                <th onClick={() => handleSort('name')} className="px-4 py-3 cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                    <div className="flex items-center gap-1">
+                                        <span>Sản phẩm</span>
+                                        {renderSortIcon('name')}
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('totalStock')} className="px-4 py-3 text-right cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Tồn Kho</span>
+                                        {renderSortIcon('totalStock')}
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('importPrice')} className="px-4 py-3 text-right cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Giá nhập lần trước</span>
+                                        {renderSortIcon('importPrice')}
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('salesVelocity')} className="px-4 py-3 text-right cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Tốc độ bán<br/>({config.daysToAnalyze} ngày)</span>
+                                        {renderSortIcon('salesVelocity')}
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('status')} className="px-4 py-3 text-center cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                    <div className="flex items-center justify-center gap-1">
+                                        <span>Tình Trạng</span>
+                                        {renderSortIcon('status')}
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('daysRemaining')} className="px-4 py-3 text-right cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Còn Bán Được</span>
+                                        {renderSortIcon('daysRemaining')}
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('suggestedRestockQty')} className="px-4 py-3 text-right bg-primary/5 text-primary cursor-pointer hover:bg-primary/10 transition-colors group select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>SL Cần Nhập<br/>(Cho {config.daysToStock} ngày)</span>
+                                        {renderSortIcon('suggestedRestockQty')}
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('estimatedCost')} className="px-4 py-3 text-right bg-primary/5 text-primary cursor-pointer hover:bg-primary/10 transition-colors group select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Tiền Dự Kiến</span>
+                                        {renderSortIcon('estimatedCost')}
+                                    </div>
+                                </th>
                                 {selectedSupplier !== 'all' && (
-                                    <th className="px-4 py-3 text-center bg-blue-50 text-blue-600">SL Đặt</th>
+                                    <th onClick={() => handleSort('orderQty')} className="px-4 py-3 text-center bg-blue-50 text-blue-600 cursor-pointer hover:bg-blue-100 transition-colors group select-none">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <span>SL Đặt</span>
+                                            {renderSortIcon('orderQty')}
+                                        </div>
+                                    </th>
                                 )}
                             </tr>
                         </thead>
@@ -797,7 +914,7 @@ const RestockPredictions: React.FC = () => {
                 <div className="p-4 border-t border-slate-100">
                     <Pagination 
                         currentPage={currentPage}
-                        totalItems={filteredPredictions.length}
+                        totalItems={sortedPredictions.length}
                         pageSize={pageSize}
                         onPageChange={setCurrentPage}
                         onPageSizeChange={(sz) => { setPageSize(sz); setCurrentPage(1); }}

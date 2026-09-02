@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Loader, Package, FileText, Calendar, Search, User } from 'lucide-react';
+import { Loader, Package, FileText, Calendar, Search, User, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Pagination from './Pagination';
 import * as XLSX from 'xlsx';
 
@@ -29,6 +29,19 @@ const TransferHistory: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ us
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
 
+  // Sorting state
+  const [sortKey, setSortKey] = useState<keyof TransferRecord>('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: keyof TransferRecord) => {
+    if (sortKey === key) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
   useEffect(() => {
     const q = query(
       collection(db, 'warehouseTransfers'),
@@ -53,24 +66,48 @@ const TransferHistory: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ us
 
   const filteredTransfers = useMemo(() => {
     return transfers.filter(t => 
-      t.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.fromWarehouseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.toWarehouseName.toLowerCase().includes(searchTerm.toLowerCase())
+      (t.productName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.fromWarehouseName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.toWarehouseName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.creatorName || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [transfers, searchTerm]);
 
-  const totalPages = Math.ceil(filteredTransfers.length / pageSize);
+  const sortedTransfers = useMemo(() => {
+    const list = [...filteredTransfers];
+    list.sort((a, b) => {
+      let aVal: any = a[sortKey];
+      let bVal: any = b[sortKey];
+
+      if (sortKey === 'createdAt') {
+        const aTime = a.createdAt?.toMillis() || 0;
+        const bTime = b.createdAt?.toMillis() || 0;
+        return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+      }
+
+      if (typeof aVal === 'string') {
+        const cmp = (aVal || '').localeCompare(bVal || '', 'vi');
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
+
+      aVal = aVal ?? 0;
+      bVal = bVal ?? 0;
+      return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+    return list;
+  }, [filteredTransfers, sortKey, sortDirection]);
+
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
-    return filteredTransfers.slice(startIndex, startIndex + pageSize);
-  }, [filteredTransfers, currentPage]);
+    return sortedTransfers.slice(startIndex, startIndex + pageSize);
+  }, [sortedTransfers, currentPage]);
 
   const exportToExcel = () => {
-    if (filteredTransfers.length === 0) {
+    if (sortedTransfers.length === 0) {
       alert("Không có dữ liệu để xuất!");
       return;
     }
-    const dataToExport = filteredTransfers.map((t, index) => ({
+    const dataToExport = sortedTransfers.map((t, index) => ({
       STT: index + 1,
       "Sản phẩm": t.productName,
       "Số lượng": t.quantity,
@@ -90,6 +127,13 @@ const TransferHistory: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ us
     XLSX.writeFile(wb, `Lich_Su_Chuyen_Kho_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const renderSortIcon = (key: keyof TransferRecord) => {
+    if (sortKey === key) {
+      return sortDirection === 'asc' ? <ArrowUp size={13} className="text-primary inline ml-1 shrink-0" /> : <ArrowDown size={13} className="text-primary inline ml-1 shrink-0" />;
+    }
+    return <ArrowUpDown size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity inline ml-1 shrink-0" />;
+  };
+
   return (
     <div className="bg-white p-6 rounded-xl shadow-md space-y-6">
       <div className="flex flex-col md:flex-row justify-between gap-4 items-center">
@@ -97,7 +141,7 @@ const TransferHistory: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ us
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input
             type="text"
-            placeholder="Tìm theo sản phẩm, kho..."
+            placeholder="Tìm theo sản phẩm, kho, người chuyển..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="w-full pl-10 pr-4 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-bold"
@@ -124,12 +168,44 @@ const TransferHistory: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ us
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50 border-b-2 border-slate-200">
               <tr className="text-xs font-black text-slate-500 uppercase tracking-wider">
-                <th className="px-4 py-3">Ngày chuyển</th>
-                <th className="px-4 py-3">Sản phẩm</th>
-                <th className="px-4 py-3 text-center">Số lượng</th>
-                <th className="px-4 py-3">Từ kho</th>
-                <th className="px-4 py-3">Đến kho</th>
-                {userRole === 'admin' && <th className="px-4 py-3">Người chuyển</th>}
+                <th onClick={() => handleSort('createdAt')} className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                  <div className="flex items-center gap-1">
+                    <span>Ngày chuyển</span>
+                    {renderSortIcon('createdAt')}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('productName')} className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                  <div className="flex items-center gap-1">
+                    <span>Sản phẩm</span>
+                    {renderSortIcon('productName')}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('quantity')} className="px-4 py-3 text-center cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>Số lượng</span>
+                    {renderSortIcon('quantity')}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('fromWarehouseName')} className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                  <div className="flex items-center gap-1">
+                    <span>Từ kho</span>
+                    {renderSortIcon('fromWarehouseName')}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('toWarehouseName')} className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                  <div className="flex items-center gap-1">
+                    <span>Đến kho</span>
+                    {renderSortIcon('toWarehouseName')}
+                  </div>
+                </th>
+                {userRole === 'admin' && (
+                  <th onClick={() => handleSort('creatorName')} className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors group select-none">
+                    <div className="flex items-center gap-1">
+                      <span>Người chuyển</span>
+                      {renderSortIcon('creatorName')}
+                    </div>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -171,11 +247,11 @@ const TransferHistory: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ us
         )}
       </div>
 
-      {filteredTransfers.length > pageSize && (
+      {sortedTransfers.length > pageSize && (
         <Pagination 
           currentPage={currentPage} 
           pageSize={pageSize}
-          totalItems={filteredTransfers.length} 
+          totalItems={sortedTransfers.length} 
           onPageChange={setCurrentPage} 
           onPageSizeChange={() => {}} 
         />

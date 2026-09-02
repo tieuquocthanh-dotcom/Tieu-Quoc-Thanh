@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, where, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Sale, SaleItem, Customer, Product, Manufacturer } from '../types';
-import { Loader, XCircle, Search, List, Package, Eye, DollarSign, TrendingUp, Building, User, Tag, X } from 'lucide-react';
+import { Loader, XCircle, Search, List, Package, Eye, DollarSign, TrendingUp, Building, User, Tag, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Pagination from './Pagination';
 import { formatNumber } from '../utils/formatting';
 import SaleDetailModal from './SaleDetailModal';
@@ -54,6 +54,26 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+
+    // Sorting
+    const [sortKey, setSortKey] = useState<keyof SoldItemDetail>('saleDate');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+    const handleSort = (key: keyof SoldItemDetail) => {
+        if (sortKey === key) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortKey(key);
+            setSortDirection('asc');
+        }
+    };
+
+    const renderSortIcon = (key: keyof SoldItemDetail) => {
+        if (sortKey === key) {
+            return sortDirection === 'asc' ? <ArrowUp size={13} className="text-primary inline ml-1 shrink-0" /> : <ArrowDown size={13} className="text-primary inline ml-1 shrink-0" />;
+        }
+        return <ArrowUpDown size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity inline ml-1 shrink-0" />;
+    };
 
     // Detail Modal State
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -171,7 +191,7 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
             let phone = '';
             if (sale.customerId) {
                 const customer = customerMap.get(sale.customerId);
-                if (customer) phone = customer.phone;
+                if (customer && customer.phone) phone = customer.phone;
             }
 
             sale.items.forEach(item => {
@@ -214,10 +234,34 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
         });
     }, [flattenedItems, productSearchTerm, customerSearchTerm, selectedManufacturerId]);
 
+    const sortedItems = useMemo(() => {
+        const list = [...filteredItems];
+        list.sort((a, b) => {
+            let aVal: any = a[sortKey];
+            let bVal: any = b[sortKey];
+
+            if (sortKey === 'saleDate') {
+                const aTime = a.saleDate ? a.saleDate.getTime() : 0;
+                const bTime = b.saleDate ? b.saleDate.getTime() : 0;
+                return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+            }
+
+            if (typeof aVal === 'string') {
+                const cmp = (aVal || '').localeCompare(bVal || '', 'vi');
+                return sortDirection === 'asc' ? cmp : -cmp;
+            }
+
+            aVal = aVal ?? 0;
+            bVal = bVal ?? 0;
+            return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+        return list;
+    }, [filteredItems, sortKey, sortDirection]);
+
     const paginatedItems = useMemo(() => {
         const startIndex = (currentPage - 1) * pageSize;
-        return filteredItems.slice(startIndex, startIndex + pageSize);
-    }, [filteredItems, currentPage, pageSize]);
+        return sortedItems.slice(startIndex, startIndex + pageSize);
+    }, [sortedItems, currentPage, pageSize]);
 
     const handleViewSale = (saleId: string) => {
         const sale = sales.find(s => s.id === saleId);
@@ -401,16 +445,54 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
                         <table className="w-full text-left border-separate border-spacing-0 min-w-[1000px]">
                             <thead>
                                 <tr className="bg-slate-100">
-                                    <th className="p-4 text-xs font-bold text-neutral uppercase tracking-wider border-b border-slate-200 sticky top-0 bg-slate-100 z-20">Ngày Bán</th>
-                                    <th className="p-4 text-xs font-bold text-neutral uppercase tracking-wider border-b border-slate-200 sticky top-0 bg-slate-100 z-20">Mã Đơn</th>
-                                    <th className="p-4 text-xs font-bold text-neutral uppercase tracking-wider border-b border-slate-200 sticky top-0 bg-slate-100 z-20">Khách Hàng</th>
-                                    <th className="p-4 text-xs font-bold text-blue-800 uppercase tracking-wider border-b border-slate-200 sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">Sản Phẩm</th>
-                                    <th className="p-4 text-xs font-bold text-neutral uppercase tracking-wider text-center border-b border-slate-200 sticky top-0 bg-slate-100 z-20">SL</th>
-                                    <th className="p-4 text-xs font-bold text-neutral uppercase tracking-wider text-right border-b border-slate-200 sticky top-0 bg-slate-100 z-20">Đơn Giá</th>
-                                    <th className="p-4 text-xs font-bold text-neutral uppercase tracking-wider text-right border-b border-slate-200 sticky top-0 bg-slate-100 z-20">Thành Tiền</th>
+                                    <th onClick={() => handleSort('saleDate')} className="p-4 text-xs font-bold text-neutral uppercase tracking-wider border-b border-slate-200 sticky top-0 bg-slate-100 z-20 cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                        <div className="flex items-center gap-1">
+                                            <span>Ngày Bán</span>
+                                            {renderSortIcon('saleDate')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => handleSort('saleId')} className="p-4 text-xs font-bold text-neutral uppercase tracking-wider border-b border-slate-200 sticky top-0 bg-slate-100 z-20 cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                        <div className="flex items-center gap-1">
+                                            <span>Mã Đơn</span>
+                                            {renderSortIcon('saleId')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => handleSort('customerName')} className="p-4 text-xs font-bold text-neutral uppercase tracking-wider border-b border-slate-200 sticky top-0 bg-slate-100 z-20 cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                        <div className="flex items-center gap-1">
+                                            <span>Khách Hàng</span>
+                                            {renderSortIcon('customerName')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => handleSort('productName')} className="p-4 text-xs font-bold text-blue-800 uppercase tracking-wider border-b border-slate-200 sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                        <div className="flex items-center gap-1">
+                                            <span>Sản Phẩm</span>
+                                            {renderSortIcon('productName')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => handleSort('quantity')} className="p-4 text-xs font-bold text-neutral uppercase tracking-wider text-center border-b border-slate-200 sticky top-0 bg-slate-100 z-20 cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <span>SL</span>
+                                            {renderSortIcon('quantity')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => handleSort('price')} className="p-4 text-xs font-bold text-neutral uppercase tracking-wider text-right border-b border-slate-200 sticky top-0 bg-slate-100 z-20 cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Đơn Giá</span>
+                                            {renderSortIcon('price')}
+                                        </div>
+                                    </th>
+                                    <th onClick={() => handleSort('totalAmount')} className="p-4 text-xs font-bold text-neutral uppercase tracking-wider text-right border-b border-slate-200 sticky top-0 bg-slate-100 z-20 cursor-pointer hover:bg-slate-200 transition-colors group select-none">
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Thành Tiền</span>
+                                            {renderSortIcon('totalAmount')}
+                                        </div>
+                                    </th>
                                     {isAdmin && (
-                                        <th className="p-4 text-xs font-black text-green-800 uppercase tracking-wider text-right bg-green-100 border-b border-l border-green-200 sticky right-0 z-30 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
-                                            Lợi Nhuận
+                                        <th onClick={() => handleSort('profit')} className="p-4 text-xs font-black text-green-800 uppercase tracking-wider text-right bg-green-100 border-b border-l border-green-200 sticky right-0 z-30 shadow-[-2px_0_5px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-green-200 transition-colors group select-none">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>Lợi Nhuận</span>
+                                                {renderSortIcon('profit')}
+                                            </div>
                                         </th>
                                     )}
                                 </tr>
