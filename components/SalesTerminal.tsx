@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, where, increment, collectionGroup, addDoc, Timestamp, updateDoc, getDocs, limit, arrayUnion, runTransaction } from 'firebase/firestore';
+import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, where, increment, collectionGroup, addDoc, Timestamp, updateDoc, getDocs, limit, arrayUnion, runTransaction, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, SaleItem, Customer, Warehouse, PaymentMethod, Shipper, Sale, Supplier, Manufacturer } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import SalesHistory from './SalesHistory';
 import CustomerModal from './CustomerModal';
@@ -244,6 +244,230 @@ const QuickImportModal: React.FC<{
     );
 };
 
+// --- EDIT WAREHOUSE STOCK MODAL ---
+const EditWarehouseStockModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    product: Product | null;
+    warehouses: Warehouse[];
+    detailedInventory: Record<string, Record<string, number>>;
+    initialWarehouseId?: string;
+    onSave: (productId: string, stockUpdates: Record<string, number>) => Promise<void>;
+    isProcessing: boolean;
+}> = ({ isOpen, onClose, product, warehouses, detailedInventory, initialWarehouseId, onSave, isProcessing }) => {
+    const [stocks, setStocks] = useState<Record<string, number>>({});
+
+    useEffect(() => {
+        if (isOpen && product) {
+            const initialMap: Record<string, number> = {};
+            const productInv = detailedInventory[product.id] || {};
+            warehouses.forEach(w => {
+                initialMap[w.id] = productInv[w.id] ?? 0;
+            });
+            setStocks(initialMap);
+        }
+    }, [isOpen, product, warehouses, detailedInventory]);
+
+    if (!isOpen || !product) return null;
+
+    const currentTotal = warehouses.reduce((sum, w) => sum + (detailedInventory[product.id]?.[w.id] ?? 0), 0);
+    const newTotal = Object.values(stocks).reduce((sum, val) => sum + (Number(val) || 0), 0);
+    const diff = newTotal - currentTotal;
+
+    const handleStockChange = (whId: string, val: number) => {
+        setStocks(prev => ({
+            ...prev,
+            [whId]: Math.max(0, val)
+        }));
+    };
+
+    const handleAdjust = (whId: string, delta: number) => {
+        setStocks(prev => ({
+            ...prev,
+            [whId]: Math.max(0, (prev[whId] || 0) + delta)
+        }));
+    };
+
+    const handleResetToZero = (whId: string) => {
+        setStocks(prev => ({
+            ...prev,
+            [whId]: 0
+        }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await onSave(product.id, stocks);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[250] p-4 animate-fade-in backdrop-blur-xs">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-fade-in-down">
+                {/* Header */}
+                <div className="bg-slate-900 p-4 text-white flex justify-between items-center border-b border-slate-800">
+                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                        <div className="p-2 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30">
+                            <Boxes size={20} />
+                        </div>
+                        <div className="min-w-0">
+                            <h3 className="font-black uppercase text-sm tracking-tight truncate">Chỉnh sửa số lượng từng kho</h3>
+                            <p className="text-xs text-slate-400 truncate mt-0.5">{product.name}</p>
+                        </div>
+                    </div>
+                    <button 
+                        type="button" 
+                        onClick={onClose} 
+                        className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Sub-header info */}
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-500 uppercase">Sản phẩm:</span>
+                        <span className="text-xs font-black text-slate-800 uppercase truncate max-w-[200px]">{product.name}</span>
+                        {product.shortName && (
+                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded border border-amber-300 shrink-0">
+                                {product.shortName}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-bold">
+                        <div>
+                            <span className="text-slate-500">Tồn hiện tại: </span>
+                            <span className="font-black text-slate-900">{currentTotal}</span>
+                        </div>
+                        <div>
+                            <span className="text-slate-500">Tồn mới: </span>
+                            <span className={`font-black ${newTotal !== currentTotal ? (diff > 0 ? 'text-emerald-600' : 'text-rose-600') : 'text-slate-900'}`}>
+                                {newTotal} {diff !== 0 && `(${diff > 0 ? `+${diff}` : diff})`}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Form / Warehouse list */}
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {warehouses.length === 0 ? (
+                        <div className="text-center py-8 text-slate-400 text-xs font-bold">
+                            Chưa có kho hàng nào được tạo trong hệ thống.
+                        </div>
+                    ) : (
+                        warehouses.map(w => {
+                            const currentStock = detailedInventory[product.id]?.[w.id] ?? 0;
+                            const newStock = stocks[w.id] ?? 0;
+                            const isFocused = initialWarehouseId === w.id;
+                            const isChanged = newStock !== currentStock;
+
+                            return (
+                                <div 
+                                    key={w.id} 
+                                    className={`p-3 rounded-xl border transition-all ${isChanged ? 'bg-blue-50/60 border-blue-300 shadow-xs' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Archive size={16} className="text-blue-600" />
+                                            <span className="font-black text-sm text-slate-800 uppercase">{w.name}</span>
+                                            {isFocused && (
+                                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-black rounded uppercase">Đang chọn</span>
+                                            )}
+                                        </div>
+                                        <div className="text-right text-xs">
+                                            <span className="text-slate-400 font-bold">Hiện có: </span>
+                                            <span className={`font-black ${currentStock > 5 ? 'text-emerald-600' : currentStock > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                                {currentStock}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 relative">
+                                            <input 
+                                                type="number" 
+                                                min="0"
+                                                autoFocus={isFocused}
+                                                value={newStock}
+                                                onChange={(e) => handleStockChange(w.id, parseInt(e.target.value) || 0)}
+                                                onFocus={(e) => e.target.select()}
+                                                className="w-full pl-3 pr-8 py-2 text-center text-base font-black text-slate-900 bg-white border-2 border-slate-300 rounded-lg focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
+                                            />
+                                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 uppercase">
+                                                Cái
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleAdjust(w.id, -10)}
+                                                className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg text-xs font-black transition"
+                                                title="Giảm 10"
+                                            >
+                                                -10
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleAdjust(w.id, -1)}
+                                                className="p-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg transition"
+                                                title="Giảm 1"
+                                            >
+                                                <Minus size={14} />
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleAdjust(w.id, 1)}
+                                                className="p-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg transition"
+                                                title="Tăng 1"
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleAdjust(w.id, 10)}
+                                                className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg text-xs font-black transition"
+                                                title="Tăng 10"
+                                            >
+                                                +10
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleResetToZero(w.id)}
+                                                className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-600 rounded-lg text-xs font-black transition"
+                                                title="Đặt về 0"
+                                            >
+                                                =0
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+
+                    <div className="p-4 bg-slate-50 flex gap-2 border-t border-slate-200 mt-4 rounded-xl">
+                        <button 
+                            type="button" 
+                            onClick={onClose} 
+                            className="flex-1 py-2.5 bg-white border-2 border-slate-300 hover:bg-slate-100 rounded-xl font-black text-xs uppercase text-slate-700 transition"
+                        >
+                            Hủy
+                        </button>
+                        <button 
+                            type="submit"
+                            disabled={isProcessing}
+                            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase shadow-md transition active:scale-95 disabled:bg-slate-300 flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                            {isProcessing ? <Loader className="animate-spin" size={16} /> : <><CheckCheck size={16} /> Lưu thay đổi</>}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 interface CartItem extends SaleItem {
   stock: number;
   invoicedStock: number; 
@@ -272,7 +496,22 @@ const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () 
     );
 };
 
-const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<string, Record<string, number>>; warehouses: Warehouse[]; shippingMode: string; onAdd: (product: Product, quantity: number, price: number, importPrice: number, keepSearch?: boolean) => void; onQuickImport?: (product: Product) => void; onTransfer?: (product: Product) => void; onUpdatePrice?: (productId: string, price: number) => Promise<void>; onUpdateImportPrice?: (productId: string, price: number) => Promise<void>; lastSoldPrice?: number; isPOS?: boolean; isAdmin?: boolean; onCompare?: (product: Product) => void; }> = ({ product, detailedInventory, warehouses, shippingMode, onAdd, onQuickImport, onTransfer, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin, onCompare }) => {
+const ProductCardItem: React.FC<{ 
+    product: Product; 
+    detailedInventory: Record<string, Record<string, number>>; 
+    warehouses: Warehouse[]; 
+    shippingMode: string; 
+    onAdd: (product: Product, quantity: number, price: number, importPrice: number, keepSearch?: boolean) => void; 
+    onQuickImport?: (product: Product) => void; 
+    onTransfer?: (product: Product) => void; 
+    onEditStock?: (product: Product, targetWarehouseId?: string) => void;
+    onUpdatePrice?: (productId: string, price: number) => Promise<void>; 
+    onUpdateImportPrice?: (productId: string, price: number) => Promise<void>; 
+    lastSoldPrice?: number; 
+    isPOS?: boolean; 
+    isAdmin?: boolean; 
+    onCompare?: (product: Product) => void; 
+}> = ({ product, detailedInventory, warehouses, shippingMode, onAdd, onQuickImport, onTransfer, onEditStock, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin, onCompare }) => {
     const [inputQty, setInputQty] = useState(1);
     const [inputPrice, setInputPrice] = useState(lastSoldPrice !== undefined ? lastSoldPrice : product.sellingPrice);
     const [inputImportPrice, setInputImportPrice] = useState(product.importPrice);
@@ -311,6 +550,15 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
 
                 {!product.isCombo && (
                     <div className="flex gap-1 shrink-0">
+                        {onEditStock && (
+                            <button 
+                                onClick={() => onEditStock(product)} 
+                                className="p-1.5 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-lg hover:bg-blue-600 hover:text-white transition shadow-2xs flex items-center justify-center h-6 w-6"
+                                title="Chỉnh sửa số lượng từng kho"
+                            >
+                                <Boxes size={11}/>
+                            </button>
+                        )}
                         {onQuickImport && (
                             <button 
                                 onClick={() => onQuickImport(product)} 
@@ -348,17 +596,42 @@ const ProductCardItem: React.FC<{ product: Product; detailedInventory: Record<st
             </div>
 
             {/* Hàng 2: Chi tiết số lượng từng kho */}
-            <div className="grid grid-cols-3 gap-1 text-[9px] font-bold mb-2 bg-slate-50/80 p-1 rounded-lg border border-slate-100 text-center">
-                {top3Warehouses.map(w => {
-                    const wStock = productInventory[w.id] || 0;
-                    const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
-                    return (
-                        <div key={w.id} className="min-w-0" title={`${w.name}: ${wStock}`}>
-                            <div className="text-[8px] text-slate-400 uppercase truncate">{w.name}</div>
-                            <div className={colorClass}>{wStock}</div>
-                        </div>
-                    );
-                })}
+            <div className="mb-2">
+                <div className="flex items-center justify-between mb-1 px-0.5">
+                    <span className="text-[8px] font-black uppercase text-slate-400">Tồn kho:</span>
+                    {onEditStock && !product.isCombo && (
+                        <button 
+                            type="button"
+                            onClick={() => onEditStock(product)}
+                            className="text-[8px] font-black text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-0.5 cursor-pointer"
+                            title="Nhấp để sửa số lượng các kho"
+                        >
+                            <Edit size={8} /> Sửa SL kho
+                        </button>
+                    )}
+                </div>
+                <div className="grid grid-cols-3 gap-1 text-[9px] font-bold bg-slate-50/80 p-1 rounded-lg border border-slate-100 text-center">
+                    {top3Warehouses.map(w => {
+                        const wStock = productInventory[w.id] || 0;
+                        const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
+                        return (
+                            <div 
+                                key={w.id} 
+                                onClick={() => !product.isCombo && onEditStock?.(product, w.id)}
+                                className={`min-w-0 p-0.5 rounded transition ${!product.isCombo ? 'hover:bg-blue-50 hover:border-blue-300 border border-transparent cursor-pointer group/wh' : ''}`}
+                                title={!product.isCombo ? `Nhấp để sửa tồn kho ${w.name} (${wStock})` : `${w.name}: ${wStock}`}
+                            >
+                                <div className="text-[8px] text-slate-400 uppercase truncate">{w.name}</div>
+                                <div className={`${colorClass} flex items-center justify-center gap-0.5`}>
+                                    <span>{wStock}</span>
+                                    {!product.isCombo && (
+                                        <Edit size={7} className="opacity-0 group-hover/wh:opacity-100 text-blue-600 transition-opacity shrink-0" />
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
             <div className="space-y-1 mb-2.5">
                 {isAdmin && (
@@ -486,6 +759,39 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [selectedQuickTransferProduct, setSelectedQuickTransferProduct] = useState<Product | null>(null);
   const [isPriceComparisonOpen, setIsPriceComparisonOpen] = useState(false);
   const [selectedPriceComparisonProduct, setSelectedPriceComparisonProduct] = useState<Product | null>(null);
+  const [isEditStockOpen, setIsEditStockOpen] = useState(false);
+  const [selectedEditStockProduct, setSelectedEditStockProduct] = useState<Product | null>(null);
+  const [selectedEditStockWarehouseId, setSelectedEditStockWarehouseId] = useState<string | undefined>(undefined);
+
+  const handleOpenEditStock = (product: Product, targetWarehouseId?: string) => {
+    setSelectedEditStockProduct(product);
+    setSelectedEditStockWarehouseId(targetWarehouseId);
+    setIsEditStockOpen(true);
+  };
+
+  const handleSaveWarehouseStock = async (productId: string, stockUpdates: Record<string, number>) => {
+    try {
+      setIsProcessing(true);
+      const batch = writeBatch(db);
+      for (const [whId, qty] of Object.entries(stockUpdates)) {
+        const wh = warehouses.find(w => w.id === whId);
+        const invRef = doc(db, 'products', productId, 'inventory', whId);
+        batch.set(invRef, {
+          stock: qty,
+          warehouseId: whId,
+          warehouseName: wh?.name || 'Kho'
+        }, { merge: true });
+      }
+      await batch.commit();
+      setToast({ message: "Cập nhật tồn kho từng kho thành công!", type: 'success' });
+      setIsEditStockOpen(false);
+    } catch (e: any) {
+      console.error(e);
+      alert("Lỗi khi cập nhật tồn kho: " + e.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const isAdmin = userRole === 'admin';
 
@@ -1025,6 +1331,17 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
             product={selectedPriceComparisonProduct} 
         />
 
+        <EditWarehouseStockModal
+            isOpen={isEditStockOpen}
+            onClose={() => setIsEditStockOpen(false)}
+            product={selectedEditStockProduct}
+            warehouses={warehouses}
+            detailedInventory={detailedInventory}
+            initialWarehouseId={selectedEditStockWarehouseId}
+            onSave={handleSaveWarehouseStock}
+            isProcessing={isProcessing}
+        />
+
         <div className={`flex flex-col lg:flex-row gap-4 flex-1`}>
             <div className={`flex flex-col ${isFullscreen ? 'lg:w-[65%]' : 'lg:w-3/5'}`}>
                 <div className="bg-white p-4 rounded-2xl shadow-md flex-1 flex flex-col border-2 border-slate-200">
@@ -1146,7 +1463,31 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 </button>
                             )}
                         </div>
-                        <div className={`grid gap-2 content-start overflow-y-auto ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ProductCardItem key={p.id} product={p} detailedInventory={detailedInventory} warehouses={warehouses} shippingMode={shippingMode} onAdd={addToCart} onQuickImport={(prod) => { setSelectedQuickImportProduct(prod); setIsQuickImportOpen(true); }} onTransfer={(prod) => { setSelectedQuickTransferProduct(prod); setIsQuickTransferOpen(true); }} onUpdatePrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{sellingPrice:pr})} onUpdateImportPrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{importPrice:pr})} lastSoldPrice={wholesalePrices[p.id]} isPOS={isFullscreen} isAdmin={isAdmin} onCompare={(p) => { setSelectedPriceComparisonProduct(p); setIsPriceComparisonOpen(true); }} />)) }</div>
+                        <div className={`grid gap-2 content-start overflow-y-auto ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>
+                            {loading ? (
+                                <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div>
+                            ) : (
+                                paginatedProducts.map(p => (
+                                    <ProductCardItem 
+                                        key={p.id} 
+                                        product={p} 
+                                        detailedInventory={detailedInventory} 
+                                        warehouses={warehouses} 
+                                        shippingMode={shippingMode} 
+                                        onAdd={addToCart} 
+                                        onQuickImport={(prod) => { setSelectedQuickImportProduct(prod); setIsQuickImportOpen(true); }} 
+                                        onTransfer={(prod) => { setSelectedQuickTransferProduct(prod); setIsQuickTransferOpen(true); }} 
+                                        onEditStock={handleOpenEditStock}
+                                        onUpdatePrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{sellingPrice:pr})} 
+                                        onUpdateImportPrice={async(id,pr)=>await updateDoc(doc(db,'products',id),{importPrice:pr})} 
+                                        lastSoldPrice={wholesalePrices[p.id]} 
+                                        isPOS={isFullscreen} 
+                                        isAdmin={isAdmin} 
+                                        onCompare={(p) => { setSelectedPriceComparisonProduct(p); setIsPriceComparisonOpen(true); }} 
+                                    />
+                                ))
+                            )}
+                        </div>
                         <div className="mt-3 flex justify-between items-center border-t border-slate-100 pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
                     </div>
                 </div>
