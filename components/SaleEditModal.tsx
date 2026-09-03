@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sale, Customer, PaymentMethod, Shipper, SaleItem, Product } from '../types';
-import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown, UserPlus, Check, Phone, MapPin } from 'lucide-react';
+import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown, UserPlus, Check, Phone, MapPin, CheckCircle2, Clock, RotateCcw, ArrowDownLeft, ArrowUpRight, Info } from 'lucide-react';
 import { doc, serverTimestamp, runTransaction, collection, addDoc, Timestamp, increment, getDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
@@ -84,13 +84,17 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
   const [customerId, setCustomerId] = useState('');
   const [shipperId, setShipperId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
+  
+  // Payment & Debt State
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'debt'>('paid');
+  const [debtType, setDebtType] = useState<'full' | 'partial'>('full'); // 'full' = nợ 100% (amountPaid = 0), 'partial' = trả trước 1 phần
+  const [customPaidAmount, setCustomPaidAmount] = useState<number>(0);
+
   const [shippingMode, setShippingMode] = useState<'none' | 'pending' | 'shipped' | 'order'>('none');
   const [shippingFee, setShippingFee] = useState(0);
   const [saleDate, setSaleDate] = useState(getTodayString()); 
   const [issueInvoice, setIssueInvoice] = useState(false);
   const [editedItems, setEditedItems] = useState<SaleItem[]>([]);
-  const [additionalPayment, setAdditionalPayment] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [wholesalePrices, setWholesalePrices] = useState<Record<string, number>>({});
 
@@ -115,11 +119,28 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
       setCustSearch(sale.customerName || '');
       setShipperId(sale.shipperId || '');
       setPaymentMethodId(sale.paymentMethodId || '');
-      setPaymentStatus((sale.status as 'paid' | 'debt') || 'paid');
+      
+      const origPaid = sale.amountPaid || 0;
+      const origTotal = sale.total || 0;
+      const isOriginallyDebt = sale.status === 'debt' || origPaid < origTotal;
+      
+      setPaymentStatus(isOriginallyDebt ? 'debt' : 'paid');
+      if (isOriginallyDebt) {
+        if (origPaid === 0) {
+          setDebtType('full');
+          setCustomPaidAmount(0);
+        } else {
+          setDebtType('partial');
+          setCustomPaidAmount(origPaid);
+        }
+      } else {
+        setDebtType('full');
+        setCustomPaidAmount(origTotal);
+      }
+
       setShippingMode((sale.shippingStatus as 'pending' | 'none' | 'order' | 'shipped') || 'none');
       setShippingFee(sale.shippingFee || 0);
       setIssueInvoice(sale.issueInvoice || false);
-      setAdditionalPayment(0);
       setEditedItems(sale.items ? JSON.parse(JSON.stringify(sale.items)) : []);
       if (sale.createdAt) {
           setSaleDate(getLocalYYYYMMDD(sale.createdAt.toDate()));
@@ -171,6 +192,28 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
     const itemsTotal = editedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     return itemsTotal + shippingFee;
   }, [editedItems, shippingFee]);
+
+  // Số tiền thực thu sau khi sửa
+  const effectiveAmountPaid = useMemo(() => {
+    if (paymentStatus === 'paid') {
+      return newTotal;
+    }
+    if (debtType === 'full') {
+      return 0;
+    }
+    return Math.max(0, Math.min(newTotal, customPaidAmount));
+  }, [paymentStatus, debtType, customPaidAmount, newTotal]);
+
+  // Số tiền còn nợ sau khi sửa
+  const remainingDebt = useMemo(() => {
+    return Math.max(0, newTotal - effectiveAmountPaid);
+  }, [newTotal, effectiveAmountPaid]);
+
+  // Thông tin số tiền và tài khoản ban đầu
+  const originalAmountPaid = sale?.amountPaid || 0;
+  const originalPaymentMethodId = sale?.paymentMethodId || '';
+  const originalPaymentMethodName = sale?.paymentMethodName || paymentMethods.find(p => p.id === originalPaymentMethodId)?.name || 'N/A';
+  const amountDiff = effectiveAmountPaid - originalAmountPaid;
 
   const filteredCustomers = useMemo(() => {
       if (!custSearch) return localCustomers.slice(0, 15);
@@ -283,15 +326,13 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
       alert("Đơn hàng không thể để trống sản phẩm.");
       return;
     }
-    if ((additionalPayment > 0 || sale?.amountPaid > 0) && !paymentMethodId) {
+    
+    // Nếu có phát sinh thu tiền thực tế (effectiveAmountPaid > 0), bắt buộc phải có tài khoản thu
+    if (effectiveAmountPaid > 0 && !paymentMethodId) {
       alert("Vui lòng chọn tài khoản thu tiền.");
       return;
     }
-    const maxAllowed = Math.max(0, newTotal - (sale?.amountPaid || 0));
-    if (additionalPayment > 0 && additionalPayment > maxAllowed) {
-        alert("Số tiền thanh toán thêm không được vượt quá số tiền còn nợ.");
-        return;
-    }
+
     setIsProcessing(true);
     try {
       await runTransaction(db, async (transaction) => {
@@ -299,6 +340,8 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
         const saleSnap = await transaction.get(saleRef);
         if (!saleSnap.exists()) throw "Đơn hàng không tồn tại.";
         const oldData = saleSnap.data() as Sale;
+        const oldAmountPaid = oldData.amountPaid || 0;
+        const oldMethodId = oldData.paymentMethodId || '';
 
         const allProductIds = new Set([
             ...oldData.items.map(i => i.productId),
@@ -313,16 +356,18 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             }
         }
 
-        let newAccSnap = null;
+        // Fetch tài khoản thanh toán liên quan
         let oldAccSnap = null;
-        
-        if (paymentMethodId) {
-            newAccSnap = await transaction.get(doc(db, 'paymentMethods', paymentMethodId));
+        let newAccSnap = null;
+
+        if (oldMethodId) {
+            oldAccSnap = await transaction.get(doc(db, 'paymentMethods', oldMethodId));
         }
-        
-        const isChangingPaymentMethod = oldData.paymentMethodId && paymentMethodId && oldData.paymentMethodId !== paymentMethodId;
-        if (isChangingPaymentMethod && oldData.amountPaid > 0) {
-            oldAccSnap = await transaction.get(doc(db, 'paymentMethods', oldData.paymentMethodId));
+
+        if (paymentMethodId && paymentMethodId !== oldMethodId) {
+            newAccSnap = await transaction.get(doc(db, 'paymentMethods', paymentMethodId));
+        } else if (paymentMethodId && paymentMethodId === oldMethodId) {
+            newAccSnap = oldAccSnap;
         }
 
         const selectedDateObj = new Date(saleDate);
@@ -332,6 +377,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
 
         const shortId = sale.id.substring(0, 8).toUpperCase();
 
+        // 1. Tính toán chênh lệch tồn kho & hóa đơn đỏ
         const inventoryDiffs: Record<string, number> = {};
         const invoiceDiffs: Record<string, number> = {};
 
@@ -382,92 +428,128 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             }
         }
 
-        if (isChangingPaymentMethod && oldData.amountPaid > 0 && oldAccSnap && oldAccSnap.exists()) {
-            // Rút tiền khỏi tài khoản cũ
-            const oldSnapBal = Number(oldAccSnap.data()?.balance) || 0;
-            const finalOldBal = oldSnapBal - oldData.amountPaid;
-            transaction.update(oldAccSnap.ref, { balance: finalOldBal });
-            transaction.set(doc(collection(db, 'paymentLogs')), {
-                paymentMethodId: oldData.paymentMethodId,
-                paymentMethodName: oldData.paymentMethodName || 'N/A',
-                type: 'withdrawal',
-                amount: oldData.amountPaid,
-                balanceAfter: finalOldBal,
-                note: `Hoàn tiền do đổi tài khoản thu cho đơn hàng #${shortId}`,
-                relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
-            });
-            
-            // Nạp tiền vào tài khoản mới và log
-            if (newAccSnap && newAccSnap.exists()) {
-                const newSnapBal = Number(newAccSnap.data()?.balance) || 0;
-                let finalNewBal = newSnapBal + oldData.amountPaid;
-                
+        // 2. Xử lý điều chỉnh tiền và số dư tài khoản chính xác
+        const selectedMethod = paymentMethods.find(p => p.id === paymentMethodId);
+        const oldMethodName = oldData.paymentMethodName || oldAccSnap?.data()?.name || 'N/A';
+        const newMethodName = selectedMethod?.name || newAccSnap?.data()?.name || 'N/A';
+
+        let newPaymentHistory = oldData.paymentHistory || [];
+
+        // Trường hợp 1: Chuyển tài khoản thu khác
+        if (oldMethodId && paymentMethodId && oldMethodId !== paymentMethodId) {
+            // Rút toàn bộ tiền cũ khỏi tài khoản cũ (nếu cũ có thu tiền > 0)
+            if (oldAmountPaid > 0 && oldAccSnap && oldAccSnap.exists()) {
+                const oldBal = Number(oldAccSnap.data()?.balance) || 0;
+                const finalOldBal = oldBal - oldAmountPaid;
+                transaction.update(oldAccSnap.ref, { balance: finalOldBal });
+                transaction.set(doc(collection(db, 'paymentLogs')), {
+                    paymentMethodId: oldMethodId,
+                    paymentMethodName: oldMethodName,
+                    type: 'withdrawal',
+                    amount: oldAmountPaid,
+                    balanceAfter: finalOldBal,
+                    note: `Rút lại tiền do đổi tài khoản thu/chuyển ghi nợ cho đơn hàng #${shortId}`,
+                    relatedId: sale.id,
+                    relatedType: 'sale',
+                    createdAt: serverTimestamp(),
+                    creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'Hệ thống'
+                });
+            }
+
+            // Nạp tiền mới vào tài khoản mới (nếu mới có thu tiền > 0)
+            if (effectiveAmountPaid > 0 && newAccSnap && newAccSnap.exists()) {
+                const newBal = Number(newAccSnap.data()?.balance) || 0;
+                const finalNewBal = newBal + effectiveAmountPaid;
+                transaction.update(newAccSnap.ref, { balance: finalNewBal });
                 transaction.set(doc(collection(db, 'paymentLogs')), {
                     paymentMethodId: paymentMethodId,
-                    paymentMethodName: paymentMethods.find(p => p.id === paymentMethodId)?.name || 'N/A',
+                    paymentMethodName: newMethodName,
                     type: 'deposit',
-                    amount: oldData.amountPaid,
+                    amount: effectiveAmountPaid,
                     balanceAfter: finalNewBal,
-                    note: `Chuyển tiền thu vào tài khoản mới cho đơn hàng #${shortId}`,
-                    relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
+                    note: `Thu tiền đơn hàng #${shortId} vào tài khoản mới ${newMethodName}`,
+                    relatedId: sale.id,
+                    relatedType: 'sale',
+                    createdAt: serverTimestamp(),
+                    creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'Hệ thống'
                 });
-                
-                if (additionalPayment > 0) {
-                    finalNewBal += additionalPayment;
+            }
+
+            newPaymentHistory = [...newPaymentHistory, {
+                date: Timestamp.now(),
+                amount: effectiveAmountPaid - oldAmountPaid,
+                note: `Đổi TK thu từ ${oldMethodName} sang ${newMethodName} (Đã thu: ${formatNumber(effectiveAmountPaid)} ₫)`
+            }];
+        } 
+        // Trường hợp 2: Cùng tài khoản (hoặc ban đầu chưa có PTTT)
+        else {
+            const activeAccSnap = newAccSnap || oldAccSnap;
+            const diffAmount = effectiveAmountPaid - oldAmountPaid;
+
+            // Nếu giảm tiền thu (chuyển sang ghi nợ hoặc giảm tiền trả) -> Trừ lại tiền trong tài khoản
+            if (diffAmount < 0) {
+                const refundAmount = Math.abs(diffAmount);
+                if (activeAccSnap && activeAccSnap.exists()) {
+                    const curBal = Number(activeAccSnap.data()?.balance) || 0;
+                    const finalBal = curBal - refundAmount;
+                    transaction.update(activeAccSnap.ref, { balance: finalBal });
                     transaction.set(doc(collection(db, 'paymentLogs')), {
-                        paymentMethodId: paymentMethodId,
-                        paymentMethodName: paymentMethods.find(p => p.id === paymentMethodId)?.name || 'N/A',
-                        type: 'deposit',
-                        amount: additionalPayment,
-                        balanceAfter: finalNewBal,
-                        note: `Thu tiền thêm cho đơn hàng #${shortId}`,
-                        relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
+                        paymentMethodId: activeAccSnap.id,
+                        paymentMethodName: activeAccSnap.data()?.name || oldMethodName,
+                        type: 'withdrawal',
+                        amount: refundAmount,
+                        balanceAfter: finalBal,
+                        note: effectiveAmountPaid === 0 
+                            ? `Trừ lại tiền do chuyển đơn hàng #${shortId} sang Ghi nợ (sửa đơn)` 
+                            : `Trừ lại ${formatNumber(refundAmount)} ₫ do giảm tiền thu đơn hàng #${shortId}`,
+                        relatedId: sale.id,
+                        relatedType: 'sale',
+                        createdAt: serverTimestamp(),
+                        creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'Hệ thống'
                     });
                 }
-                
-                // Chỉ update một lần cho newAccSnap
-                transaction.update(newAccSnap.ref, { balance: finalNewBal });
-            }
-        } else {
-            // Nếu không đổi tài khoản thu, chỉ xử lý thêm phần additionalPayment (nếu có)
-            if (newAccSnap && newAccSnap.exists() && additionalPayment > 0) {
-                const newSnapBal = Number(newAccSnap.data()?.balance) || 0;
-                const finalBalForNew = newSnapBal + additionalPayment;
-                transaction.update(newAccSnap.ref, { balance: finalBalForNew });
-                transaction.set(doc(collection(db, 'paymentLogs')), {
-                    paymentMethodId: paymentMethodId,
-                    paymentMethodName: paymentMethods.find(p => p.id === paymentMethodId)?.name || 'N/A',
-                    type: 'deposit',
-                    amount: additionalPayment,
-                    balanceAfter: finalBalForNew,
-                    note: `Thu tiền thêm cho đơn hàng #${shortId}`,
-                    relatedId: sale.id, relatedType: 'sale', createdAt: serverTimestamp(), creatorName: auth.currentUser?.displayName || 'Hệ thống'
-                });
+                newPaymentHistory = [...newPaymentHistory, {
+                    date: Timestamp.now(),
+                    amount: diffAmount,
+                    note: effectiveAmountPaid === 0 
+                        ? `Chuyển sang Ghi nợ (Đã trừ lại ${formatNumber(refundAmount)} ₫ trong TK ${oldMethodName})` 
+                        : `Điều chỉnh giảm tiền thu ${formatNumber(refundAmount)} ₫`
+                }];
+            } 
+            // Nếu tăng tiền thu (chuyển từ nợ sang đã thanh toán hoặc thu thêm) -> Nạp thêm tiền
+            else if (diffAmount > 0) {
+                if (activeAccSnap && activeAccSnap.exists()) {
+                    const curBal = Number(activeAccSnap.data()?.balance) || 0;
+                    const finalBal = curBal + diffAmount;
+                    transaction.update(activeAccSnap.ref, { balance: finalBal });
+                    transaction.set(doc(collection(db, 'paymentLogs')), {
+                        paymentMethodId: activeAccSnap.id,
+                        paymentMethodName: activeAccSnap.data()?.name || newMethodName,
+                        type: 'deposit',
+                        amount: diffAmount,
+                        balanceAfter: finalBal,
+                        note: oldAmountPaid === 0 
+                            ? `Thu tiền cho đơn hàng #${shortId} (sửa từ ghi nợ sang đã thanh toán)` 
+                            : `Thu thêm tiền cho đơn hàng #${shortId}`,
+                        relatedId: sale.id,
+                        relatedType: 'sale',
+                        createdAt: serverTimestamp(),
+                        creatorName: auth.currentUser?.displayName || auth.currentUser?.email || 'Hệ thống'
+                    });
+                }
+                newPaymentHistory = [...newPaymentHistory, {
+                    date: Timestamp.now(),
+                    amount: diffAmount,
+                    note: oldAmountPaid === 0 
+                        ? `Thanh toán đơn hàng qua ${newMethodName}` 
+                        : `Thu thêm ${formatNumber(diffAmount)} ₫ qua ${newMethodName}`
+                }];
             }
         }
 
         const selectedCustomer = localCustomers.find(c => c.id === customerId);
         const selectedShipper = shippers.find(s => s.id === shipperId);
-        const selectedMethod = paymentMethods.find(p => p.id === paymentMethodId);
-
-        const finalAmountPaid = (oldData.amountPaid || 0) + additionalPayment;
-        const newStatus = finalAmountPaid >= newTotal ? 'paid' : 'debt';
-        
-        let newPaymentHistory = oldData.paymentHistory || [];
-        if (isChangingPaymentMethod && oldData.amountPaid > 0) {
-             newPaymentHistory = [...newPaymentHistory, {
-                 date: Timestamp.now(),
-                 amount: 0,
-                 note: `Đổi tài khoản thu từ ${oldData.paymentMethodName || 'N/A'} sang ${selectedMethod?.name || 'N/A'}`
-             }];
-        }
-        if (additionalPayment > 0) {
-             newPaymentHistory = [...newPaymentHistory, {
-                 date: Timestamp.now(),
-                 amount: additionalPayment,
-                 note: `Thu tiền thêm qua ${selectedMethod?.name || 'N/A'} khi sửa đơn`
-             }];
-        }
+        const newStatus = effectiveAmountPaid >= newTotal ? 'paid' : 'debt';
 
         transaction.update(saleRef, {
           items: editedItems,
@@ -479,14 +561,14 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
           customerName: selectedCustomer ? selectedCustomer.name : (custSearch || 'Khách vãng lai'),
           customerPhone: selectedCustomer?.phone || (sale as any).customerPhone || '',
           customerAddress: selectedCustomer?.address || (sale as any).customerAddress || '',
-          paymentMethodId: paymentMethodId || oldData.paymentMethodId || null,
-          paymentMethodName: selectedMethod ? selectedMethod.name : (oldData.paymentMethodName || null),
+          paymentMethodId: effectiveAmountPaid > 0 ? (paymentMethodId || null) : (paymentMethodId || oldData.paymentMethodId || null),
+          paymentMethodName: effectiveAmountPaid > 0 ? (selectedMethod?.name || null) : (selectedMethod?.name || oldData.paymentMethodName || null),
           shipperId: shipperId || null,
           shipperName: selectedShipper ? selectedShipper.name : null,
           status: newStatus,
           shippingStatus: shippingMode,
           createdAt: finalCreatedAt, 
-          amountPaid: finalAmountPaid,
+          amountPaid: effectiveAmountPaid,
           paymentHistory: newPaymentHistory,
           updatedAt: serverTimestamp()
         });
@@ -677,39 +759,203 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                         <input type="checkbox" id="edit-issue-invoice" checked={issueInvoice} onChange={e => setIssueInvoice(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-0 mr-3 cursor-pointer" />
                         <label htmlFor="edit-issue-invoice" className="text-xs font-black uppercase text-blue-800 cursor-pointer">Xuất hóa đơn đỏ</label>
                     </div>
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
-                        <div className="flex justify-between items-center text-xs font-black">
-                             <span className="text-slate-500">Đã thanh toán:</span>
-                             <span className="text-emerald-600">{formatNumber(sale?.amountPaid || 0)} ₫</span>
+                    {/* KHU VỰC ĐIỀU CHỈNH THANH TOÁN & GHI NỢ */}
+                    <div className="bg-slate-50 p-3.5 rounded-xl border-2 border-slate-200 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                                <Wallet size={14} className="text-primary" /> Trạng thái thanh toán
+                            </label>
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
+                                {paymentStatus === 'paid' ? 'Đủ tiền' : (debtType === 'full' ? 'Nợ 100%' : 'Nợ 1 phần')}
+                            </span>
                         </div>
-                        <div className="flex justify-between items-center text-xs font-black">
-                             <span className="text-slate-500">Còn nợ:</span>
-                             <span className="text-red-500">{formatNumber(Math.max(0, newTotal - (sale?.amountPaid || 0)))} ₫</span>
-                        </div>
-                    </div>
 
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Tài khoản thu tiền</label>
-                        <select value={paymentMethodId} onChange={e => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm h-[40px] mb-3">
-                            <option value="">-- CHỌN TÀI KHOẢN --</option>
-                            {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                    </div>
-                    {(newTotal - (sale?.amountPaid || 0)) > 0 && (
-                        <>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Thanh toán thêm</label>
-                                <div className="flex space-x-2">
-                                    <div className="flex-1">
-                                        <NumericInput value={additionalPayment} onChange={setAdditionalPayment} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg text-right font-black text-sm outline-none text-slate-900 bg-white shadow-sm" />
+                        {/* Nút chuyển nhanh: Đã thanh toán / Ghi nợ */}
+                        <div className="grid grid-cols-2 gap-2 bg-slate-200/70 p-1 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPaymentStatus('paid');
+                                }}
+                                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-black transition-all cursor-pointer ${
+                                    paymentStatus === 'paid'
+                                        ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/30'
+                                        : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                                }`}
+                            >
+                                <CheckCircle2 size={15} />
+                                <span>ĐÃ THANH TOÁN</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPaymentStatus('debt');
+                                    // Nếu chuyển sang nợ và chưa chọn partial thì mặc định nợ 100% (customPaidAmount = 0)
+                                    if (paymentStatus === 'paid') {
+                                      setDebtType('full');
+                                      setCustomPaidAmount(0);
+                                    }
+                                }}
+                                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-black transition-all cursor-pointer ${
+                                    paymentStatus === 'debt'
+                                        ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400/30'
+                                        : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                                }`}
+                            >
+                                <Clock size={15} />
+                                <span>GHI NỢ</span>
+                            </button>
+                        </div>
+
+                        {/* Tùy chọn chi tiết khi Ghi nợ */}
+                        {paymentStatus === 'debt' && (
+                            <div className="bg-white p-3 rounded-lg border border-amber-200/80 space-y-2.5 animate-fade-in">
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDebtType('full');
+                                            setCustomPaidAmount(0);
+                                        }}
+                                        className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black border transition cursor-pointer ${
+                                            debtType === 'full'
+                                                ? 'bg-amber-50 border-amber-500 text-amber-900 font-black shadow-xs'
+                                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        Nợ toàn bộ (0 ₫)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDebtType('partial');
+                                            if (customPaidAmount === 0 && originalAmountPaid > 0 && originalAmountPaid < newTotal) {
+                                              setCustomPaidAmount(originalAmountPaid);
+                                            } else if (customPaidAmount === 0) {
+                                              setCustomPaidAmount(Math.round(newTotal / 2));
+                                            }
+                                        }}
+                                        className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black border transition cursor-pointer ${
+                                            debtType === 'partial'
+                                                ? 'bg-amber-50 border-amber-500 text-amber-900 font-black shadow-xs'
+                                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        Trả trước 1 phần
+                                    </button>
+                                </div>
+
+                                {debtType === 'partial' && (
+                                    <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                                        <div className="flex justify-between items-center text-[10px] font-black text-slate-500">
+                                            <span>SỐ TIỀN KHÁCH ĐÃ TRẢ:</span>
+                                            <span className="text-emerald-600 font-black">{formatNumber(customPaidAmount)} ₫</span>
+                                        </div>
+                                        <NumericInput
+                                            value={customPaidAmount}
+                                            onChange={(val) => setCustomPaidAmount(Math.min(newTotal, Math.max(0, val)))}
+                                            className="w-full px-3 py-2 border-2 border-amber-300 rounded-lg text-right font-black text-sm outline-none text-slate-900 bg-amber-50/40 focus:bg-white focus:border-amber-500"
+                                        />
+                                        <div className="flex justify-between gap-1 text-[10px] text-slate-500">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCustomPaidAmount(0)}
+                                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded font-bold cursor-pointer"
+                                            >
+                                                0 ₫
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCustomPaidAmount(Math.round(newTotal / 2))}
+                                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded font-bold cursor-pointer"
+                                            >
+                                                50% ({formatNumber(Math.round(newTotal / 2))})
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCustomPaidAmount(newTotal)}
+                                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded font-bold cursor-pointer"
+                                            >
+                                                Đủ 100%
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Tổng kết dòng tiền sau điều chỉnh */}
+                        <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-1.5 text-xs">
+                            <div className="flex justify-between items-center font-bold text-slate-600">
+                                <span>Tổng tiền đơn:</span>
+                                <span className="font-black text-slate-900">{formatNumber(newTotal)} ₫</span>
+                            </div>
+                            <div className="flex justify-between items-center font-bold">
+                                <span className="text-slate-600">Thực thu vào tài khoản:</span>
+                                <span className={`font-black ${effectiveAmountPaid > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                    {formatNumber(effectiveAmountPaid)} ₫
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center font-black pt-1 border-t border-slate-100">
+                                <span className="text-red-500 uppercase text-[11px]">Còn nợ khách hàng:</span>
+                                <span className="text-red-600 text-sm">{formatNumber(remainingDebt)} ₫</span>
+                            </div>
+                        </div>
+
+                        {/* Tài khoản thu tiền */}
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">
+                                {effectiveAmountPaid > 0 ? (
+                                    <span className="text-slate-700">Tài khoản thu tiền ({formatNumber(effectiveAmountPaid)} ₫) *</span>
+                                ) : (
+                                    <span>Tài khoản giao dịch (Không thu tiền)</span>
+                                )}
+                            </label>
+                            <select
+                                value={paymentMethodId}
+                                onChange={e => setPaymentMethodId(e.target.value)}
+                                className={`w-full px-3 py-2 border-2 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm h-[40px] ${
+                                    effectiveAmountPaid > 0 && !paymentMethodId ? 'border-red-400 ring-2 ring-red-100' : 'border-slate-200 focus:border-primary'
+                                }`}
+                            >
+                                <option value="">-- {effectiveAmountPaid > 0 ? 'CHỌN TÀI KHOẢN THU' : 'CHỌN TÀI KHOẢN (TÙY CHỌN)'} --</option>
+                                {paymentMethods.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name} {p.balance !== undefined ? `(${formatNumber(p.balance)} ₫)` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            {effectiveAmountPaid > 0 && !paymentMethodId && (
+                                <p className="text-red-500 text-[11px] mt-1 font-bold">Vui lòng chọn tài khoản để ghi nhận {formatNumber(effectiveAmountPaid)} ₫.</p>
+                            )}
+                        </div>
+
+                        {/* Cảnh báo logic số dư tài khoản tự động (Smart Balance Alert) */}
+                        {originalAmountPaid > 0 && effectiveAmountPaid < originalAmountPaid && (
+                            <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex gap-2 items-start animate-fade-in">
+                                <RotateCcw size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                    <div className="font-black text-[11px] uppercase text-amber-800">Tự động hoàn / trừ lại số dư</div>
+                                    <div className="text-[11px] leading-relaxed">
+                                        Đơn hàng trước đó đã thu <strong>{formatNumber(originalAmountPaid)} ₫</strong> vào <strong>{originalPaymentMethodName}</strong>.
+                                        Khi lưu, hệ thống sẽ <strong>tự động trừ lại {formatNumber(originalAmountPaid - effectiveAmountPaid)} ₫</strong> khỏi tài khoản này và chuyển sang ghi nợ chính xác.
                                     </div>
                                 </div>
                             </div>
-                            {additionalPayment > 0 && !paymentMethodId && (
-                                <p className="text-red-500 text-xs mt-1 font-bold">Vui lòng chọn tài khoản thu tiền cho phần thanh toán thêm.</p>
-                            )}
-                        </>
-                    )}
+                        )}
+
+                        {amountDiff > 0 && (
+                            <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-900 text-xs flex gap-2 items-start animate-fade-in">
+                                <ArrowDownLeft size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                    <div className="font-black text-[11px] uppercase text-emerald-800">Tự động nạp thêm vào tài khoản</div>
+                                    <div className="text-[11px] leading-relaxed">
+                                        Hệ thống sẽ <strong>nạp thêm {formatNumber(amountDiff)} ₫</strong> vào tài khoản thu được chọn.
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <div>
                         <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Đơn vị vận chuyển</label>
                         <select value={shipperId} onChange={e => setShipperId(e.target.value)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm">
