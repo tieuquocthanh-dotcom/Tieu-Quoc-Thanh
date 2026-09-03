@@ -1369,8 +1369,21 @@ const DebtManagement: React.FC = () => {
                             value={searchTerm} 
                             onChange={e => {setSearchTerm(e.target.value); setIsSearchDropdownOpen(true);}} 
                             onFocus={() => setIsSearchDropdownOpen(true)}
-                            className="w-full pl-10 pr-4 py-3 border-2 border-slate-100 rounded-xl focus:ring-2 focus:ring-primary focus:outline-none font-black text-sm uppercase" 
+                            className="w-full pl-10 pr-10 py-3 border-2 border-slate-100 rounded-xl focus:ring-2 focus:ring-primary focus:outline-none font-black text-sm uppercase" 
                         />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSearchTerm('');
+                                    setIsSearchDropdownOpen(false);
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                title="Xóa tìm kiếm"
+                            >
+                                <X size={18} />
+                            </button>
+                        )}
                         {isSearchDropdownOpen && searchTerm && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto overflow-x-hidden">
                                 {currentSummary.filter(d => (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())).length === 0 ? (

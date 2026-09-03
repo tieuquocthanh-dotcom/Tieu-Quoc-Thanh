@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sale, Customer, PaymentMethod, Shipper, SaleItem, Product } from '../types';
-import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown } from 'lucide-react';
-import { doc, serverTimestamp, runTransaction, collection, Timestamp, increment, getDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown, UserPlus, Check, Phone, MapPin } from 'lucide-react';
+import { doc, serverTimestamp, runTransaction, collection, addDoc, Timestamp, increment, getDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
+import CustomerModal from './CustomerModal';
 
 interface SaleEditModalProps {
   isOpen: boolean;
@@ -78,6 +79,8 @@ const NumericInput: React.FC<{
 };
 
 const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, customers, paymentMethods, shippers, products }) => {
+  const [localCustomers, setLocalCustomers] = useState<Customer[]>(customers);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   const [customerId, setCustomerId] = useState('');
   const [shipperId, setShipperId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
@@ -103,13 +106,17 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
   const prodDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setLocalCustomers(customers);
+  }, [customers]);
+
+  useEffect(() => {
     if (isOpen && sale) {
       setCustomerId(sale.customerId || '');
       setCustSearch(sale.customerName || '');
       setShipperId(sale.shipperId || '');
       setPaymentMethodId(sale.paymentMethodId || '');
-      setPaymentStatus(sale.status || 'paid');
-      setShippingMode(sale.shippingStatus || 'none');
+      setPaymentStatus((sale.status as 'paid' | 'debt') || 'paid');
+      setShippingMode((sale.shippingStatus as 'pending' | 'none' | 'order' | 'shipped') || 'none');
       setShippingFee(sale.shippingFee || 0);
       setIssueInvoice(sale.issueInvoice || false);
       setAdditionalPayment(0);
@@ -129,7 +136,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
       return;
     }
 
-    const customer = customers.find(c => c.id === customerId);
+    const customer = localCustomers.find(c => c.id === customerId);
     if (customer?.type !== 'wholesale') {
       setWholesalePrices({});
       return;
@@ -158,7 +165,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
     });
 
     return () => unsubscribe();
-  }, [customerId, customers]);
+  }, [customerId, localCustomers]);
 
   const newTotal = useMemo(() => {
     const itemsTotal = editedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -166,10 +173,10 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
   }, [editedItems, shippingFee]);
 
   const filteredCustomers = useMemo(() => {
-      if (!custSearch) return customers.slice(0, 10);
+      if (!custSearch) return localCustomers.slice(0, 15);
       const lower = custSearch.toLowerCase();
-      return customers.filter(c => (c.name || '').toLowerCase().includes(lower) || (c.phone || '').includes(lower)).slice(0, 10);
-  }, [customers, custSearch]);
+      return localCustomers.filter(c => (c.name || '').toLowerCase().includes(lower) || (c.phone || '').includes(lower) || (c.address || '').toLowerCase().includes(lower)).slice(0, 15);
+  }, [localCustomers, custSearch]);
 
   const filteredProducts = useMemo(() => {
     if (!prodSearch) return [];
@@ -189,6 +196,33 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleSaveNewCustomer = async (data: { name: string; phone?: string; address?: string }) => {
+    try {
+      const docRef = await addDoc(collection(db, 'customers'), {
+        name: data.name.trim(),
+        phone: (data.phone || '').trim(),
+        address: (data.address || '').trim(),
+        type: 'retail',
+        createdAt: serverTimestamp()
+      });
+      const newCust: Customer = {
+        id: docRef.id,
+        name: data.name.trim(),
+        phone: (data.phone || '').trim(),
+        address: (data.address || '').trim(),
+        type: 'retail'
+      };
+      setLocalCustomers(prev => [newCust, ...prev]);
+      setCustomerId(docRef.id);
+      setCustSearch(data.name.trim());
+      setIsAddCustomerModalOpen(false);
+      setIsCustDropdownOpen(false);
+    } catch (e: any) {
+      console.error("Lỗi thêm khách hàng mới:", e);
+      alert("Lỗi khi thêm khách hàng: " + (e?.message || e));
+    }
+  };
 
   if (!isOpen || !sale) return null;
 
@@ -412,7 +446,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             }
         }
 
-        const selectedCustomer = customers.find(c => c.id === customerId);
+        const selectedCustomer = localCustomers.find(c => c.id === customerId);
         const selectedShipper = shippers.find(s => s.id === shipperId);
         const selectedMethod = paymentMethods.find(p => p.id === paymentMethodId);
 
@@ -443,6 +477,8 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
           issueInvoice: issueInvoice,
           customerId: customerId || null,
           customerName: selectedCustomer ? selectedCustomer.name : (custSearch || 'Khách vãng lai'),
+          customerPhone: selectedCustomer?.phone || (sale as any).customerPhone || '',
+          customerAddress: selectedCustomer?.address || (sale as any).customerAddress || '',
           paymentMethodId: paymentMethodId || oldData.paymentMethodId || null,
           paymentMethodName: selectedMethod ? selectedMethod.name : (oldData.paymentMethodName || null),
           shipperId: shipperId || null,
@@ -468,13 +504,21 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[110] animate-fade-in p-4">
+      {isAddCustomerModalOpen && (
+        <CustomerModal
+          customer={null}
+          onClose={() => setIsAddCustomerModalOpen(false)}
+          onSave={handleSaveNewCustomer}
+          existingCustomers={localCustomers}
+        />
+      )}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl animate-fade-in-down flex flex-col max-h-[95vh] overflow-hidden border border-slate-200">
         <div className="flex justify-between items-center p-4 border-b border-slate-800 bg-slate-900 text-white flex-shrink-0">
           <h3 className="text-lg font-black uppercase tracking-tighter flex items-center">
             <Edit3 className="mr-2 text-primary" size={20} />
             Sửa đơn hàng #{sale.id.substring(0, 8)}
           </h3>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors cursor-pointer">
             <X size={28} />
           </button>
         </div>
@@ -484,24 +528,133 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             <div className="lg:col-span-1 space-y-4">
               <div className="bg-white p-4 rounded-xl border-2 border-slate-200 shadow-sm space-y-4">
                 <div className="relative" ref={custDropdownRef}>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Khách hàng</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase">Khách hàng</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddCustomerModalOpen(true)}
+                      className="text-[10px] font-black uppercase text-primary hover:text-primary-hover flex items-center gap-1 bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded-md transition cursor-pointer"
+                    >
+                      <UserPlus size={12} />
+                      <span>+ Thêm mới</span>
+                    </button>
+                  </div>
                   <div className="relative">
                     <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                       type="text"
+                      placeholder="Tìm khách hàng hoặc gõ tên..."
                       value={custSearch}
                       onChange={(e) => { setCustSearch(e.target.value); setIsCustDropdownOpen(true); }}
                       onFocus={() => setIsCustDropdownOpen(true)}
-                      className="w-full pl-10 pr-3 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold text-slate-900 bg-white"
+                      className="w-full pl-9 pr-8 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold text-slate-900 bg-white"
                     />
+                    {custSearch && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustSearch('');
+                          setCustomerId('');
+                          setIsCustDropdownOpen(true);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 rounded cursor-pointer"
+                        title="Xóa tìm kiếm / Bỏ chọn"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
                   </div>
                   {isCustDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                      {filteredCustomers.map(c => (
-                        <button key={c.id} onClick={() => { setCustomerId(c.id); setCustSearch(c.name); setIsCustDropdownOpen(false); }} className="w-full text-left px-4 py-3 bg-white hover:bg-blue-50 border-b last:border-0 font-bold text-xs text-slate-900 transition-colors">
-                          <div className="flex justify-between items-center"><span>{c.name}</span><span className="text-[10px] text-slate-400">{c.phone}</span></div>
-                        </button>
-                      ))}
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-2xl z-50 max-h-56 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustDropdownOpen(false);
+                          setIsAddCustomerModalOpen(true);
+                        }}
+                        className="w-full text-left px-3 py-2.5 bg-primary/10 hover:bg-primary/20 border-b border-slate-200 font-black text-xs text-primary flex items-center gap-2 transition cursor-pointer"
+                      >
+                        <UserPlus size={15} />
+                        <span>+ Thêm khách hàng mới</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerId('');
+                          setCustSearch('Khách vãng lai');
+                          setIsCustDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 bg-slate-50 hover:bg-slate-100 border-b border-slate-100 font-bold text-xs text-slate-600 flex justify-between items-center cursor-pointer"
+                      >
+                        <span>Khách vãng lai</span>
+                        <span className="text-[10px] text-slate-400 font-normal">Không lưu SĐT</span>
+                      </button>
+
+                      {filteredCustomers.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-slate-400 font-bold">
+                          Không tìm thấy khách hàng
+                        </div>
+                      ) : (
+                        filteredCustomers.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setCustomerId(c.id);
+                              setCustSearch(c.name);
+                              setIsCustDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2.5 hover:bg-blue-50 border-b last:border-0 text-xs transition-colors flex items-center justify-between cursor-pointer ${customerId === c.id ? 'bg-blue-50 font-black' : 'font-bold'}`}
+                          >
+                            <div className="flex-1 min-w-0 mr-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-slate-900 truncate">{c.name}</span>
+                                {c.type === 'wholesale' && (
+                                  <span className="px-1.5 py-0.2 text-[9px] font-black uppercase rounded bg-purple-100 text-purple-700 shrink-0">Sỉ</span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400 flex flex-wrap gap-2 mt-0.5">
+                                {c.phone && <span>SĐT: {c.phone}</span>}
+                                {c.address && <span className="truncate max-w-[160px]">&bull; {c.address}</span>}
+                              </div>
+                            </div>
+                            {customerId === c.id && <Check size={16} className="text-primary shrink-0" />}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* Customer info preview badge */}
+                  {customerId && (
+                    <div className="mt-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg flex justify-between items-center text-xs">
+                      <div className="overflow-hidden pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-blue-950 truncate">
+                            {localCustomers.find(c => c.id === customerId)?.name || custSearch}
+                          </span>
+                          {localCustomers.find(c => c.id === customerId)?.type === 'wholesale' && (
+                            <span className="px-1.5 py-0.2 text-[9px] font-black uppercase rounded bg-purple-200 text-purple-800 shrink-0">Khách sỉ</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-600 truncate mt-0.5">
+                          {localCustomers.find(c => c.id === customerId)?.phone && <span>SĐT: {localCustomers.find(c => c.id === customerId)?.phone}</span>}
+                          {localCustomers.find(c => c.id === customerId)?.address && <span> &bull; {localCustomers.find(c => c.id === customerId)?.address}</span>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerId('');
+                          setCustSearch('');
+                          setIsCustDropdownOpen(true);
+                        }}
+                        className="text-slate-400 hover:text-red-500 p-1 shrink-0 rounded transition cursor-pointer"
+                        title="Đổi khách hàng"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -614,7 +767,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                     ) : (
                                         filteredProducts.map(p => {
                                             // CẬP NHẬT: Lấy giá cũ nếu có
-                                            const lastPrice = wholesalePrices[p.id];
+                                             const lastPrice = wholesalePrices[p.id];
                                             return (
                                                 <button key={p.id} onClick={() => handleAddProductToEdit(p)} className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-100 flex items-center group transition-colors">
                                                     <Tag size={14} className={`mr-3 ${lastPrice !== undefined ? 'text-orange-500' : 'text-slate-300'} group-hover:text-primary`} />
@@ -720,7 +873,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                         </div>
                         <div className="text-right">
                              <p className="text-[10px] font-black text-slate-400 uppercase">Ship: {formatNumber(shippingFee)} ₫</p>
-                            <p className={`text-sm font-black ${newTotal - sale.total >= 0 ? 'text-green-400' : 'text-red-400'}`}>Chênh lệch: {newTotal - sale.total >= 0 ? '+' : ''}{formatNumber(newTotal - sale.total)} ₫</p>
+                            <p className={`text-sm font-black ${newTotal - (sale.total || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>Chênh lệch: {newTotal - (sale.total || 0) >= 0 ? '+' : ''}{formatNumber(newTotal - (sale.total || 0))} ₫</p>
                         </div>
                     </div>
                 </div>
@@ -729,8 +882,8 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
         </div>
 
         <div className="p-4 bg-white border-t-2 border-slate-100 flex justify-end space-x-3 flex-shrink-0">
-          <button onClick={onClose} className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition font-black text-xs uppercase" disabled={isProcessing}>Hủy bỏ</button>
-          <button onClick={handleSave} disabled={isProcessing} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase shadow-lg flex items-center transition active:scale-95 disabled:bg-slate-300">
+          <button onClick={onClose} className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition font-black text-xs uppercase cursor-pointer" disabled={isProcessing}>Hủy bỏ</button>
+          <button onClick={handleSave} disabled={isProcessing} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase shadow-lg flex items-center transition active:scale-95 disabled:bg-slate-300 cursor-pointer">
             {isProcessing ? <Loader className="animate-spin mr-2" size={18} /> : <Save size={18} className="mr-2" />}
             Xác nhận lưu đơn
           </button>

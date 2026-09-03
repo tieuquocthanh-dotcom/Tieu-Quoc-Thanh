@@ -23,9 +23,10 @@ export const isFirebaseConfigured = true;
 const app = initializeApp(firebaseConfig);
 
 // Khởi tạo Cloud Firestore với bộ nhớ cache ngoại tuyến (Offline Persistence) 
-// giúp ứng dụng tải nhanh hơn trên điện thoại và tiết kiệm băng thông
+// và bật tự động phát hiện Long Polling để kết nối luôn thông suốt trên mạng di động 4G/5G và điện thoại (iOS Safari/Android Chrome)
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
+  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()}),
+  experimentalAutoDetectLongPolling: true,
 });
 
 // Khởi tạo Authentication và thiết lập lưu trữ session cố định

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, onSnapshot as onDocSnapshot, setDoc, collection, query, where, onSnapshot, getDocs, collectionGroup, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot as onDocSnapshot, setDoc, collection, query, where, onSnapshot, getDocs, collectionGroup, updateDoc, Timestamp, enableNetwork } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from './services/firebase';
 import FirebaseSetupGuide from './components/FirebaseSetupGuide';
 import ProductManagement from './components/ProductManagement';
@@ -150,6 +150,31 @@ const App: React.FC = () => {
     return () => {
       unsubscribe();
       clearTimeout(timeout);
+    };
+  }, []);
+
+  // Tự động kết nối lại Firestore khi người dùng mở lại màn hình điện thoại hoặc chuyển về tab ứng dụng
+  useEffect(() => {
+    const handleReconnect = () => {
+      if (document.visibilityState === 'visible' && isFirebaseConfigured) {
+        enableNetwork(db).catch(() => {});
+      }
+    };
+
+    const handleOnline = () => {
+      if (isFirebaseConfigured) {
+        enableNetwork(db).catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleReconnect);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('focus', handleReconnect);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleReconnect);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('focus', handleReconnect);
     };
   }, []);
 
