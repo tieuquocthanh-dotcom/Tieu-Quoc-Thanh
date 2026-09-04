@@ -3,12 +3,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, where, increment, collectionGroup, addDoc, Timestamp, updateDoc, getDocs, limit, arrayUnion, runTransaction, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, SaleItem, Customer, Warehouse, PaymentMethod, Shipper, Sale, Supplier, Manufacturer } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes, Printer } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import SalesHistory from './SalesHistory';
 import CustomerModal from './CustomerModal';
 import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
+import DraftOrderModal from './DraftOrderModal';
 import ProductSalesHistory from './ProductSalesHistory';
 import InventoryTransferModal from './InventoryTransferModal';
 import PriceComparisonModal from './PriceComparisonModal';
@@ -751,6 +752,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedSaleEdit, setSelectedSaleEdit] = useState<Sale | null>(null);
+  const [isDraftOrderModalOpen, setIsDraftOrderModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [selectedLedgerProductId, setSelectedLedgerProductId] = useState<string | null>(null);
 
@@ -1294,6 +1296,23 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           sale={selectedSaleDetail} 
           userRole={userRole} 
         />
+        <DraftOrderModal
+          isOpen={isDraftOrderModalOpen}
+          onClose={() => setIsDraftOrderModalOpen(false)}
+          cart={cart}
+          customerName={customers.find(c => c.id === selectedCustomerId)?.name || customerSearchTerm || 'Khách vãng lai'}
+          customerPhone={customers.find(c => c.id === selectedCustomerId)?.phone}
+          customerAddress={customers.find(c => c.id === selectedCustomerId)?.address}
+          warehouseName={warehouses.find(w => w.id === selectedWarehouseId)?.name}
+          shipperName={shippers.find(s => s.id === selectedShipperId)?.name}
+          paymentMethodName={paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name}
+          shippingFee={shippingFee}
+          shippingPayer={shippingPayer}
+          isDebt={isDebt}
+          amountPaidInput={amountPaidInput}
+          issueInvoice={issueInvoice}
+          saleDate={saleDate}
+        />
         <SaleEditModal 
           isOpen={isEditModalOpen} 
           onClose={() => setIsEditModalOpen(false)} 
@@ -1550,7 +1569,18 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                 <div className="bg-white rounded-xl shadow-md flex flex-col border border-slate-200 overflow-hidden flex-shrink-0 transition-all duration-300">
                     <div className="bg-slate-900 px-4 py-3 text-white flex justify-between items-center flex-shrink-0 border-b border-slate-800">
                         <h2 className="text-sm font-bold flex items-center tracking-tight uppercase"><ShoppingCart className="mr-2" size={17}/> Giỏ hàng</h2>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2">
+                            {cart.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDraftOrderModalOpen(true)}
+                                    className="px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-yellow-300 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 border border-white/20 transition-all cursor-pointer shadow-2xs"
+                                    title="Xem và in phiếu tạm để gửi khách duyệt trước"
+                                >
+                                    <Printer size={12}/>
+                                    <span>In phiếu tạm</span>
+                                </button>
+                            )}
                             {isAdmin && (
                                 <span className="bg-blue-600/90 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-blue-500 shadow-2xs flex items-center">
                                     <ProfitIcon size={10} className="mr-1"/> LN: {formatNumber(totals.profit)} ₫
@@ -1679,15 +1709,27 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                               <span className="font-black text-primary leading-none text-2xl sm:text-3xl">{formatNumber(totals.revenue)}<span className="text-xs ml-0.5 font-bold">₫</span></span>
                           </div>
                         </div>
-                        <button onClick={handleCheckout} disabled={isProcessing || cart.length === 0} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base shadow-md active:scale-98 disabled:bg-slate-200 disabled:text-slate-400 transition-all flex items-center justify-center uppercase tracking-wide">
-                            {isProcessing ? <Loader className="animate-spin mr-2" size={20}/> : <Banknote className="mr-2" size={22}/>}
-                            {(() => {
-                                const btnActualPaid = isDebt ? 0 : (amountPaidInput === '' ? totals.revenue : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
-                                if (isDebt || btnActualPaid === 0) return 'Ghi nợ 100%';
-                                if (btnActualPaid < totals.revenue) return `Trả trước ${formatNumber(btnActualPaid)} ₫`;
-                                return `Hoàn tất đơn ${paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name || ''}`.trim();
-                            })()}
-                        </button>
+                        <div className="flex gap-2">
+                            <button 
+                                type="button"
+                                onClick={() => setIsDraftOrderModalOpen(true)} 
+                                disabled={cart.length === 0}
+                                className="px-3.5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs uppercase tracking-wide border border-slate-300 shadow-xs active:scale-98 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center justify-center gap-1.5 shrink-0"
+                                title="Xem và in phiếu tạm gửi khách xem trước khi chốt đơn"
+                            >
+                                <Printer size={18} className="text-slate-600"/>
+                                <span className="hidden sm:inline">In phiếu tạm</span>
+                            </button>
+                            <button onClick={handleCheckout} disabled={isProcessing || cart.length === 0} className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base shadow-md active:scale-98 disabled:bg-slate-200 disabled:text-slate-400 transition-all flex items-center justify-center uppercase tracking-wide">
+                                {isProcessing ? <Loader className="animate-spin mr-2" size={20}/> : <Banknote className="mr-2" size={22}/>}
+                                {(() => {
+                                    const btnActualPaid = isDebt ? 0 : (amountPaidInput === '' ? totals.revenue : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
+                                    if (isDebt || btnActualPaid === 0) return 'Ghi nợ 100%';
+                                    if (btnActualPaid < totals.revenue) return `Trả trước ${formatNumber(btnActualPaid)} ₫`;
+                                    return `Hoàn tất đơn ${paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name || ''}`.trim();
+                                })()}
+                            </button>
+                        </div>
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 border-t border-slate-200 flex-1 overflow-y-auto pb-20">
