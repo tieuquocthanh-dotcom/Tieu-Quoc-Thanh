@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { X, Printer, Copy, Check, ShoppingCart, Truck, Warehouse, CreditCard, User, Calendar, FileText, Share2, Info } from 'lucide-react';
+import { X, Printer, Copy, Check, User, Calendar, FileText, Info } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 
 export interface DraftOrderItem {
@@ -150,28 +150,14 @@ const DraftOrderModal: React.FC<DraftOrderModalProps> = ({
               margin-top: 3mm;
               color: #334155;
             }
-            .info-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 8px;
-              background: #f8fafc;
-              border: 1px solid #e2e8f0;
-              border-radius: 6px;
-              padding: 8px 12px;
-              margin-bottom: 4mm;
-              font-size: 8.5pt;
-            }
-            .info-item {
-              margin-bottom: 2px;
-            }
-            .info-label {
-              color: #64748b;
-              font-size: 7.5pt;
-              text-transform: uppercase;
-              font-weight: 700;
-            }
-            .info-value {
-              font-weight: 700;
+            .customer-bar {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-size: 9.5pt;
+              margin-top: 2.5mm;
+              padding-top: 2mm;
+              border-top: 1px dotted #cbd5e1;
               color: #0f172a;
             }
             table { 
@@ -263,42 +249,8 @@ const DraftOrderModal: React.FC<DraftOrderModalProps> = ({
                 <span>Mã phiếu: <strong>#${draftCode}</strong></span>
                 <span>Thời gian: <strong>${nowFormatted}</strong></span>
               </div>
-            </div>
-
-            <div class="info-grid">
-              <div>
-                <div class="info-item">
-                  <span class="info-label">Khách hàng:</span>
-                  <div class="info-value">${customerName || 'Khách vãng lai'}</div>
-                </div>
-                ${customerPhone ? `
-                  <div class="info-item">
-                    <span class="info-label">Điện thoại:</span>
-                    <div class="info-value">${customerPhone}</div>
-                  </div>
-                ` : ''}
-                ${customerAddress ? `
-                  <div class="info-item">
-                    <span class="info-label">Địa chỉ:</span>
-                    <div class="info-value">${customerAddress}</div>
-                  </div>
-                ` : ''}
-              </div>
-              <div>
-                ${warehouseName ? `
-                  <div class="info-item">
-                    <span class="info-label">Kho xuất:</span>
-                    <div class="info-value">${warehouseName}</div>
-                  </div>
-                ` : ''}
-                <div class="info-item">
-                  <span class="info-label">Vận chuyển:</span>
-                  <div class="info-value">${shipperName || 'Mặc định'} (${shippingPayer === 'customer' ? 'Khách trả ship' : 'Shop miễn ship'})</div>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">Hình thức TT:</span>
-                  <div class="info-value">${isDebt ? 'Ghi nợ' : (paymentMethodName || 'Tiền mặt/CK')}</div>
-                </div>
+              <div class="customer-bar">
+                <span>Khách hàng: <strong style="text-transform: uppercase; font-size: 10pt;">${customerName || 'Khách vãng lai'}</strong></span>
               </div>
             </div>
 
@@ -391,8 +343,6 @@ const DraftOrderModal: React.FC<DraftOrderModalProps> = ({
   const handleCopyZalo = () => {
     let text = `📋 [PHIẾU TẠM TÍNH ĐƠN HÀNG - #${draftCode}]\n`;
     text += `👤 Khách hàng: ${customerName || 'Khách vãng lai'}\n`;
-    if (customerPhone) text += `📞 Điện thoại: ${customerPhone}\n`;
-    if (customerAddress) text += `📍 Địa chỉ: ${customerAddress}\n`;
     text += `🕒 Thời gian: ${nowFormatted}\n`;
     text += `------------------------------------\n`;
     
@@ -407,14 +357,6 @@ const DraftOrderModal: React.FC<DraftOrderModalProps> = ({
       text += `🚚 Phí ship: ${formatNumber(shippingFee)} ₫ (${shippingPayer === 'customer' ? 'Khách trả' : 'Shop chịu'})\n`;
     }
     text += `👉 TỔNG CỘNG: ${formatNumber(grandTotal)} ₫\n`;
-    
-    if (isDebt) {
-      text += `💳 Hình thức: Ghi nợ (Còn nợ: ${formatNumber(remainingDebt)} ₫)\n`;
-    } else if (effectiveAmountPaid < grandTotal) {
-      text += `💳 Trả trước: ${formatNumber(effectiveAmountPaid)} ₫ (Còn nợ: ${formatNumber(remainingDebt)} ₫)\n`;
-    } else {
-      text += `💳 Thanh toán: ${paymentMethodName || 'Tiền mặt/CK'}\n`;
-    }
 
     text += `------------------------------------\n`;
     text += `Dạ Quý khách kiểm tra lại danh sách & số lượng giúp shop nhé! Cảm ơn Quý khách.`;
@@ -482,64 +424,10 @@ const DraftOrderModal: React.FC<DraftOrderModalProps> = ({
                   <Calendar size={13} className="text-slate-400"/>
                   <span className="font-medium">{nowFormatted}</span>
                 </p>
-                {warehouseName && (
-                  <p className="flex items-center gap-1 sm:justify-end mt-0.5">
-                    <Warehouse size={13} className="text-slate-400"/>
-                    <span className="font-medium text-slate-700">Kho: {warehouseName}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Customer & Delivery Information Block */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs">
-              <div className="space-y-1">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block flex items-center gap-1">
-                  <User size={12}/> Thông tin khách hàng
-                </span>
-                <p className="font-black text-sm text-slate-900 uppercase">
-                  {customerName || 'Khách vãng lai'}
-                </p>
-                {customerPhone && (
-                  <p className="text-slate-700 font-medium">
-                    Điện thoại: <span className="font-bold text-slate-900">{customerPhone}</span>
-                  </p>
-                )}
-                {customerAddress && (
-                  <p className="text-slate-600 line-clamp-2">
-                    Địa chỉ: {customerAddress}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1 sm:border-l sm:border-slate-200 sm:pl-3">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block flex items-center gap-1">
-                  <Truck size={12}/> Giao hàng & Thanh toán
-                </span>
-                <p className="text-slate-700">
-                  ĐVVC: <span className="font-bold text-slate-900">{shipperName || 'Giao ngay / Mặc định'}</span>
-                </p>
-                <p className="text-slate-700">
-                  Cước ship: <span className="font-semibold text-slate-900">
-                    {shippingPayer === 'customer' ? 'Khách thanh toán cước' : 'Shop miễn cước vận chuyển'}
-                  </span>
-                </p>
-                <p className="text-slate-700 flex items-center gap-1.5 mt-1">
-                  Hình thức: 
-                  {isDebt ? (
-                    <span className="font-black text-red-600 bg-red-100 px-2 py-0.5 rounded text-[11px] border border-red-200">
-                      Ghi nợ
-                    </span>
-                  ) : (
-                    <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[11px] border border-blue-200">
-                      {paymentMethodName || 'Tiền mặt / Chuyển khoản'}
-                    </span>
-                  )}
-                  {issueInvoice && (
-                    <span className="font-black text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded text-[10px] border border-purple-200">
-                      Xuất HĐ
-                    </span>
-                  )}
+                <p className="flex items-center gap-1.5 sm:justify-end mt-1">
+                  <User size={13} className="text-primary"/>
+                  <span className="text-slate-600 font-semibold">Khách hàng:</span>
+                  <span className="font-black text-slate-900 uppercase text-sm">{customerName || 'Khách vãng lai'}</span>
                 </p>
               </div>
             </div>
