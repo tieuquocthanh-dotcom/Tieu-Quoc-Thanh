@@ -1730,32 +1730,23 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                               if (sale.shippingStatus === 'pending') { shipLabel = "Chờ gởi"; shipColor = "bg-slate-200 text-red-600"; }
                               else if (sale.shippingStatus === 'order') { shipLabel = "Đặt hàng"; shipColor = "bg-red-600 text-white"; }
                               
-                              // Phối màu luân phiên nổi bật giúp phân biệt rõ ràng 2 đơn sát nhau
+                              // Phối màu chữ luân phiên giúp phân biệt rõ ràng 2 đơn sát nhau mà vẫn giữ nguyên màu nền chuẩn của chương trình (bg-white/10)
                               const isEvenOrder = orderIdx % 2 === 0;
-                              const orderTheme = isEvenOrder ? {
-                                  cardBorder: 'border-l-4 border-l-amber-500',
-                                  customerBadge: 'bg-amber-400 text-slate-950 font-black shadow-xs border border-amber-300',
-                                  orderNumBadge: 'bg-amber-500/25 text-amber-300 border border-amber-500/40 font-mono font-black',
-                              } : {
-                                  cardBorder: 'border-l-4 border-l-cyan-400',
-                                  customerBadge: 'bg-cyan-300 text-slate-950 font-black shadow-xs border border-cyan-200',
-                                  orderNumBadge: 'bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 font-mono font-black',
-                              };
+                              const customerTextColor = isEvenOrder 
+                                  ? 'text-yellow-300' // Đơn chẵn: Màu vàng sáng trên nền tối
+                                  : 'text-cyan-300';   // Đơn lẻ: Màu xanh ngọc sáng trên nền tối
 
                               const orderTime = sale.createdAt?.toDate 
                                   ? sale.createdAt.toDate().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) 
                                   : '';
 
                               return (
-                                <div key={sale.id} className={`bg-white border border-slate-200 ${orderTheme.cardBorder} rounded-xl overflow-hidden shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all`}>
+                                <div key={sale.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all">
                                     <div className="bg-slate-900 px-3 py-2 text-white border-b border-slate-800">
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-1.5 overflow-hidden">
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded leading-none shrink-0 ${orderTheme.orderNumBadge}`}>
-                                                    #{orderIdx + 1}
-                                                </span>
                                                 <span 
-                                                    className={`text-xs uppercase truncate px-2.5 py-0.5 rounded-md leading-tight max-w-[130px] sm:max-w-[190px] ${orderTheme.customerBadge}`}
+                                                    className={`text-xs font-black uppercase truncate bg-white/10 px-2 py-0.5 rounded leading-tight max-w-[150px] sm:max-w-[210px] ${customerTextColor}`}
                                                     title={sale.customerName || 'Khách vãng lai'}
                                                 >
                                                     {sale.customerName || 'Khách vãng lai'}
