@@ -586,8 +586,9 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
             <div className="flex flex-col items-center justify-center p-20 text-slate-300 opacity-50"><ShoppingBag size={80} className="mb-4"/><p className="font-black uppercase tracking-widest text-sm">Không có dữ liệu phù hợp</p></div>
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                {paginatedSales.map(sale => {
+                {paginatedSales.map((sale, idx) => {
                     const ln = sale.items.reduce((acc, i) => acc + (i.price - (i.importPrice || 0)) * i.quantity, 0);
+                    const isEven = idx % 2 === 0;
                     
                     // Logic xác định trạng thái giao hàng chuẩn
                     let statusLabel = "Đã giao hàng";
@@ -605,10 +606,10 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                     }
 
                     return (
-                        <div key={sale.id} className="bg-white border-2 border-slate-800 rounded-2xl overflow-hidden shadow-[4px_4px_0px_#0f172a] hover:-translate-y-1 transition-all">
+                        <div key={sale.id} className={`bg-white border-2 ${isEven ? 'border-amber-500' : 'border-cyan-500'} rounded-2xl overflow-hidden shadow-[4px_4px_0px_#0f172a] hover:-translate-y-1 transition-all`}>
                             <div className="bg-slate-800 p-2.5 flex justify-between items-center text-white">
                                 <div className="flex items-center truncate mr-2">
-                                    <span className="text-[10px] font-black uppercase truncate bg-white/20 px-1.5 py-0.5 rounded mr-1.5">{sale.customerName}</span>
+                                    <span className={`text-[10px] font-black uppercase truncate px-2 py-0.5 rounded mr-1.5 shadow-xs ${isEven ? 'bg-amber-400 text-slate-950' : 'bg-cyan-300 text-slate-950'}`}>{sale.customerName}</span>
                                     {sale.status === 'debt' && <span className="bg-red-600 text-[8px] px-1.5 rounded font-black animate-pulse">NỢ</span>}
                                     {sale.issueInvoice && <span className="ml-1 bg-purple-600 text-[8px] px-1.5 rounded font-black uppercase">HĐ</span>}
                                 </div>
