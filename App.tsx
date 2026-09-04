@@ -40,15 +40,8 @@ import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Ware
 import { View } from './types';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<View>(() => {
-    try {
-      const savedView = localStorage.getItem('currentView');
-      return (savedView && savedView !== 'login') ? (savedView as View) : 'sales';
-    } catch (e) {
-      console.warn('LocalStorage access failed:', e);
-      return 'sales';
-    }
-  });
+  // Mặc định luôn mở tab Bán Hàng khi khởi động chương trình
+  const [view, setView] = useState<View>('sales');
 
   const [viewMode, setViewMode] = useState<'windows' | 'classic'>(() => {
     try {
@@ -68,6 +61,15 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Xóa cache view cũ nếu có để đảm bảo luôn mở tab bán hàng
+  useEffect(() => {
+    try {
+      localStorage.removeItem('currentView');
+    } catch (e) {
+      console.warn('LocalStorage clean failed:', e);
+    }
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -99,16 +101,6 @@ const App: React.FC = () => {
       fullStr: `${weekday}, ${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
     };
   };
-
-  useEffect(() => {
-    if (view !== 'login' && view !== 'setup') {
-      try {
-        localStorage.setItem('currentView', view);
-      } catch (e) {
-        console.warn('LocalStorage write failed:', e);
-      }
-    }
-  }, [view]);
 
   useEffect(() => {
     try {
@@ -256,13 +248,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
       if (user && view === 'login') {
-          let lastView: View | null = null;
-          try {
-              lastView = localStorage.getItem('currentView') as View;
-          } catch (e) {
-              console.warn('LocalStorage access failed:', e);
-          }
-          setView(lastView && lastView !== 'login' ? lastView : 'home');
+          setView('sales');
       }
   }, [user, view]);
 
