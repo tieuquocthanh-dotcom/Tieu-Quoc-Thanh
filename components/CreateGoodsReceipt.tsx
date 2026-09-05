@@ -242,6 +242,8 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'debt'>('paid');
+  const [wasLastReceiptDebt, setWasLastReceiptDebt] = useState(false);
+  const lastLoadedSupplierIdRef = useRef<string | null>(null);
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
   const [isCreatingNewBank, setIsCreatingNewBank] = useState(false);
   const [newBankDetails, setNewBankDetails] = useState({ bankName: '', accountNumber: '', accountName: '' });
@@ -303,7 +305,12 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   }, []);
 
   useEffect(() => {
-      if (!selectedSupplierId) { setSupplierPriceHistory({}); return; }
+      if (!selectedSupplierId) { 
+          setSupplierPriceHistory({}); 
+          setWasLastReceiptDebt(false);
+          lastLoadedSupplierIdRef.current = null;
+          return; 
+      }
       return onSnapshot(query(collection(db, "goodsReceipts"), where("supplierId", "==", selectedSupplierId), orderBy("createdAt", "desc"), limit(50)), (snapshot) => {
           const historyMap: Record<string, number> = {};
           [...snapshot.docs].reverse().forEach(doc => {
@@ -311,6 +318,44 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
               if (data.items) data.items.forEach(item => { historyMap[item.productId] = item.importPrice; });
           });
           setSupplierPriceHistory(historyMap);
+
+          // Tự động kiểm tra đơn nhập gần nhất của Nhà cung cấp này
+          if (!snapshot.empty) {
+              const latestReceiptDoc = snapshot.docs[0]?.data() as GoodsReceipt | undefined;
+              if (latestReceiptDoc) {
+                  const isLatestDebt = latestReceiptDoc.paymentStatus === 'debt' || 
+                      ((latestReceiptDoc.total || 0) > 0 && (latestReceiptDoc.amountPaid || 0) < (latestReceiptDoc.total || 0));
+                  setWasLastReceiptDebt(isLatestDebt);
+
+                  // Chỉ tự động chọn khi mới chọn hoặc đổi Nhà cung cấp
+                  if (lastLoadedSupplierIdRef.current !== selectedSupplierId) {
+                      if (isLatestDebt) {
+                          setPaymentStatus('debt');
+                          setSelectedPaymentMethodId('');
+                      } else {
+                          setPaymentStatus('paid');
+                          if (latestReceiptDoc.paymentMethodId) {
+                              setSelectedPaymentMethodId(latestReceiptDoc.paymentMethodId);
+                          }
+                      }
+                      lastLoadedSupplierIdRef.current = selectedSupplierId;
+                  }
+              } else {
+                  setWasLastReceiptDebt(false);
+                  if (lastLoadedSupplierIdRef.current !== selectedSupplierId) {
+                      setPaymentStatus('paid');
+                      lastLoadedSupplierIdRef.current = selectedSupplierId;
+                  }
+              }
+          } else {
+              setWasLastReceiptDebt(false);
+              if (lastLoadedSupplierIdRef.current !== selectedSupplierId) {
+                  setPaymentStatus('paid');
+                  lastLoadedSupplierIdRef.current = selectedSupplierId;
+              }
+          }
+      }, (err) => {
+          console.warn("Lỗi tải lịch sử đơn nhập của NCC:", err);
       });
   }, [selectedSupplierId]);
 
@@ -597,6 +642,9 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
           }
       });
       setReceipt([]); setSelectedSupplierId(''); setSupplierSearchTerm(''); setSourceOrderDetails(null);
+      setPaymentStatus('paid');
+      setWasLastReceiptDebt(false);
+      lastLoadedSupplierIdRef.current = null;
       setToast({ message: `Nhập hàng thành công! (${paymentStatus === 'debt' ? 'Ghi nợ NCC' : 'Đã thanh toán'})`, type: 'success' });
     } catch (err: any) { 
         console.error(err); 
@@ -661,7 +709,27 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         />
                                     </div>
                                     <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={hasInvoice} onChange={e => setHasInvoice(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-0" /><span className="text-xs font-black uppercase text-blue-600">Có HĐ Đỏ</span></label>
-                                    <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={paymentStatus === 'debt'} onChange={e => setPaymentStatus(e.target.checked ? 'debt' : 'paid')} className="w-5 h-5 rounded border-slate-300 text-red-600 focus:ring-0" /><span className="text-xs font-black uppercase text-red-600">Ghi nợ NCC</span></label>
+                                    <label 
+                                        className={`flex items-center space-x-1.5 cursor-pointer px-2 py-1 rounded-lg transition-all ${
+                                            paymentStatus === 'debt' 
+                                                ? 'bg-red-50 border border-red-300 ring-2 ring-red-100 shadow-xs' 
+                                                : 'hover:bg-slate-100'
+                                        }`}
+                                        title={wasLastReceiptDebt ? "Đã tự động chọn Ghi nợ vì đơn nhập gần nhất của NCC này là nợ" : "Đánh dấu nhập hàng ghi nợ NCC"}
+                                    >
+                                        <input 
+                                            type="checkbox" 
+                                            checked={paymentStatus === 'debt'} 
+                                            onChange={e => setPaymentStatus(e.target.checked ? 'debt' : 'paid')} 
+                                            className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-0 cursor-pointer" 
+                                        />
+                                        <span className={`text-xs uppercase ${paymentStatus === 'debt' ? 'text-red-700 font-black' : 'text-red-600 font-black'}`}>Ghi nợ NCC</span>
+                                        {paymentStatus === 'debt' && wasLastReceiptDebt && (
+                                            <span className="text-[9px] font-bold text-red-700 bg-red-100 px-1 py-0.5 rounded border border-red-200 hidden sm:inline-block">
+                                                (Đơn trước nợ)
+                                            </span>
+                                        )}
+                                    </label>
                                     <div className="relative ml-2 w-48">
                                         <ClipboardList className="absolute left-2 top-1/2 -translate-y-1/2 text-white" size={14}/>
                                         <select 
