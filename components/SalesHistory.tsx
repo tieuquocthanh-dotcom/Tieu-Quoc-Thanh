@@ -3,10 +3,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, updateDoc, doc, Timestamp, arrayUnion, writeBatch, increment, getDocs, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Sale, Customer, PaymentMethod, Shipper, Product, Manufacturer } from '../types';
-import { Loader, XCircle, Search, Calendar, Package, RefreshCcw, Truck, DollarSign, CheckCircle, CreditCard, X, Clock, ArrowRight, Save, FileCheck2, TrendingUp, ArrowUp, ArrowDown, ArrowUpDown, Edit, Hash, User, Tag, Wallet, Building, Eye, ChevronLeft, ChevronRight, Filter, ShoppingBag, Receipt, Trash2, Home } from 'lucide-react';
+import { Loader, XCircle, Search, Calendar, Package, RefreshCcw, Truck, DollarSign, CheckCircle, CreditCard, X, Clock, ArrowRight, Save, FileCheck2, TrendingUp, ArrowUp, ArrowDown, ArrowUpDown, Edit, Hash, User, Tag, Wallet, Building, Eye, ChevronLeft, ChevronRight, Filter, ShoppingBag, Receipt, Trash2, Home, Printer } from 'lucide-react';
 import Pagination from './Pagination';
 import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
+import SalePrintPreviewModal from './SalePrintPreviewModal';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import * as XLSX from 'xlsx';
 
@@ -261,6 +262,8 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
 
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedSaleForPrint, setSelectedSaleForPrint] = useState<Sale | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
   const [saleToPay, setSaleToPay] = useState<Sale | null>(null);
   const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
@@ -469,6 +472,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
   return (
     <div className="flex flex-col gap-4 animate-fade-in pb-10">
       <SaleDetailModal sale={selectedSale} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
+      <SalePrintPreviewModal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} sale={selectedSaleForPrint} customer={customers.find(c => c.id === selectedSaleForPrint?.customerId) || null} />
       <DebtPaymentModal isOpen={isDebtModalOpen} onClose={() => setIsDebtModalOpen(false)} onConfirm={handleConfirmDebtPayment} sale={saleToPay} paymentMethods={paymentMethods} />
       <UpdateShippingModal isOpen={isShippingModalOpen} onClose={() => setIsShippingModalOpen(false)} onConfirm={handleConfirmShipping} sale={saleToShip} shippers={shippers} />
       <SaleEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} sale={saleToEdit} customers={customers} paymentMethods={paymentMethods} shippers={shippers} products={products} />
@@ -615,8 +619,18 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                     {sale.issueInvoice && <span className="ml-1 bg-purple-600 text-[8px] px-1.5 rounded font-black uppercase">HĐ</span>}
                                 </div>
                                 <div className="flex gap-1">
-                                    {isAdmin && <button onClick={() => openEditModal(sale)} className="p-1 bg-white/10 hover:bg-blue-500 rounded text-blue-400 hover:text-white transition"><Edit size={14}/></button>}
-                                    <button onClick={() => { setSelectedSale(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/10 hover:bg-primary rounded transition"><Eye size={14}/></button>
+                                    {isAdmin && <button onClick={() => openEditModal(sale)} className="p-1 bg-white/10 hover:bg-blue-500 rounded text-blue-400 hover:text-white transition" title="Sửa đơn"><Edit size={14}/></button>}
+                                    <button onClick={() => { setSelectedSale(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/10 hover:bg-primary rounded transition" title="Xem chi tiết"><Eye size={14}/></button>
+                                    <button 
+                                        onClick={() => { 
+                                            setSelectedSaleForPrint(sale); 
+                                            setIsPrintModalOpen(true); 
+                                        }} 
+                                        className="p-1 bg-white/10 hover:bg-slate-700 rounded transition text-yellow-300 hover:text-white" 
+                                        title="Xem trước & In đơn hàng / Gửi Zalo, SMS"
+                                    >
+                                        <Printer size={14}/>
+                                    </button>
                                 </div>
                             </div>
                             <div className="p-3 bg-white space-y-3">

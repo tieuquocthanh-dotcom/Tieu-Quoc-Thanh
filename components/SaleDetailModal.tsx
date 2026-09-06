@@ -6,6 +6,7 @@ import { formatNumber } from '../utils/formatting';
 import { doc, writeBatch, increment, getDoc, collection, query, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import ConfirmationModal from './ConfirmationModal';
+import SalePrintPreviewModal from './SalePrintPreviewModal';
 import * as XLSX from 'xlsx';
 
 interface SaleDetailModalProps {
@@ -28,6 +29,7 @@ const DetailRow: React.FC<{ icon: React.ReactNode; label: string; value: React.R
 const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale, userRole }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
 
   const isAdmin = userRole === 'admin';
 
@@ -454,11 +456,12 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                 </div>
                 <div className="flex space-x-3">
                     <button 
-                        onClick={handlePrint}
+                        onClick={() => setIsPrintPreviewOpen(true)}
                         className="flex items-center space-x-2 px-6 py-3 bg-slate-800 text-white rounded-xl font-black text-xs uppercase shadow-lg hover:bg-black transition active:scale-95"
+                        title="Xem trước hóa đơn, sao chép gửi Zalo, SMS hoặc in ấn"
                     >
                         <Printer size={18} />
-                        <span>In đơn hàng (A6)</span>
+                        <span>In đơn hàng / Zalo / SMS</span>
                     </button>
                     <button onClick={onClose} className="px-8 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-200 hover:bg-primary-hover transition active:scale-95">Đóng cửa sổ</button>
                 </div>
@@ -472,6 +475,12 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
             onConfirm={confirmDeleteSale}
             title="Xác nhận Xóa Đơn Hàng"
             message={<>Bạn có chắc chắn muốn xóa đơn hàng này? Toàn bộ số tiền đã hạch toán sẽ không bị hoàn lại tự động nếu xóa thủ công tại đây (Vui lòng điều chỉnh tài khoản nếu cần). <br/><br/><span className="text-red-600 font-bold italic text-xs uppercase tracking-tight">Tồn kho sản phẩm lẻ sẽ được cộng trả lại tự động.</span></>}
+        />
+
+        <SalePrintPreviewModal
+            isOpen={isPrintPreviewOpen}
+            onClose={() => setIsPrintPreviewOpen(false)}
+            sale={sale}
         />
     </>
   );

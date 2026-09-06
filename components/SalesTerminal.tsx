@@ -10,6 +10,7 @@ import CustomerModal from './CustomerModal';
 import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import DraftOrderModal from './DraftOrderModal';
+import SalePrintPreviewModal from './SalePrintPreviewModal';
 import ProductSalesHistory from './ProductSalesHistory';
 import InventoryTransferModal from './InventoryTransferModal';
 import PriceComparisonModal from './PriceComparisonModal';
@@ -750,6 +751,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   
   const [selectedSaleDetail, setSelectedSaleDetail] = useState<Sale | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedSaleForPrint, setSelectedSaleForPrint] = useState<Sale | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedSaleEdit, setSelectedSaleEdit] = useState<Sale | null>(null);
   const [isDraftOrderModalOpen, setIsDraftOrderModalOpen] = useState(false);
@@ -1296,6 +1299,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           sale={selectedSaleDetail} 
           userRole={userRole} 
         />
+        <SalePrintPreviewModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          sale={selectedSaleForPrint}
+          customer={customers.find(c => c.id === selectedSaleForPrint?.customerId) || null}
+        />
         <DraftOrderModal
           isOpen={isDraftOrderModalOpen}
           onClose={() => setIsDraftOrderModalOpen(false)}
@@ -1803,6 +1812,16 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                             <div className="flex items-center gap-1 shrink-0">
                                                 <button onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>
                                                 <button onClick={() => { setSelectedSaleDetail(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
+                                                <button 
+                                                    onClick={() => { 
+                                                        setSelectedSaleForPrint(sale); 
+                                                        setIsPrintModalOpen(true); 
+                                                    }} 
+                                                    className="p-1 bg-white/20 rounded hover:bg-slate-700 transition text-yellow-300 hover:text-white" 
+                                                    title="Xem trước & In đơn hàng / Gửi Zalo, SMS"
+                                                >
+                                                    <Printer size={12}/>
+                                                </button>
                                                 <button 
                                                     onClick={() => {
                                                         setSelectedLedgerProductId('all');
