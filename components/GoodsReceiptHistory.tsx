@@ -12,6 +12,54 @@ import InventoryLedger from './InventoryLedger';
 import { formatNumber } from '../utils/formatting';
 import * as XLSX from 'xlsx';
 
+const toMillis = (val: any): number => {
+  if (!val) return 0;
+  if (typeof val.toMillis === 'function') {
+    try { return val.toMillis(); } catch (e) { /* ignore */ }
+  }
+  if (typeof val.toDate === 'function') {
+    try { return val.toDate().getTime(); } catch (e) { /* ignore */ }
+  }
+  if (val instanceof Date) return val.getTime();
+  if (typeof val.seconds === 'number') {
+    return val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1000000);
+  }
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    const parsed = Date.parse(val);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
+
+const toDateSafe = (val: any): Date | null => {
+  if (!val) return null;
+  if (typeof val.toDate === 'function') {
+    try { return val.toDate(); } catch (e) { /* ignore */ }
+  }
+  if (val instanceof Date) return val;
+  if (typeof val.seconds === 'number') {
+    return new Date(val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1000000));
+  }
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof val === 'number') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
+const formatDateSafe = (val: any, formatType: 'date' | 'time' | 'full' = 'full'): string => {
+  const d = toDateSafe(val);
+  if (!d) return formatType === 'full' ? 'N/A' : '';
+  if (formatType === 'date') return d.toLocaleDateString('vi-VN');
+  if (formatType === 'time') return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString('vi-VN');
+};
+
 const getInitialEndDate = () => new Date().toISOString().split('T')[0];
 const getInitialStartDate = () => {
     const date = new Date();
@@ -112,8 +160,8 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
   const filteredReceipts = useMemo(() => {
     let result = allReceipts.filter(receipt => {
         if (startDate || endDate) {
-            if (!receipt.createdAt) return false;
-            const receiptDate = receipt.createdAt.toDate();
+            const receiptDate = toDateSafe(receipt.createdAt);
+            if (!receiptDate) return false;
             receiptDate.setHours(0, 0, 0, 0);
 
             if (startDate) {
@@ -163,11 +211,11 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
         let valB: any = b[sortConfig.key];
         
         if (sortConfig.key === 'createdAt') {
-            valA = a.createdAt?.toMillis() || 0;
-            valB = b.createdAt?.toMillis() || 0;
+            valA = toMillis(a.createdAt);
+            valB = toMillis(b.createdAt);
         } else if (sortConfig.key === 'paidAt') {
-            valA = a.paidAt?.toMillis() || 0;
-            valB = b.paidAt?.toMillis() || 0;
+            valA = toMillis(a.paidAt);
+            valB = toMillis(b.paidAt);
         }
 
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -313,8 +361,8 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
       return {
         STT: index + 1,
         "Mã phiếu": receipt.id.substring(0, 8).toUpperCase(),
-        "Ngày nhập": receipt.createdAt?.toDate().toLocaleString('vi-VN') || 'N/A',
-        "Ngày trả": receipt.paidAt ? receipt.paidAt.toDate().toLocaleString('vi-VN') : 'Chưa trả',
+        "Ngày nhập": formatDateSafe(receipt.createdAt),
+        "Ngày trả": receipt.paidAt ? formatDateSafe(receipt.paidAt) : 'Chưa trả',
         "Nhà cung cấp": receipt.supplierName || 'N/A',
         "Kho nhập": receipt.warehouseName || 'N/A',
         "Tổng tiền (VNĐ)": receipt.total || 0,
@@ -488,14 +536,14 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                     return (
                     <tr key={receipt.id} className="hover:bg-slate-50 transition-colors group">
                       <td className="p-4 text-sm font-bold text-slate-600">
-                        {receipt.createdAt?.toDate().toLocaleDateString('vi-VN')}
-                        <div className="text-[10px] font-normal text-slate-400">{receipt.createdAt?.toDate().toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}</div>
+                        {formatDateSafe(receipt.createdAt, 'date')}
+                        <div className="text-[10px] font-normal text-slate-400">{formatDateSafe(receipt.createdAt, 'time')}</div>
                       </td>
                       <td className="p-4 text-sm font-bold text-slate-600">
                         {receipt.paidAt ? (
                             <>
-                                <div className="font-bold text-slate-900">{receipt.paidAt.toDate().toLocaleDateString('vi-VN')}</div>
-                                <div className="text-[10px] font-normal text-slate-400">{receipt.paidAt.toDate().toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}</div>
+                                <div className="font-bold text-slate-900">{formatDateSafe(receipt.paidAt, 'date')}</div>
+                                <div className="text-[10px] font-normal text-slate-400">{formatDateSafe(receipt.paidAt, 'time')}</div>
                             </>
                         ) : (
                             <span className="text-red-500 bg-red-50 px-2 py-0.5 rounded text-[11px] font-black border border-red-200 inline-block">Chưa trả</span>

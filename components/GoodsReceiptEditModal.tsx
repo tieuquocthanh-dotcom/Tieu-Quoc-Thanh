@@ -101,8 +101,19 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
       setPaymentStatus(receipt.paymentStatus || 'paid');
       setHasInvoice(receipt.hasInvoice || false);
       if (receipt.createdAt) {
-        const date = receipt.createdAt.toDate();
-        setReceiptDate(getLocalYYYYMMDD(date));
+        let date: Date | null = null;
+        if (typeof (receipt.createdAt as any).toDate === 'function') {
+          date = (receipt.createdAt as any).toDate();
+        } else if (receipt.createdAt instanceof Date) {
+          date = receipt.createdAt;
+        } else if (typeof (receipt.createdAt as any).seconds === 'number') {
+          date = new Date((receipt.createdAt as any).seconds * 1000);
+        } else if (typeof receipt.createdAt === 'string') {
+          date = new Date(receipt.createdAt);
+        }
+        if (date && !isNaN(date.getTime())) {
+          setReceiptDate(getLocalYYYYMMDD(date));
+        }
       }
       setEditedItems(receipt.items ? JSON.parse(JSON.stringify(receipt.items)) : []);
     }

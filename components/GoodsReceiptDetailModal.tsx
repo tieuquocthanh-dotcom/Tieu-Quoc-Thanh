@@ -8,6 +8,52 @@ import { db } from '../services/firebase';
 import ConfirmationModal from './ConfirmationModal';
 import * as XLSX from 'xlsx';
 
+const toMillis = (val: any): number => {
+  if (!val) return 0;
+  if (typeof val.toMillis === 'function') {
+    try { return val.toMillis(); } catch (e) { /* ignore */ }
+  }
+  if (typeof val.toDate === 'function') {
+    try { return val.toDate().getTime(); } catch (e) { /* ignore */ }
+  }
+  if (val instanceof Date) return val.getTime();
+  if (typeof val.seconds === 'number') {
+    return val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1000000);
+  }
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    const parsed = Date.parse(val);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
+
+const formatDateSafe = (val: any): string => {
+  if (!val) return 'N/A';
+  if (typeof val.toDate === 'function') {
+    try { return val.toDate().toLocaleString('vi-VN'); } catch (e) { /* ignore */ }
+  }
+  if (val instanceof Date) {
+    try { return val.toLocaleString('vi-VN'); } catch (e) { /* ignore */ }
+  }
+  if (typeof val.seconds === 'number') {
+    try {
+      const d = new Date(val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1000000));
+      return d.toLocaleString('vi-VN');
+    } catch (e) { /* ignore */ }
+  }
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d.toLocaleString('vi-VN');
+    return val;
+  }
+  if (typeof val === 'number') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d.toLocaleString('vi-VN');
+  }
+  return 'N/A';
+};
+
 interface GoodsReceiptDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -66,7 +112,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
         });
     }
 
-    return history.sort((a, b) => (b.createdAt?.toMillis() || b.date?.toMillis() || 0) - (a.createdAt?.toMillis() || a.date?.toMillis() || 0));
+    return history.sort((a, b) => toMillis(b.createdAt || b.date) - toMillis(a.createdAt || a.date));
   }, [receipt, effectiveAmountPaid]);
 
   if (!isOpen || !receipt) return null;
@@ -105,7 +151,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
             <div class="header">
               <p class="title">PHIẾU NHẬP HÀNG</p>
               <div class="order-id">Mã phiếu: #${receipt.id.substring(0, 8).toUpperCase()}</div>
-              <div style="font-size: 8pt; margin-top: 1mm;">Ngày: ${receipt.createdAt?.toDate?.()?.toLocaleString('vi-VN') || 'N/A'}</div>
+              <div style="font-size: 8pt; margin-top: 1mm;">Ngày: ${formatDateSafe(receipt.createdAt)}</div>
             </div>
 
             <div class="customer-info">
@@ -129,12 +175,12 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                 </tr>
               </thead>
               <tbody>
-                ${receipt.items.map(item => `
+                ${(receipt.items || []).map(item => `
                   <tr>
                     <td>${item.productName}${item.isCombo ? ' (Combo)' : ''}</td>
-                    <td class="text-center">${item.quantity}</td>
-                    <td class="text-right">${isAdmin ? formatNumber(item.importPrice) : '***'}</td>
-                    <td class="text-right">${isAdmin ? formatNumber(item.quantity * item.importPrice) : '***'}</td>
+                    <td class="text-center">${item.quantity || 0}</td>
+                    <td class="text-right">${isAdmin ? formatNumber(item.importPrice || 0) : '***'}</td>
+                    <td class="text-right">${isAdmin ? formatNumber((item.quantity || 0) * (item.importPrice || 0)) : '***'}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -214,11 +260,11 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
     if (!receipt || !receipt.items) return;
     const dataToExport = receipt.items.map((item, index) => ({
       STT: index + 1,
-      "Tên món": item.productName,
+      "Tên món": item.productName || 'Sản phẩm',
       "Loại": item.isCombo ? "COMBO" : "Lẻ",
-      "Số lượng": item.quantity,
-      ...(isAdmin ? { "Đơn giá (VNĐ)": item.importPrice } : {}),
-      ...(isAdmin ? { "Thành tiền (VNĐ)": item.quantity * item.importPrice } : {})
+      "Số lượng": item.quantity || 0,
+      ...(isAdmin ? { "Đơn giá (VNĐ)": item.importPrice || 0 } : {}),
+      ...(isAdmin ? { "Thành tiền (VNĐ)": (item.quantity || 0) * (item.importPrice || 0) } : {})
     }));
 
     // Add extra row for summary
@@ -226,7 +272,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
       STT: "" as any,
       "Tên món": "TỔNG CỘNG" as any,
       "Loại": "" as any,
-      "Số lượng": receipt.items.reduce((sum, i) => sum + i.quantity, 0),
+      "Số lượng": receipt.items.reduce((sum, i) => sum + (i.quantity || 0), 0),
       ...(isAdmin ? { "Đơn giá (VNĐ)": "" as any } : {}),
       ...(isAdmin ? { "Thành tiền (VNĐ)": receipt.total || 0 } : {})
     });
@@ -278,15 +324,15 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {receipt.items.map((item, index) => (
+                                {(receipt.items || []).map((item, index) => (
                                     <tr key={index} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-3 font-bold text-slate-900 text-xs uppercase leading-tight">
                                             {item.productName}
                                             {item.isCombo && <span className="ml-2 px-1 py-0.5 bg-blue-100 text-blue-700 text-[8px] font-black rounded">COMBO</span>}
                                         </td>
-                                        <td className="p-3 text-center font-black text-slate-900 text-sm">{item.quantity}</td>
-                                        {isAdmin && <td className="p-3 text-right font-bold text-slate-500 text-xs">{formatNumber(item.importPrice)}</td>}
-                                        {isAdmin && <td className="p-3 text-primary font-black text-right text-sm">{formatNumber(item.quantity * item.importPrice)} ₫</td>}
+                                        <td className="p-3 text-center font-black text-slate-900 text-sm">{item.quantity || 0}</td>
+                                        {isAdmin && <td className="p-3 text-right font-bold text-slate-500 text-xs">{formatNumber(item.importPrice || 0)}</td>}
+                                        {isAdmin && <td className="p-3 text-primary font-black text-right text-sm">{formatNumber((item.quantity || 0) * (item.importPrice || 0))} ₫</td>}
                                     </tr>
                                 ))}
                             </tbody>
@@ -314,7 +360,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-black text-slate-400 uppercase">Tổng cộng:</span>
-                                <span className="text-lg font-black text-primary">{formatNumber(receipt.total)} ₫</span>
+                                <span className="text-lg font-black text-primary">{formatNumber(receipt.total || 0)} ₫</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-black text-slate-400 uppercase">Đã thanh toán:</span>
@@ -353,7 +399,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                                         <td className="p-3 text-[11px] font-bold text-slate-600 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <Clock size={13} className="mr-1.5 text-slate-400 shrink-0" />
-                                                {(payment as any).createdAt?.toDate?.()?.toLocaleString('vi-VN') || (payment as any).date?.toDate?.()?.toLocaleString('vi-VN') || 'N/A'}
+                                                {formatDateSafe((payment as any).createdAt || (payment as any).date)}
                                             </div>
                                         </td>
                                         <td className="p-3">
@@ -365,9 +411,9 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                                         <td className="p-3">
                                             {(payment as any).supplierBankDetails ? (
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-800 text-[10px]">{(payment as any).supplierBankDetails.bankName}</span>
-                                                    <span className="text-[9px] text-slate-500 font-mono font-semibold">{(payment as any).supplierBankDetails.accountNumber}</span>
-                                                    <span className="text-[9px] font-black uppercase text-slate-400">{(payment as any).supplierBankDetails.accountName}</span>
+                                                    <span className="font-bold text-slate-800 text-[10px]">{(payment as any).supplierBankDetails.bankName || 'Ngân hàng'}</span>
+                                                    <span className="text-[9px] text-slate-500 font-mono font-semibold">{(payment as any).supplierBankDetails.accountNumber || ''}</span>
+                                                    <span className="text-[9px] font-black uppercase text-slate-400">{(payment as any).supplierBankDetails.accountName || ''}</span>
                                                 </div>
                                             ) : (
                                                 <span className="text-[10px] italic text-slate-400">Không có</span>
@@ -377,7 +423,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                                             {payment.note || 'Thanh toán tiền hàng'}
                                         </td>
                                         <td className="p-3 text-right font-black text-red-600 text-sm whitespace-nowrap">
-                                            -{formatNumber(payment.amount)} ₫
+                                            -{formatNumber(payment.amount || 0)} ₫
                                         </td>
                                     </tr>
                                 ))
@@ -398,9 +444,9 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                     <Info size={14} className="mr-2 text-primary"/> Thông tin phiếu nhập & Nhà cung cấp
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <DetailRow icon={<Users size={16} />} label="Nhà Cung Cấp" value={receipt.supplierName} />
-                    <DetailRow icon={<Calendar size={16} />} label="Ngày Nhập" value={receipt.createdAt?.toDate().toLocaleString('vi-VN')} />
-                    <DetailRow icon={<Warehouse size={16} />} label="Kho Nhập" value={receipt.warehouseName} />
+                    <DetailRow icon={<Users size={16} />} label="Nhà Cung Cấp" value={receipt.supplierName || 'N/A'} />
+                    <DetailRow icon={<Calendar size={16} />} label="Ngày Nhập" value={formatDateSafe(receipt.createdAt)} />
+                    <DetailRow icon={<Warehouse size={16} />} label="Kho Nhập" value={receipt.warehouseName || 'N/A'} />
                     <DetailRow icon={<FileCheck2 size={16} />} label="Hóa Đơn" value={receipt.hasInvoice ? 'Đã có HĐ đỏ' : 'Không có HĐ'} />
                     <DetailRow icon={<CreditCard size={16} />} label="Phương Thức TT" value={receipt.paymentMethodName || 'Nợ/Tiền mặt'} />
                     <DetailRow icon={<UserCircle size={16} />} label="Người Tạo" value={receipt.creatorName || 'Hệ thống'} />
