@@ -126,6 +126,7 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
   const [isPriceComparisonOpen, setIsPriceComparisonOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [selectedLedgerProductId, setSelectedLedgerProductId] = useState<string | null>(null);
+  const [selectedLedgerWarehouseId, setSelectedLedgerWarehouseId] = useState<string | null>(null);
   const [selectedPriceComparisonProduct, setSelectedPriceComparisonProduct] = useState<Product | null>(null);
   
   // Modal States for Deletion
@@ -689,6 +690,7 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                                     <button 
                                         onClick={() => {
                                             setSelectedLedgerProductId(item.productId);
+                                            setSelectedLedgerWarehouseId(item.warehouseId);
                                             setIsLedgerModalOpen(true);
                                         }} 
                                         className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition" 
@@ -838,10 +840,11 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                                             <button 
                                                 onClick={() => {
                                                     setSelectedLedgerProductId(productId);
+                                                    setSelectedLedgerWarehouseId(warehouse.id);
                                                     setIsLedgerModalOpen(true);
                                                 }} 
                                                 className="p-1 text-indigo-600 hover:bg-indigo-100 rounded transition" 
-                                                title="Truy vết tồn kho"
+                                                title={`Truy vết tồn kho ${warehouse.name}`}
                                             >
                                                 <HistoryIcon size={12} />
                                             </button>
@@ -886,7 +889,10 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
-                        <InventoryLedger initialProductId={selectedLedgerProductId || 'all'} />
+                        <InventoryLedger 
+                            initialProductId={selectedLedgerProductId || 'all'} 
+                            initialWarehouseId={selectedLedgerWarehouseId || 'all'} 
+                        />
                     </div>
                     <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
                         <button 
