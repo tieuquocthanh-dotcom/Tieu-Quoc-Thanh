@@ -840,11 +840,11 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                                             <button 
                                                 onClick={() => {
                                                     setSelectedLedgerProductId(productId);
-                                                    setSelectedLedgerWarehouseId(warehouse.id);
+                                                    setSelectedLedgerWarehouseId(wh.id);
                                                     setIsLedgerModalOpen(true);
                                                 }} 
                                                 className="p-1 text-indigo-600 hover:bg-indigo-100 rounded transition" 
-                                                title={`Truy vết tồn kho ${warehouse.name}`}
+                                                title={`Truy vết tồn kho ${wh.name}`}
                                             >
                                                 <HistoryIcon size={12} />
                                             </button>
