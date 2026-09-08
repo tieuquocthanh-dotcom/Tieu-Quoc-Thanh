@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, addDoc, deleteDoc, doc, serverTimestamp, updateDoc, collectionGroup } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Product, Supplier, PlannedOrder, PlannedOrderItem, Manufacturer, PlannedOrderStatus } from '../types';
-import { ClipboardList, Plus, Trash2, Search, Users, Tag, Package, Loader, X, Save, Edit, ShoppingBag, Check, RotateCcw, Printer, PlusCircle, CheckCircle2, Clock, ShoppingCart, Truck, PackageCheck, AlertCircle, ListFilter, ChevronUp, ChevronDown } from 'lucide-react';
+import { Product, Supplier, PlannedOrder, PlannedOrderItem, Manufacturer, PlannedOrderStatus, Warehouse } from '../types';
+import { ClipboardList, Plus, Trash2, Search, Users, Tag, Package, Loader, X, Save, Edit, ShoppingBag, Check, RotateCcw, Printer, PlusCircle, CheckCircle2, Clock, ShoppingCart, Truck, PackageCheck, AlertCircle, ListFilter, ChevronUp, ChevronDown, Minimize2, Maximize2, Sparkles, Filter, Warehouse as WarehouseIcon, Eye } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
 import { ProductModal } from './ProductManagement';
 import { User } from 'firebase/auth';
@@ -49,6 +49,25 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
     const [cart, setCart] = useState<PlannedOrderItem[]>([]);
     const [note, setNote] = useState('');
 
+    // Warehouses & Detailed Inventory States
+    const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+    const [detailedInventory, setDetailedInventory] = useState<Record<string, Record<string, number>>>({});
+
+    // Auto-save Draft & Minimize States
+    const [isMinimized, setIsMinimized] = useState(false);
+    const [savedDraft, setSavedDraft] = useState<{
+        selectedSupplierId: string;
+        orderStatus: PlannedOrderStatus;
+        cart: PlannedOrderItem[];
+        note: string;
+        updatedAt: number;
+    } | null>(null);
+
+    // Stock Lookup Drawer state inside modal
+    const [isStockLookupOpen, setIsStockLookupOpen] = useState(false);
+    const [stockLookupSearch, setStockLookupSearch] = useState('');
+    const [stockLookupFilter, setStockLookupFilter] = useState<'all' | 'low' | 'out'>('all');
+
     // Inline Edit States
     const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
     const [inlineQty, setInlineQty] = useState<number>(0);
@@ -66,6 +85,40 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
     // Confirmation Modal
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [orderToDelete, setOrderToDelete] = useState<PlannedOrder | null>(null);
+
+    // Restore draft from localStorage on mount
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('planned_order_draft_v1');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && (parsed.cart?.length > 0 || parsed.selectedSupplierId || parsed.note)) {
+                    setSavedDraft(parsed);
+                }
+            }
+        } catch (e) {
+            console.error("Lỗi đọc bản nháp:", e);
+        }
+    }, []);
+
+    // Auto-save draft when draft content changes
+    useEffect(() => {
+        if (!editingOrder && (cart.length > 0 || selectedSupplierId || note.trim())) {
+            const draft = {
+                selectedSupplierId,
+                orderStatus,
+                cart,
+                note,
+                updatedAt: Date.now()
+            };
+            try {
+                localStorage.setItem('planned_order_draft_v1', JSON.stringify(draft));
+                setSavedDraft(draft);
+            } catch (e) {
+                console.error("Lỗi lưu bản nháp:", e);
+            }
+        }
+    }, [selectedSupplierId, orderStatus, cart, note, editingOrder]);
 
     useEffect(() => {
         setTimeout(() => {
@@ -96,6 +149,25 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
             setManufacturers(Array.isArray(data) ? data : []);
         });
 
+        const unsubWarehouses = onSnapshot(query(collection(db, "warehouses"), orderBy("name")), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Warehouse));
+            setWarehouses(Array.isArray(data) ? data : []);
+        });
+
+        const unsubInventory = onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => { 
+            const data: Record<string, Record<string, number>> = {}; 
+            snapshot.forEach(doc => { 
+                const d = doc.data() as { warehouseId?: string; stock: number }; 
+                const pid = doc.ref.parent.parent?.id; 
+                const warehouseId = d.warehouseId || doc.id;
+                if (pid && warehouseId) { 
+                    if (!data[pid]) data[pid] = {}; 
+                    data[pid][warehouseId] = d.stock || 0; 
+                } 
+            }); 
+            setDetailedInventory(data); 
+        });
+
         const handleClickOutside = (e: MouseEvent) => {
             if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
                 setIsProductDropdownOpen(false);
@@ -108,9 +180,23 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
             unsubProducts();
             unsubSuppliers();
             unsubManufacturers();
+            unsubWarehouses();
+            unsubInventory();
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+
+    const getProductStockInfo = (productId: string) => {
+        const inv = detailedInventory[productId] || {};
+        let total = 0;
+        const perWarehouse: { id: string; name: string; stock: number }[] = [];
+        warehouses.forEach(w => {
+            const s = inv[w.id] || 0;
+            total += s;
+            perWarehouse.push({ id: w.id, name: w.name, stock: s });
+        });
+        return { total, perWarehouse };
+    };
 
     const filteredPlannedOrders = useMemo(() => {
         if (!Array.isArray(plannedOrders)) return [];
@@ -209,7 +295,41 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
         if (inlineEditingId === id) setInlineEditingId(null);
     };
 
+    const handleResumeDraft = () => {
+        if (!savedDraft) return;
+        setEditingOrder(null);
+        setSelectedSupplierId(savedDraft.selectedSupplierId || '');
+        setOrderStatus(savedDraft.orderStatus || 'pending');
+        setCart(Array.isArray(savedDraft.cart) ? savedDraft.cart : []);
+        setNote(savedDraft.note || '');
+        setProductSearch('');
+        setSelectedProductId('');
+        setQty(1);
+        setInlineEditingId(null);
+        setIsStockLookupOpen(false);
+        setIsMinimized(false);
+        setIsModalOpen(true);
+    };
+
+    const handleDiscardDraft = () => {
+        if (window.confirm("Bạn có chắc chắn muốn xóa bản nháp dự kiến này không?")) {
+            try {
+                localStorage.removeItem('planned_order_draft_v1');
+            } catch (e) {}
+            setSavedDraft(null);
+            setCart([]);
+            setSelectedSupplierId('');
+            setNote('');
+            setOrderStatus('pending');
+            setIsMinimized(false);
+        }
+    };
+
     const handleOpenCreateModal = () => {
+        if (savedDraft && (savedDraft.cart?.length > 0 || savedDraft.selectedSupplierId)) {
+            handleResumeDraft();
+            return;
+        }
         setEditingOrder(null);
         setSelectedSupplierId('');
         setOrderStatus('pending');
@@ -219,6 +339,8 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
         setSelectedProductId('');
         setQty(1);
         setInlineEditingId(null);
+        setIsStockLookupOpen(false);
+        setIsMinimized(false);
         setIsModalOpen(true);
     };
 
@@ -232,7 +354,41 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
         setSelectedProductId('');
         setQty(1);
         setInlineEditingId(null);
+        setIsStockLookupOpen(false);
+        setIsMinimized(false);
         setIsModalOpen(true);
+    };
+
+    const stockLookupProducts = useMemo(() => {
+        if (!Array.isArray(products)) return [];
+        let list = products;
+        if (stockLookupSearch) {
+            const lower = stockLookupSearch.toLowerCase();
+            list = list.filter(p => (p.name && p.name.toLowerCase().includes(lower)) || (p.shortName && p.shortName.toLowerCase().includes(lower)));
+        }
+        if (stockLookupFilter === 'low') {
+            list = list.filter(p => {
+                const { total } = getProductStockInfo(p.id);
+                return total > 0 && total <= 3;
+            });
+        } else if (stockLookupFilter === 'out') {
+            list = list.filter(p => {
+                const { total } = getProductStockInfo(p.id);
+                return total === 0;
+            });
+        }
+        return list.slice(0, 50);
+    }, [products, stockLookupSearch, stockLookupFilter, detailedInventory, warehouses]);
+
+    const addProductFromStockLookup = (product: Product, quantityToAdd: number = 1) => {
+        const existingIdx = cart.findIndex(i => i.productId === product.id);
+        if (existingIdx !== -1) {
+            const newCart = [...cart];
+            newCart[existingIdx] = { ...newCart[existingIdx], quantity: newCart[existingIdx].quantity + quantityToAdd };
+            setCart(newCart);
+        } else {
+            setCart([...cart, { productId: product.id, productName: product.name, quantity: quantityToAdd }]);
+        }
     };
 
     const handleUpdateStatus = async (orderId: string, newStatus: PlannedOrderStatus) => {
@@ -343,6 +499,11 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                 });
                 alert("Đã lưu đơn dự kiến đặt hàng.");
             }
+            try {
+                localStorage.removeItem('planned_order_draft_v1');
+            } catch (e) {}
+            setSavedDraft(null);
+            setIsMinimized(false);
             setIsModalOpen(false);
         } catch (e) {
             console.error(e);
@@ -383,6 +544,45 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                 />
             )}
 
+            {/* DRAFT NOTIFICATION BANNER */}
+            {savedDraft && !isModalOpen && !editingOrder && (
+                <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fade-in">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-amber-200 text-amber-900 rounded-xl">
+                            <ClipboardList size={22} />
+                        </div>
+                        <div>
+                            <div className="text-xs font-black uppercase text-amber-900 flex items-center gap-2">
+                                <span>Bản nháp đơn dự kiến đang tạo dở</span>
+                                <span className="px-2 py-0.5 bg-amber-200 text-amber-950 rounded-full text-[10px] font-bold">Đã lưu tự động</span>
+                            </div>
+                            <div className="text-xs text-amber-800 font-bold mt-0.5">
+                                NCC: <span className="font-black uppercase">{suppliers.find(s => s.id === savedDraft.selectedSupplierId)?.name || 'Chưa chọn'}</span>
+                                {' • '}Số mặt hàng: <span className="font-black text-primary">{savedDraft.cart?.length || 0} món</span>
+                                {' • '}Lưu lúc: <span className="font-medium text-slate-600">{new Date(savedDraft.updatedAt).toLocaleTimeString('vi-VN')}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleResumeDraft}
+                            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-black uppercase shadow transition flex items-center gap-1.5 active:scale-95"
+                        >
+                            <RotateCcw size={14} /> Tiếp tục tạo đơn
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleDiscardDraft}
+                            className="px-3 py-2 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95"
+                            title="Xóa bản nháp này"
+                        >
+                            <Trash2 size={14} /> Xóa nháp
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-dark flex items-center">
@@ -403,12 +603,23 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                         ))}
                     </div>
                 </div>
-                <button 
-                    onClick={handleOpenCreateModal}
-                    className="bg-primary hover:bg-primary-hover text-white px-6 py-2.5 rounded-xl font-black shadow-lg transition flex items-center transform active:scale-95 uppercase text-xs tracking-tighter"
-                >
-                    <Plus size={20} className="mr-2"/> Tạo Dự Kiến Mới
-                </button>
+                <div className="flex items-center gap-2">
+                    {savedDraft && !isModalOpen && (
+                        <button
+                            type="button"
+                            onClick={handleResumeDraft}
+                            className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-4 py-2.5 rounded-xl font-black transition flex items-center uppercase text-xs tracking-tighter"
+                        >
+                            <RotateCcw size={16} className="mr-1.5 text-amber-700"/> Tiếp tục nháp ({savedDraft.cart?.length || 0})
+                        </button>
+                    )}
+                    <button 
+                        onClick={handleOpenCreateModal}
+                        className="bg-primary hover:bg-primary-hover text-white px-6 py-2.5 rounded-xl font-black shadow-lg transition flex items-center transform active:scale-95 uppercase text-xs tracking-tighter"
+                    >
+                        <Plus size={20} className="mr-2"/> Tạo Dự Kiến Mới
+                    </button>
+                </div>
             </div>
 
             {loading ? (
@@ -478,16 +689,75 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                 </div>
             )}
 
+            {/* MINIMIZED FLOATING DOCK BADGE */}
+            {isMinimized && !isModalOpen && (
+                <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border-2 border-primary flex items-center gap-4 animate-bounce-short">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/20 text-primary rounded-xl">
+                            <ClipboardList size={22} />
+                        </div>
+                        <div>
+                            <div className="text-xs font-black uppercase text-amber-300 flex items-center gap-1.5">
+                                <span>Đang tạo dự kiến (Thu nhỏ)</span>
+                            </div>
+                            <div className="text-[11px] text-slate-300 font-bold">
+                                {suppliers.find(s => s.id === selectedSupplierId)?.name || 'Chưa chọn NCC'} • {cart.length} món
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => { setIsMinimized(false); setIsModalOpen(true); }}
+                            className="px-3.5 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-black uppercase transition flex items-center gap-1.5 shadow-md active:scale-95"
+                        >
+                            <Maximize2 size={14} /> Mở lại
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsMinimized(false)}
+                            className="p-1.5 text-slate-400 hover:text-white rounded-lg transition"
+                            title="Ẩn thanh này (Bản nháp vẫn được lưu an toàn)"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* CREATE/EDIT MODAL */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200">
                         <div className="p-4 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
-                            <h2 className="text-sm font-black uppercase tracking-tighter flex items-center">
-                                <ClipboardList size={20} className="mr-2 text-primary"/> 
-                                {editingOrder ? 'Chỉnh Sửa Dự Kiến' : 'Tạo Dự Kiến Nhập Hàng'}
-                            </h2>
-                            <button onClick={() => setIsModalOpen(false)} className="text-white/50 hover:text-white transition"><X size={24}/></button>
+                            <div className="flex items-center gap-2">
+                                <ClipboardList size={20} className="text-primary"/> 
+                                <h2 className="text-sm font-black uppercase tracking-tighter">
+                                    {editingOrder ? 'Chỉnh Sửa Dự Kiến' : 'Tạo Dự Kiến Nhập Hàng'}
+                                </h2>
+                                <span className="hidden sm:inline-block px-2 py-0.5 bg-slate-800 text-emerald-400 border border-emerald-500/30 text-[9px] font-black rounded-full uppercase">
+                                    Tự động lưu nháp
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <button 
+                                    type="button"
+                                    onClick={() => { setIsModalOpen(false); setIsMinimized(true); }} 
+                                    className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition flex items-center text-xs font-bold gap-1"
+                                    title="Thu nhỏ cửa sổ để xem tab khác (Không mất dữ liệu đang làm dở)"
+                                >
+                                    <Minimize2 size={18}/>
+                                    <span className="hidden sm:inline text-[11px]">Thu nhỏ</span>
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsModalOpen(false)} 
+                                    className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                                    title="Đóng (Dữ liệu đã được lưu tự động)"
+                                >
+                                    <X size={22}/>
+                                </button>
+                            </div>
                         </div>
                         
                         <div className="p-6 overflow-y-auto space-y-6">
@@ -524,17 +794,119 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                             </div>
 
                             <div className="bg-slate-900 p-5 rounded-2xl shadow-inner border border-slate-800">
-                                <div className="flex justify-between items-center mb-3">
+                                <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest">
                                         3. Thêm sản phẩm & số lượng
                                     </label>
-                                    <button 
-                                        onClick={() => setIsQuickProductModalOpen(true)}
-                                        className="text-[9px] bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded font-black uppercase flex items-center shadow-md transition-all active:scale-95"
-                                    >
-                                        <PlusCircle size={12} className="mr-1"/> Tạo sản phẩm mới
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setIsStockLookupOpen(!isStockLookupOpen)}
+                                            className={`text-[9px] px-2.5 py-1.5 rounded-lg font-black uppercase flex items-center shadow-md transition-all active:scale-95 ${
+                                                isStockLookupOpen 
+                                                    ? 'bg-amber-400 text-slate-950 font-black' 
+                                                    : 'bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/40'
+                                            }`}
+                                        >
+                                            <WarehouseIcon size={13} className="mr-1"/> 
+                                            {isStockLookupOpen ? 'Đóng tra cứu tồn kho' : 'Tra cứu tồn kho ngay'}
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setIsQuickProductModalOpen(true)}
+                                            className="text-[9px] bg-green-600 hover:bg-green-700 text-white px-2.5 py-1.5 rounded-lg font-black uppercase flex items-center shadow-md transition-all active:scale-95"
+                                        >
+                                            <PlusCircle size={13} className="mr-1"/> Tạo sản phẩm mới
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {/* QUICK IN-MODAL STOCK LOOKUP TABLE */}
+                                {isStockLookupOpen && (
+                                    <div className="mb-4 p-4 bg-slate-800 border-2 border-teal-500/50 rounded-xl space-y-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 pb-2">
+                                            <div className="flex items-center gap-1.5 text-xs font-black text-teal-300 uppercase">
+                                                <WarehouseIcon size={16}/> Tra cứu tồn kho trực tiếp (Không cần chuyển tab)
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStockLookupFilter('all')}
+                                                    className={`px-2 py-0.5 text-[9px] font-bold rounded ${stockLookupFilter === 'all' ? 'bg-teal-500 text-slate-950 font-black' : 'bg-slate-700 text-slate-300'}`}
+                                                >
+                                                    Tất cả
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStockLookupFilter('low')}
+                                                    className={`px-2 py-0.5 text-[9px] font-bold rounded ${stockLookupFilter === 'low' ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-700 text-slate-300'}`}
+                                                >
+                                                    Sắp hết (&le;3)
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStockLookupFilter('out')}
+                                                    className={`px-2 py-0.5 text-[9px] font-bold rounded ${stockLookupFilter === 'out' ? 'bg-rose-500 text-white font-black' : 'bg-slate-700 text-slate-300'}`}
+                                                >
+                                                    Hết hàng (0)
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                            <input
+                                                type="text"
+                                                placeholder="Tìm sản phẩm để xem tồn kho hoặc thêm nhanh vào đơn..."
+                                                value={stockLookupSearch}
+                                                onChange={e => setStockLookupSearch(e.target.value)}
+                                                className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs placeholder-slate-500 font-bold focus:border-teal-400 outline-none"
+                                            />
+                                        </div>
+
+                                        <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-700/50">
+                                            {stockLookupProducts.length === 0 ? (
+                                                <div className="py-4 text-center text-xs text-slate-400 font-bold">Không tìm thấy sản phẩm phù hợp</div>
+                                            ) : (
+                                                stockLookupProducts.map(prod => {
+                                                    const stockInfo = getProductStockInfo(prod.id);
+                                                    return (
+                                                        <div key={prod.id} className="pt-2 flex items-center justify-between gap-2 text-xs">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-bold text-white uppercase truncate flex items-center gap-1.5">
+                                                                    <span>{prod.name}</span>
+                                                                    {prod.shortName && (
+                                                                        <span className="px-1 py-0.2 bg-amber-200 text-amber-950 text-[9px] font-black rounded">
+                                                                            {prod.shortName}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mt-0.5">
+                                                                    {stockInfo.perWarehouse.map(wh => (
+                                                                        <span key={wh.id} className="bg-slate-900/80 px-1.5 py-0.5 rounded border border-slate-700">
+                                                                            {wh.name}: <strong className={wh.stock === 0 ? 'text-rose-400' : 'text-emerald-400'}>{wh.stock}</strong>
+                                                                        </span>
+                                                                    ))}
+                                                                    <span className="font-bold text-teal-300">
+                                                                        Tổng: <strong className={stockInfo.total === 0 ? 'text-rose-400' : 'text-white'}>{stockInfo.total}</strong>
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => addProductFromStockLookup(prod, 1)}
+                                                                className="shrink-0 px-2.5 py-1 bg-teal-600 hover:bg-teal-500 text-white font-black text-[10px] uppercase rounded-lg shadow transition active:scale-95 flex items-center gap-1"
+                                                            >
+                                                                <Plus size={12} strokeWidth={3}/> Thêm +1
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="flex gap-2 relative">
                                     <div className="flex-1 relative" ref={productDropdownRef}>
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18}/>
@@ -547,21 +919,29 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                             className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border-2 border-slate-700 text-white rounded-xl focus:border-primary outline-none text-sm placeholder-slate-600 font-bold"
                                         />
                                         {isProductDropdownOpen && productSearch && (
-                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-2xl z-20 max-h-48 overflow-y-auto">
+                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-2xl z-20 max-h-56 overflow-y-auto">
                                                 {filteredProducts.length === 0 ? (
                                                     <div className="p-4 text-center text-xs font-black text-slate-400 uppercase">Không tìm thấy</div>
                                                 ) : (
-                                                    filteredProducts.map(p => (
-                                                        <button key={p.id} onClick={() => handleSelectProduct(p)} className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex items-center group transition-colors">
-                                                            <Tag size={14} className="mr-2 text-slate-300 group-hover:text-blue-500"/>
-                                                            <span className="font-black text-xs text-slate-700 uppercase">{p.name}</span>
-                                                            {p.shortName && (
-                                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
-                                                                    {p.shortName}
+                                                    filteredProducts.map(p => {
+                                                        const stockInfo = getProductStockInfo(p.id);
+                                                        return (
+                                                            <button key={p.id} onClick={() => handleSelectProduct(p)} className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex items-center justify-between group transition-colors">
+                                                                <div className="flex items-center min-w-0 pr-2">
+                                                                    <Tag size={14} className="mr-2 text-slate-300 group-hover:text-blue-500 shrink-0"/>
+                                                                    <span className="font-black text-xs text-slate-700 uppercase truncate">{p.name}</span>
+                                                                    {p.shortName && (
+                                                                        <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block shrink-0">
+                                                                            {p.shortName}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded shrink-0 ${stockInfo.total === 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}`}>
+                                                                    Tồn: {stockInfo.total}
                                                                 </span>
-                                                            )}
-                                                        </button>
-                                                    ))
+                                                            </button>
+                                                        );
+                                                    })
                                                 )}
                                             </div>
                                         )}
@@ -578,10 +958,28 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                         onClick={addToCart}
                                         disabled={!selectedProductId}
                                         className="p-3 bg-primary hover:bg-primary-hover text-white rounded-xl transition shadow-lg shadow-primary/20 disabled:opacity-30 disabled:cursor-not-allowed transform active:scale-90"
+                                        title="Thêm vào danh sách dự kiến"
                                     >
                                         <Plus size={24} strokeWidth={3}/>
                                     </button>
                                 </div>
+
+                                {/* Stock status of currently selected product */}
+                                {selectedProductId && (
+                                    <div className="mt-2 pt-2 border-t border-slate-800 flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
+                                        <span className="font-bold text-teal-400 flex items-center gap-1">
+                                            <WarehouseIcon size={13}/> Tồn kho hiện tại:
+                                        </span>
+                                        {getProductStockInfo(selectedProductId).perWarehouse.map(wh => (
+                                            <span key={wh.id} className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                                                {wh.name}: <strong className={wh.stock === 0 ? 'text-rose-400' : 'text-emerald-400'}>{wh.stock}</strong>
+                                            </span>
+                                        ))}
+                                        <span className="font-bold text-white">
+                                            (Tổng: {getProductStockInfo(selectedProductId).total})
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-white p-4 rounded-2xl border-2 border-slate-200 shadow-sm">
@@ -595,10 +993,21 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                     <div className="space-y-2">
                                         {cart.map((item, idx) => {
                                             const isEditingThis = inlineEditingId === item.productId;
+                                            const itemStock = getProductStockInfo(item.productId);
                                             
                                             return (
                                                 <div key={idx} className={`p-3 rounded-xl border-2 flex justify-between items-center transition-all ${isEditingThis ? 'border-orange-500 bg-orange-50 shadow-inner' : 'border-slate-100 bg-slate-50'}`}>
-                                                    <div className="flex-1 font-black text-xs text-slate-700 pr-4 uppercase leading-tight">{item.productName}</div>
+                                                    <div className="flex-1 pr-4">
+                                                        <div className="font-black text-xs text-slate-700 uppercase leading-tight">{item.productName}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold mt-0.5 flex flex-wrap items-center gap-1.5">
+                                                            <span>Tồn kho:</span>
+                                                            {itemStock.perWarehouse.map(wh => (
+                                                                <span key={wh.id} className="text-slate-600">
+                                                                    {wh.name}: <strong className={wh.stock === 0 ? 'text-rose-600' : 'text-emerald-600'}>{wh.stock}</strong>
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                     
                                                     <div className="flex items-center gap-1.5">
                                                         <div className="flex items-center gap-0.5 mr-1">
@@ -661,11 +1070,34 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                             </div>
                         </div>
 
-                        <div className="p-4 bg-slate-100 border-t-4 border-slate-800 flex justify-end gap-3">
-                            <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 bg-white border-2 border-slate-800 rounded-xl font-black text-xs uppercase hover:bg-slate-50 transition active:scale-95 text-black">Hủy</button>
-                            <button onClick={handleSaveOrder} className="px-8 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-primary/20 hover:bg-primary-hover transition active:scale-95 flex items-center">
-                                <Save size={18} className="mr-2"/> {editingOrder ? 'Cập Nhật' : 'Lưu Dự Kiến'}
-                            </button>
+                        <div className="p-4 bg-slate-100 border-t-4 border-slate-800 flex justify-between items-center gap-3">
+                            <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                                Bản nháp được lưu tự động
+                            </div>
+                            <div className="flex gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={() => { setIsModalOpen(false); setIsMinimized(true); }} 
+                                    className="px-4 py-3 bg-slate-200 text-slate-800 rounded-xl font-black text-xs uppercase hover:bg-slate-300 transition active:scale-95"
+                                >
+                                    Thu nhỏ
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsModalOpen(false)} 
+                                    className="px-5 py-3 bg-white border-2 border-slate-800 rounded-xl font-black text-xs uppercase hover:bg-slate-50 transition active:scale-95 text-black"
+                                >
+                                    Đóng
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={handleSaveOrder} 
+                                    className="px-8 py-3 bg-primary text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-primary/20 hover:bg-primary-hover transition active:scale-95 flex items-center"
+                                >
+                                    <Save size={18} className="mr-2"/> {editingOrder ? 'Cập Nhật' : 'Lưu Dự Kiến'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -155,18 +155,28 @@ export interface PaymentLog {
   balanceAfter?: number;
 }
 
+export type PlannedOrderStatus = 'pending' | 'ordered' | 'shipped' | 'received_full' | 'received_missing' | 'completed';
+
+export interface PlannedOrderItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+}
+
 export interface PlannedOrder {
   id: string;
   orderName?: string;
   supplierId: string;
   supplierName: string;
-  items: {
-    productId: string;
-    productName: string;
-    quantity: number;
-  }[];
-  status: 'pending' | 'completed';
+  items: PlannedOrderItem[];
+  status: PlannedOrderStatus;
   createdAt: Timestamp;
+  createdBy?: string | null;
+  creatorName?: string;
+  updatedAt?: Timestamp;
+  updatedBy?: string | null;
+  updatedByName?: string;
+  note?: string;
 }
 
 export interface ChinaImport {
