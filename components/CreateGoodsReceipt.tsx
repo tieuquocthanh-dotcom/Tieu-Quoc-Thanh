@@ -8,6 +8,7 @@ import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
 import PriceComparisonModal from './PriceComparisonModal';
+import HighPriceWarningModal, { HighPriceWarningData } from './HighPriceWarningModal';
 import InventoryLedger from './InventoryLedger';
 import StockStatusBadge from './StockStatusBadge';
 import { ProductModal } from './ProductManagement';
@@ -25,9 +26,10 @@ const NumericInput: React.FC<{
     placeholder?: string;
     onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
     onBlur?: () => void;
+    onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
     isCurrency?: boolean;
     autoFocus?: boolean;
-}> = ({ value, onChange, className, placeholder, onFocus, onBlur, isCurrency = true, autoFocus = false }) => {
+}> = ({ value, onChange, className, placeholder, onFocus, onBlur, onKeyDown, isCurrency = true, autoFocus = false }) => {
     const [localValue, setLocalValue] = useState(isCurrency ? formatNumber(value) : value.toString());
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -72,6 +74,7 @@ const NumericInput: React.FC<{
             onBlur={handleBlur}
             onKeyDown={(e) => {
                 if (e.key === 'Enter') handleBlur();
+                onKeyDown?.(e);
             }}
         />
     );
@@ -99,12 +102,26 @@ const ImportProductCard: React.FC<{
     lastSupplierPrice?: number; 
     detailedInventory: Record<string, Record<string, number>>;
     warehouses: Warehouse[];
+    marketPriceInfo?: {
+        minPrice: number;
+        cheapestSupplierName: string;
+        cheapestSupplierId: string;
+        cheapestDate?: Date;
+        suppliers: {
+            supplierId: string;
+            supplierName: string;
+            lastPrice: number;
+            minPrice: number;
+            lastDate?: Date;
+        }[];
+    };
+    selectedSupplierId?: string;
     onAdd: (product: Product, quantity: number, importPrice: number, keepSearch?: boolean) => void;
     onUpdateImportPrice?: (productId: string, price: number) => Promise<void>;
     onCompare?: (product: Product) => void;
     onTrace?: (product: Product) => void;
     userRole: 'admin' | 'staff' | null;
-}> = ({ product, lastSupplierPrice, detailedInventory, warehouses, onAdd, onUpdateImportPrice, onCompare, onTrace, userRole }) => {
+}> = ({ product, lastSupplierPrice, detailedInventory, warehouses, marketPriceInfo, selectedSupplierId, onAdd, onUpdateImportPrice, onCompare, onTrace, userRole }) => {
     const initialPrice = lastSupplierPrice !== undefined ? lastSupplierPrice : product.importPrice;
     const [inputQty, setInputQty] = useState(1);
     const [inputImportPrice, setInputImportPrice] = useState(initialPrice);
@@ -129,13 +146,41 @@ const ImportProductCard: React.FC<{
     const totalStock = Object.values(productInventory).reduce((sum, v) => sum + (v || 0), 0);
     const topWarehouses = warehouses.slice(0, 3);
 
+    // Kiểm tra chênh lệch giá để cảnh báo trực quan
+    const hasPriceIncreaseFromLast = lastSupplierPrice !== undefined && lastSupplierPrice > 0 && inputImportPrice > lastSupplierPrice;
+    const priceIncreaseDiff = hasPriceIncreaseFromLast && lastSupplierPrice ? inputImportPrice - lastSupplierPrice : 0;
+    const priceIncreasePercent = hasPriceIncreaseFromLast && lastSupplierPrice ? (priceIncreaseDiff / lastSupplierPrice) * 100 : 0;
+
+    const otherCheapestSupplier = useMemo(() => {
+        if (!marketPriceInfo || !marketPriceInfo.suppliers || marketPriceInfo.suppliers.length === 0) return null;
+        const candidates = marketPriceInfo.suppliers.filter(s => s.supplierId !== selectedSupplierId && s.minPrice < inputImportPrice);
+        if (candidates.length === 0) return null;
+        candidates.sort((a, b) => a.minPrice - b.minPrice);
+        const best = candidates[0];
+        return {
+            supplierName: best.supplierName,
+            price: best.minPrice,
+            difference: inputImportPrice - best.minPrice,
+            date: best.lastDate
+        };
+    }, [marketPriceInfo, selectedSupplierId, inputImportPrice]);
+
+    const isBasePriceHigher = product.importPrice > 0 && inputImportPrice > product.importPrice && (!lastSupplierPrice || inputImportPrice > lastSupplierPrice);
+    const isHighPrice = hasPriceIncreaseFromLast || !!otherCheapestSupplier || isBasePriceHigher;
+
     return (
-        <div className="bg-white border border-slate-200/90 rounded-xl p-3 hover:shadow-md transition-all duration-200 flex flex-col justify-between relative group hover:border-primary/50 h-full shadow-2xs">
+        <div className={`bg-white border rounded-xl p-3 hover:shadow-md transition-all duration-200 flex flex-col justify-between relative group h-full shadow-2xs ${
+            hasPriceIncreaseFromLast
+                ? 'border-rose-300 ring-1 ring-rose-100 hover:border-rose-400'
+                : otherCheapestSupplier
+                ? 'border-amber-300 ring-1 ring-amber-100 hover:border-amber-400'
+                : 'border-slate-200/90 hover:border-primary/50'
+        }`}>
             {product.isCombo && (
                 <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-br-lg font-bold z-10 uppercase shadow-2xs">COMBO</div>
             )}
             {/* Header: Product Name + Action Buttons */}
-            <div className="mb-2 mt-1 flex justify-between items-center gap-1">
+            <div className="mb-1.5 mt-0.5 flex justify-between items-center gap-1">
                 <div 
                     className={`font-bold text-slate-900 leading-tight text-[12px] cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'} flex-1 min-w-0 pr-1`}
                     title={product.name}
@@ -185,7 +230,7 @@ const ImportProductCard: React.FC<{
             </div>
 
             {/* Hàng 2: Chi tiết số lượng từng kho */}
-            <div className="grid grid-cols-3 gap-1 text-[9px] font-bold mb-2 bg-slate-50/80 p-1 rounded-lg border border-slate-100 text-center">
+            <div className="grid grid-cols-3 gap-1 text-[9px] font-bold mb-1.5 bg-slate-50/80 p-1 rounded-lg border border-slate-100 text-center">
                 {topWarehouses.map(w => {
                     const wStock = productInventory[w.id] || 0;
                     const colorClass = wStock > 5 ? 'text-emerald-600 font-bold' : wStock > 0 ? 'text-amber-600 font-bold' : 'text-slate-400 font-medium';
@@ -197,22 +242,106 @@ const ImportProductCard: React.FC<{
                     );
                 })}
             </div>
+
+            {/* Hàng 3: Cảnh báo giá cao trực quan */}
+            {hasPriceIncreaseFromLast ? (
+                <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-black mb-1.5 animate-fade-in" title={`Lần trước nhập ${formatNumber(lastSupplierPrice)} đ`}>
+                    <span className="flex items-center gap-1">
+                        <TrendingUp size={11} className="text-rose-600 shrink-0" />
+                        <span>Tăng +{formatNumber(priceIncreaseDiff)} đ (+{priceIncreasePercent.toFixed(1)}%)</span>
+                    </span>
+                    <span className="text-[8px] text-rose-500 font-bold uppercase">vs lần trước</span>
+                </div>
+            ) : otherCheapestSupplier ? (
+                <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-[10px] font-black mb-1.5 animate-fade-in" title={`NCC ${otherCheapestSupplier.supplierName} từng bán ${formatNumber(otherCheapestSupplier.price)} đ (rẻ hơn ${formatNumber(otherCheapestSupplier.difference)} đ)`}>
+                    <span className="flex items-center gap-1 truncate">
+                        <AlertCircle size={11} className="text-amber-700 shrink-0" />
+                        <span className="truncate">NCC {otherCheapestSupplier.supplierName} rẻ hơn:</span>
+                    </span>
+                    <span className="text-emerald-700 font-black shrink-0 ml-1">{formatNumber(otherCheapestSupplier.price)} đ</span>
+                </div>
+            ) : lastSupplierPrice !== undefined ? (
+                <div className="flex items-center justify-between px-2 py-0.5 rounded bg-slate-50 text-slate-500 text-[9px] font-bold mb-1.5">
+                    <span>Lần trước NCC này:</span>
+                    <span className="text-slate-700 font-black">{formatNumber(lastSupplierPrice)} đ</span>
+                </div>
+            ) : isBasePriceHigher ? (
+                <div className="flex items-center justify-between px-2 py-0.5 rounded bg-orange-50 text-orange-700 text-[9px] font-bold mb-1.5">
+                    <span>Giá vốn gốc:</span>
+                    <span className="text-orange-900 font-black">{formatNumber(product.importPrice)} đ</span>
+                </div>
+            ) : null}
+
+            {/* Ô nhập giá vốn */}
             <div className="space-y-1 mb-2">
                 <div className="flex items-center gap-1">
                     <div className="relative flex-1">
                         <NumericInput 
                             value={inputImportPrice}
                             onChange={setInputImportPrice}
-                            className={`w-full pl-7 pr-2 py-1.5 text-sm border rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none shadow-2xs transition-colors ${lastSupplierPrice !== undefined ? 'bg-amber-50/60 border-amber-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'}`}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    onAdd(product, inputQty, inputImportPrice, false);
+                                    setInputQty(1);
+                                }
+                            }}
+                            className={`w-full pl-7 pr-2 py-1.5 text-sm border rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none shadow-2xs transition-colors ${
+                                hasPriceIncreaseFromLast
+                                    ? 'bg-rose-50 border-rose-400 text-rose-950 ring-1 ring-rose-200'
+                                    : otherCheapestSupplier
+                                    ? 'bg-amber-50 border-amber-400 text-amber-950 ring-1 ring-amber-200'
+                                    : lastSupplierPrice !== undefined
+                                    ? 'bg-amber-50/60 border-amber-300 text-slate-900'
+                                    : 'bg-slate-900 border-slate-700 text-white'
+                            }`}
                         />
-                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold ${lastSupplierPrice !== undefined ? 'text-amber-700' : 'text-slate-400'}`}>VỐN</span>
+                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold flex items-center gap-0.5 ${
+                            hasPriceIncreaseFromLast ? 'text-rose-700' : otherCheapestSupplier ? 'text-amber-800' : lastSupplierPrice !== undefined ? 'text-amber-700' : 'text-slate-400'
+                        }`}>
+                            {hasPriceIncreaseFromLast ? <AlertTriangle size={10} className="text-rose-600" /> : otherCheapestSupplier ? <AlertCircle size={10} className="text-amber-600" /> : null}
+                            VỐN
+                        </span>
                     </div>
                 </div>
             </div>
+
+            {/* Nút nhập hàng */}
             <div className="flex space-x-1.5">
-                <input type="number" value={inputQty} onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} onFocus={(e) => e.target.select()} className="w-12 px-1 py-1.5 text-xs border border-slate-200 bg-slate-50 text-slate-900 rounded-lg outline-none text-center font-bold focus:border-primary focus:bg-white transition" min="1" />
-                <button onClick={() => { onAdd(product, inputQty, inputImportPrice, false); setInputQty(1); }} className="flex-1 py-1.5 bg-primary hover:bg-primary-hover text-white text-[11px] font-bold rounded-lg shadow-sm transition active:scale-95 flex items-center justify-center uppercase tracking-tight gap-1"><Plus size={13}/> Nhập</button>
-                <button onClick={() => { onAdd(product, inputQty, inputImportPrice, true); setInputQty(1); }} className="px-2.5 py-1.5 bg-slate-800 text-white text-[11px] font-bold rounded-lg shadow-sm flex items-center justify-center hover:bg-slate-900 transition active:scale-95" title="Nhập tiếp mặt hàng này (không xóa ô tìm kiếm)"><Plus size={13}/></button>
+                <input 
+                    type="number" 
+                    value={inputQty} 
+                    onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} 
+                    onFocus={(e) => e.target.select()} 
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            onAdd(product, inputQty, inputImportPrice, false);
+                            setInputQty(1);
+                        }
+                    }}
+                    className="w-12 px-1 py-1.5 text-xs border border-slate-200 bg-slate-50 text-slate-900 rounded-lg outline-none text-center font-bold focus:border-primary focus:bg-white transition" 
+                    min="1" 
+                />
+                <button 
+                    onClick={() => { onAdd(product, inputQty, inputImportPrice, false); setInputQty(1); }} 
+                    className={`flex-1 py-1.5 text-white text-[11px] font-bold rounded-lg shadow-sm transition active:scale-95 flex items-center justify-center uppercase tracking-tight gap-1 ${
+                        hasPriceIncreaseFromLast 
+                            ? 'bg-rose-600 hover:bg-rose-700' 
+                            : otherCheapestSupplier 
+                            ? 'bg-amber-600 hover:bg-amber-700' 
+                            : 'bg-primary hover:bg-primary-hover'
+                    }`}
+                    title={isHighPrice ? "Giá đang cao - Bấm để xem cảnh báo & xác nhận trước khi thêm" : "Thêm vào phiếu nhập"}
+                >
+                    {isHighPrice ? <AlertTriangle size={12} className="text-amber-200" /> : <Plus size={13}/>} 
+                    Nhập
+                </button>
+                <button 
+                    onClick={() => { onAdd(product, inputQty, inputImportPrice, true); setInputQty(1); }} 
+                    className="px-2.5 py-1.5 bg-slate-800 text-white text-[11px] font-bold rounded-lg shadow-sm flex items-center justify-center hover:bg-slate-900 transition active:scale-95" 
+                    title="Nhập tiếp mặt hàng này (không xóa ô tìm kiếm)"
+                >
+                    <Plus size={13}/>
+                </button>
             </div>
         </div>
     );
@@ -269,6 +398,10 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const [selectedPriceComparisonProduct, setSelectedPriceComparisonProduct] = useState<Product | null>(null);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [selectedLedgerProductId, setSelectedLedgerProductId] = useState<string | null>(null);
+  const [recentAllReceipts, setRecentAllReceipts] = useState<GoodsReceipt[]>([]);
+  const [highPriceWarningData, setHighPriceWarningData] = useState<HighPriceWarningData | null>(null);
+  const [isHighPriceModalOpen, setIsHighPriceModalOpen] = useState(false);
+  const [acknowledgedHighPriceIds, setAcknowledgedHighPriceIds] = useState<Set<string>>(new Set());
   const isAdmin = userRole === 'admin';
 
   useEffect(() => {
@@ -301,8 +434,88 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
     const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
     onSnapshot(query(collection(db, "goodsReceipts"), where("createdAt", ">=", Timestamp.fromDate(startOfToday)), orderBy("createdAt", "desc")), (snap) => setTodayReceipts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoodsReceipt))));
+
+    // Tải 200 đơn nhập gần nhất để tổng hợp mặt bằng giá thị trường và phát hiện giá rẻ hơn
+    onSnapshot(query(collection(db, "goodsReceipts"), orderBy("createdAt", "desc"), limit(200)), (snap) => {
+        setRecentAllReceipts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoodsReceipt)));
+    });
+
     setLoading(false);
   }, []);
+
+  // Reset các xác nhận giá cao khi đổi NCC
+  useEffect(() => {
+      setAcknowledgedHighPriceIds(new Set());
+  }, [selectedSupplierId]);
+
+  // Tổng hợp giá rẻ nhất theo từng sản phẩm từ các NCC
+  const marketPriceMap = useMemo(() => {
+      const map: Record<string, {
+          minPrice: number;
+          cheapestSupplierName: string;
+          cheapestSupplierId: string;
+          cheapestDate?: Date;
+          suppliers: {
+              supplierId: string;
+              supplierName: string;
+              lastPrice: number;
+              minPrice: number;
+              lastDate?: Date;
+          }[];
+      }> = {};
+
+      const supplierNameLookup = new Map<string, string>();
+      suppliers.forEach(s => supplierNameLookup.set(s.id, s.name));
+
+      recentAllReceipts.forEach(receipt => {
+          const sId = receipt.supplierId;
+          const sName = receipt.supplierName || supplierNameLookup.get(sId) || 'NCC khác';
+          const rDate = receipt.createdAt?.toDate?.() || undefined;
+
+          (receipt.items || []).forEach(item => {
+              if (!item.productId || !item.importPrice || item.importPrice <= 0) return;
+              if (!map[item.productId]) {
+                  map[item.productId] = {
+                      minPrice: item.importPrice,
+                      cheapestSupplierName: sName,
+                      cheapestSupplierId: sId,
+                      cheapestDate: rDate,
+                      suppliers: []
+                  };
+              }
+
+              const entry = map[item.productId];
+              let sRecord = entry.suppliers.find(s => s.supplierId === sId);
+              if (!sRecord) {
+                  sRecord = {
+                      supplierId: sId,
+                      supplierName: sName,
+                      lastPrice: item.importPrice,
+                      minPrice: item.importPrice,
+                      lastDate: rDate
+                  };
+                  entry.suppliers.push(sRecord);
+              } else {
+                  if (item.importPrice < sRecord.minPrice) {
+                      sRecord.minPrice = item.importPrice;
+                  }
+                  if (!sRecord.lastDate || (rDate && rDate > sRecord.lastDate)) {
+                      sRecord.lastDate = rDate;
+                      sRecord.lastPrice = item.importPrice;
+                  }
+              }
+
+              if (item.importPrice < entry.minPrice) {
+                  entry.minPrice = item.importPrice;
+                  entry.cheapestSupplierName = sName;
+                  entry.cheapestSupplierId = sId;
+                  entry.cheapestDate = rDate;
+              }
+          });
+      });
+
+      return map;
+  }, [recentAllReceipts, suppliers]);
 
   useEffect(() => {
       if (!selectedSupplierId) { 
@@ -371,6 +584,78 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
       setSearchTerm('');
     }
     setToast({ message: "Đã thêm thành công!", type: 'success' });
+  };
+
+  const handleRequestAdd = (product: Product, quantity: number, importPrice: number, keepSearch: boolean = false) => {
+      if (quantity <= 0) return;
+
+      const lastPrice = supplierPriceHistory[product.id];
+      const marketInfo = marketPriceMap[product.id];
+      const currentSupplier = suppliers.find(s => s.id === selectedSupplierId);
+
+      // 1. Kiểm tra nếu giá nhập cao hơn lần nhập trước của chính NCC này
+      const isHigherThanLast = lastPrice !== undefined && lastPrice > 0 && importPrice > lastPrice;
+
+      // 2. Kiểm tra nếu có NCC khác từng bán rẻ hơn giá đang nhập
+      let cheapestOther: { supplierName: string; price: number; difference: number; date?: Date } | undefined = undefined;
+      if (marketInfo && marketInfo.suppliers && marketInfo.suppliers.length > 0) {
+          const candidates = marketInfo.suppliers.filter(s => s.supplierId !== selectedSupplierId && s.minPrice < importPrice);
+          if (candidates.length > 0) {
+              candidates.sort((a, b) => a.minPrice - b.minPrice);
+              const best = candidates[0];
+              cheapestOther = {
+                  supplierName: best.supplierName,
+                  price: best.minPrice,
+                  difference: importPrice - best.minPrice,
+                  date: best.lastDate
+              };
+          }
+      }
+
+      // 3. Kiểm tra nếu giá nhập cao hơn giá vốn gốc thiết lập
+      const isHigherThanBase = product.importPrice > 0 && importPrice > product.importPrice && (!lastPrice || importPrice > lastPrice);
+
+      const hasWarning = isHigherThanLast || !!cheapestOther || isHigherThanBase;
+      const ackKey = `${product.id}_${importPrice}`;
+
+      // Nếu có cảnh báo giá cao và chưa được xác nhận trong phiên này
+      if (hasWarning && !acknowledgedHighPriceIds.has(ackKey)) {
+          setHighPriceWarningData({
+              product,
+              currentSupplierName: currentSupplier?.name || 'Nhà cung cấp đã chọn',
+              enteringPrice: importPrice,
+              quantity,
+              lastSupplierPrice: lastPrice,
+              cheapestOtherSupplier: cheapestOther,
+              baseCostPrice: product.importPrice,
+              keepSearch
+          });
+          setIsHighPriceModalOpen(true);
+          return;
+      }
+
+      // Thêm bình thường nếu không có cảnh báo hoặc đã được xác nhận
+      addToReceipt(product, quantity, importPrice, keepSearch);
+  };
+
+  const handleConfirmHighPriceAdd = (data: HighPriceWarningData) => {
+      const ackKey = `${data.product.id}_${data.enteringPrice}`;
+      setAcknowledgedHighPriceIds(prev => new Set(prev).add(ackKey));
+      addToReceipt(data.product, data.quantity, data.enteringPrice, data.keepSearch);
+      setIsHighPriceModalOpen(false);
+      setHighPriceWarningData(null);
+  };
+
+  const handleAdjustPrice = (newPrice: number) => {
+      if (!highPriceWarningData) return;
+      addToReceipt(highPriceWarningData.product, highPriceWarningData.quantity, newPrice, highPriceWarningData.keepSearch);
+      setIsHighPriceModalOpen(false);
+      setHighPriceWarningData(null);
+  };
+
+  const handleOpenComparisonFromWarning = (product: Product) => {
+      setSelectedPriceComparisonProduct(product);
+      setIsPriceComparisonOpen(true);
   };
 
   const moveItemUp = (index: number) => {
@@ -689,6 +974,14 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
         <GoodsReceiptEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} receipt={selectedReceiptEdit} suppliers={suppliers} paymentMethods={paymentMethods} warehouses={warehouses} products={products} />
         {isProductModalOpen && <ProductModal product={null} manufacturers={manufacturers} allProductsForCombo={products} onClose={() => setIsProductModalOpen(false)} onSave={handleQuickCreateProduct} existingNames={products.map(p => p.name)} />}
         {isSupplierModalOpen && <SupplierModal supplier={null} onClose={() => setIsSupplierModalOpen(false)} onSave={handleQuickCreateSupplier} existingNames={suppliers.map(s => s.name)} />}
+        <HighPriceWarningModal 
+            isOpen={isHighPriceModalOpen}
+            onClose={() => { setIsHighPriceModalOpen(false); setHighPriceWarningData(null); }}
+            data={highPriceWarningData}
+            onConfirmAdd={handleConfirmHighPriceAdd}
+            onAdjustPrice={handleAdjustPrice}
+            onOpenPriceComparison={handleOpenComparisonFromWarning}
+        />
         
         <div className={`flex flex-col lg:flex-row gap-4 flex-1 ${isFullscreen ? 'min-h-0' : ''}`}>
             <div className={`flex flex-col min-h-0 ${isFullscreen ? 'lg:w-[65%]' : 'lg:w-3/5'}`}>
@@ -832,10 +1125,11 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                 <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
                                     {suggestedProducts.map(sp => {
                                         const stock = Object.values(detailedInventory[sp.id] || {}).reduce((s, v) => s + v, 0);
+                                        const prevPrice = supplierPriceHistory[sp.id] || sp.importPrice;
                                         return (
                                         <button 
                                             key={sp.id} 
-                                            onClick={() => addToReceipt(sp, 1, supplierPriceHistory[sp.id] || sp.importPrice, false)}
+                                            onClick={() => handleRequestAdd(sp, 1, prevPrice, false)}
                                             className="px-3 py-1.5 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-lg whitespace-nowrap font-black text-[11px] hover:bg-yellow-100 flex flex-col items-start transition-colors"
                                         >
                                             <span className="flex items-center">
@@ -847,13 +1141,34 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                     </span>
                                                 )}
                                             </span>
-                                            <span className="text-[9px] opacity-70 mt-0.5">Tồn: {stock} | Lần trước: {new Intl.NumberFormat('vi-VN').format(supplierPriceHistory[sp.id] || sp.importPrice)}</span>
+                                            <span className="text-[9px] opacity-70 mt-0.5">Tồn: {stock} | Lần trước: {new Intl.NumberFormat('vi-VN').format(prevPrice)}</span>
                                         </button>
                                     )})}
                                 </div>
                             </div>
                         )}
-                        <div className={`grid gap-2 content-start ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>{loading ? <div className="col-span-full flex items-center justify-center h-40"><Loader className="animate-spin text-primary" size={32}/></div> : paginatedProducts.map(p => (<ImportProductCard key={p.id} product={p} lastSupplierPrice={supplierPriceHistory[p.id]} detailedInventory={detailedInventory} warehouses={warehouses} onAdd={addToReceipt} onUpdateImportPrice={handleUpdateProductImportPrice} onCompare={(prod) => { setSelectedPriceComparisonProduct(prod); setIsPriceComparisonOpen(true); }} onTrace={(prod) => { setSelectedLedgerProductId(prod.id); setIsLedgerModalOpen(true); }} userRole={userRole} />)) }</div>
+                        <div className={`grid gap-2 content-start ${isFullscreen ? 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>
+                            {loading ? (
+                                <div className="col-span-full flex items-center justify-center h-40">
+                                    <Loader className="animate-spin text-primary" size={32}/>
+                                </div>
+                            ) : paginatedProducts.map(p => (
+                                <ImportProductCard 
+                                    key={p.id} 
+                                    product={p} 
+                                    lastSupplierPrice={supplierPriceHistory[p.id]} 
+                                    detailedInventory={detailedInventory} 
+                                    warehouses={warehouses} 
+                                    marketPriceInfo={marketPriceMap[p.id]}
+                                    selectedSupplierId={selectedSupplierId}
+                                    onAdd={handleRequestAdd} 
+                                    onUpdateImportPrice={handleUpdateProductImportPrice} 
+                                    onCompare={(prod) => { setSelectedPriceComparisonProduct(prod); setIsPriceComparisonOpen(true); }} 
+                                    onTrace={(prod) => { setSelectedLedgerProductId(prod.id); setIsLedgerModalOpen(true); }} 
+                                    userRole={userRole} 
+                                />
+                            ))}
+                        </div>
                         <div className="mt-3 flex justify-between items-center border-t pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
                     </div>
                 </div>
@@ -915,7 +1230,14 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         </div>
                                         <div className="text-right relative">
                                             <NumericInput value={item.importPrice} onChange={(val) => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, importPrice: val} : i))} className="w-full p-1.5 border border-slate-700 rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none text-white bg-slate-900 text-sm shadow-2xs" />
-                                            <p className="text-[10px] font-bold text-slate-500 mt-1">Tổng: {formatNumber(item.importPrice * item.quantity)} ₫</p>
+                                            <div className="flex items-center justify-end gap-1.5 mt-1">
+                                                {supplierPriceHistory[item.productId] !== undefined && item.importPrice > supplierPriceHistory[item.productId] && (
+                                                    <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded border border-rose-200 flex items-center gap-0.5" title={`Lần trước NCC này: ${formatNumber(supplierPriceHistory[item.productId])} đ`}>
+                                                        <TrendingUp size={9}/> +{formatNumber(item.importPrice - supplierPriceHistory[item.productId])}
+                                                    </span>
+                                                )}
+                                                <p className="text-[10px] font-bold text-slate-500">Tổng: {formatNumber(item.importPrice * item.quantity)} ₫</p>
+                                            </div>
                                         </div>
                                     </div>
                                     {isAdmin && (
