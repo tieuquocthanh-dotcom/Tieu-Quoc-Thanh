@@ -173,7 +173,7 @@ const ImportProductCard: React.FC<{
             hasPriceIncreaseFromLast
                 ? 'border-rose-300 ring-1 ring-rose-100 hover:border-rose-400'
                 : otherCheapestSupplier
-                ? 'border-amber-300 ring-1 ring-amber-100 hover:border-amber-400'
+                ? 'border-sky-300 ring-1 ring-sky-100 hover:border-sky-400'
                 : 'border-slate-200/90 hover:border-primary/50'
         }`}>
             {product.isCombo && (
@@ -253,12 +253,12 @@ const ImportProductCard: React.FC<{
                     <span className="text-[8px] text-rose-500 font-bold uppercase">vs lần trước</span>
                 </div>
             ) : otherCheapestSupplier ? (
-                <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-[10px] font-black mb-1.5 animate-fade-in" title={`NCC ${otherCheapestSupplier.supplierName} từng bán ${formatNumber(otherCheapestSupplier.price)} đ (rẻ hơn ${formatNumber(otherCheapestSupplier.difference)} đ)`}>
-                    <span className="flex items-center gap-1 truncate">
-                        <AlertCircle size={11} className="text-amber-700 shrink-0" />
+                <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-sky-50 border border-sky-300 text-sky-950 text-[10px] font-black mb-1.5 animate-fade-in shadow-2xs" title={`NCC ${otherCheapestSupplier.supplierName} từng bán ${formatNumber(otherCheapestSupplier.price)} đ (rẻ hơn ${formatNumber(otherCheapestSupplier.difference)} đ)`}>
+                    <span className="flex items-center gap-1 truncate text-sky-900">
+                        <Tag size={11} className="text-sky-600 shrink-0" />
                         <span className="truncate">NCC {otherCheapestSupplier.supplierName} rẻ hơn:</span>
                     </span>
-                    <span className="text-emerald-700 font-black shrink-0 ml-1">{formatNumber(otherCheapestSupplier.price)} đ</span>
+                    <span className="text-emerald-700 font-black shrink-0 ml-1 bg-white px-1.5 py-0.5 rounded border border-sky-200 shadow-2xs">{formatNumber(otherCheapestSupplier.price)} đ</span>
                 </div>
             ) : lastSupplierPrice !== undefined ? (
                 <div className="flex items-center justify-between px-2 py-0.5 rounded bg-slate-50 text-slate-500 text-[9px] font-bold mb-1.5">
@@ -288,17 +288,15 @@ const ImportProductCard: React.FC<{
                             className={`w-full pl-7 pr-2 py-1.5 text-sm border rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none shadow-2xs transition-colors ${
                                 hasPriceIncreaseFromLast
                                     ? 'bg-rose-50 border-rose-400 text-rose-950 ring-1 ring-rose-200'
-                                    : otherCheapestSupplier
-                                    ? 'bg-amber-50 border-amber-400 text-amber-950 ring-1 ring-amber-200'
                                     : lastSupplierPrice !== undefined
                                     ? 'bg-amber-50/60 border-amber-300 text-slate-900'
                                     : 'bg-slate-900 border-slate-700 text-white'
                             }`}
                         />
                         <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold flex items-center gap-0.5 ${
-                            hasPriceIncreaseFromLast ? 'text-rose-700' : otherCheapestSupplier ? 'text-amber-800' : lastSupplierPrice !== undefined ? 'text-amber-700' : 'text-slate-400'
+                            hasPriceIncreaseFromLast ? 'text-rose-700' : lastSupplierPrice !== undefined ? 'text-amber-700' : 'text-slate-400'
                         }`}>
-                            {hasPriceIncreaseFromLast ? <AlertTriangle size={10} className="text-rose-600" /> : otherCheapestSupplier ? <AlertCircle size={10} className="text-amber-600" /> : null}
+                            {hasPriceIncreaseFromLast ? <AlertTriangle size={10} className="text-rose-600" /> : null}
                             VỐN
                         </span>
                     </div>
@@ -327,12 +325,12 @@ const ImportProductCard: React.FC<{
                         hasPriceIncreaseFromLast 
                             ? 'bg-rose-600 hover:bg-rose-700' 
                             : otherCheapestSupplier 
-                            ? 'bg-amber-600 hover:bg-amber-700' 
+                            ? 'bg-sky-600 hover:bg-sky-700' 
                             : 'bg-primary hover:bg-primary-hover'
                     }`}
                     title={isHighPrice ? "Giá đang cao - Bấm để xem cảnh báo & xác nhận trước khi thêm" : "Thêm vào phiếu nhập"}
                 >
-                    {isHighPrice ? <AlertTriangle size={12} className="text-amber-200" /> : <Plus size={13}/>} 
+                    {hasPriceIncreaseFromLast ? <AlertTriangle size={12} className="text-rose-200" /> : otherCheapestSupplier ? <Tag size={12} className="text-sky-200" /> : <Plus size={13}/>} 
                     Nhập
                 </button>
                 <button 
