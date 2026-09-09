@@ -595,6 +595,10 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
       // 1. Kiểm tra nếu giá nhập cao hơn lần nhập trước của chính NCC này
       const isHigherThanLast = lastPrice !== undefined && lastPrice > 0 && importPrice > lastPrice;
+      const priceIncreaseFromLast = isHigherThanLast && lastPrice ? {
+          amount: importPrice - lastPrice,
+          percent: ((importPrice - lastPrice) / lastPrice) * 100
+      } : undefined;
 
       // 2. Kiểm tra nếu có NCC khác từng bán rẻ hơn giá đang nhập
       let cheapestOther: { supplierName: string; price: number; difference: number; date?: Date } | undefined = undefined;
@@ -614,6 +618,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
       // 3. Kiểm tra nếu giá nhập cao hơn giá vốn gốc thiết lập
       const isHigherThanBase = product.importPrice > 0 && importPrice > product.importPrice && (!lastPrice || importPrice > lastPrice);
+      const basePriceDifference = isHigherThanBase ? importPrice - product.importPrice : undefined;
 
       const hasWarning = isHigherThanLast || !!cheapestOther || isHigherThanBase;
       const ackKey = `${product.id}_${importPrice}`;
@@ -622,12 +627,13 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
       if (hasWarning && !acknowledgedHighPriceIds.has(ackKey)) {
           setHighPriceWarningData({
               product,
-              currentSupplierName: currentSupplier?.name || 'Nhà cung cấp đã chọn',
-              enteringPrice: importPrice,
+              supplierName: currentSupplier?.name || 'Nhà cung cấp đã chọn',
+              inputPrice: importPrice,
               quantity,
               lastSupplierPrice: lastPrice,
               cheapestOtherSupplier: cheapestOther,
-              baseCostPrice: product.importPrice,
+              basePriceDifference,
+              priceIncreaseFromLast,
               keepSearch
           });
           setIsHighPriceModalOpen(true);
@@ -638,17 +644,20 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
       addToReceipt(product, quantity, importPrice, keepSearch);
   };
 
-  const handleConfirmHighPriceAdd = (data: HighPriceWarningData) => {
-      const ackKey = `${data.product.id}_${data.enteringPrice}`;
+  const handleConfirmHighPriceAdd = (customPrice?: number, customQty?: number) => {
+      if (!highPriceWarningData) return;
+      const finalPrice = typeof customPrice === 'number' && customPrice > 0 ? customPrice : highPriceWarningData.inputPrice;
+      const finalQty = typeof customQty === 'number' && customQty > 0 ? customQty : highPriceWarningData.quantity;
+      const ackKey = `${highPriceWarningData.product.id}_${finalPrice}`;
       setAcknowledgedHighPriceIds(prev => new Set(prev).add(ackKey));
-      addToReceipt(data.product, data.quantity, data.enteringPrice, data.keepSearch);
+      addToReceipt(highPriceWarningData.product, finalQty, finalPrice, highPriceWarningData.keepSearch);
       setIsHighPriceModalOpen(false);
       setHighPriceWarningData(null);
   };
 
-  const handleAdjustPrice = (newPrice: number) => {
+  const handleAdjustPrice = () => {
       if (!highPriceWarningData) return;
-      addToReceipt(highPriceWarningData.product, highPriceWarningData.quantity, newPrice, highPriceWarningData.keepSearch);
+      // Đóng modal để người dùng điều chỉnh lại ô nhập nếu muốn
       setIsHighPriceModalOpen(false);
       setHighPriceWarningData(null);
   };

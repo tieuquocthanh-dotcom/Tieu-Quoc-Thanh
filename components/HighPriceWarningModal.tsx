@@ -27,8 +27,8 @@ interface HighPriceWarningModalProps {
   isOpen: boolean;
   onClose: () => void;
   data: HighPriceWarningData | null;
-  onConfirmAdd: () => void;
-  onAdjustPrice: () => void;
+  onConfirmAdd: (price?: number, quantity?: number) => void;
+  onAdjustPrice?: () => void;
   onOpenPriceComparison: (product: Product) => void;
 }
 
@@ -40,18 +40,34 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
   onAdjustPrice,
   onOpenPriceComparison
 }) => {
+  const [editPrice, setEditPrice] = React.useState<number>(0);
+  const [editQty, setEditQty] = React.useState<number>(1);
+  const [isCustomizing, setIsCustomizing] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (data) {
+      setEditPrice(data.inputPrice);
+      setEditQty(data.quantity);
+      setIsCustomizing(false);
+    }
+  }, [data]);
+
   if (!isOpen || !data) return null;
 
   const {
     product,
-    quantity,
-    inputPrice,
     supplierName,
     lastSupplierPrice,
     cheapestOtherSupplier,
     basePriceDifference,
     priceIncreaseFromLast
   } = data;
+
+  const handleConfirm = () => {
+    const finalPrice = editPrice > 0 ? editPrice : data.inputPrice;
+    const finalQty = editQty > 0 ? editQty : data.quantity;
+    onConfirmAdd(finalPrice, finalQty);
+  };
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-[250] p-4 animate-fade-in">
@@ -97,7 +113,7 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
                 </div>
               </div>
               <span className="px-2 py-0.5 bg-slate-200 text-slate-800 text-[10px] font-black rounded-md uppercase shrink-0">
-                SL: x{quantity}
+                SL: x{editQty}
               </span>
             </div>
 
@@ -108,11 +124,65 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
               <div className="text-right">
                 <span className="text-[10px] text-slate-400 font-bold block">Giá dự kiến nhập:</span>
                 <span className="text-base font-black text-rose-600">
-                  {formatNumber(inputPrice)} đ
+                  {formatNumber(editPrice)} đ
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Quick Price Adjust Section */}
+          {isCustomizing ? (
+            <div className="p-3 bg-amber-50 border-2 border-amber-300 rounded-xl space-y-2.5 animate-fade-in">
+              <div className="text-xs font-black uppercase text-amber-950 flex items-center gap-1.5">
+                <Edit3 size={14} className="text-amber-700" />
+                <span>Điều chỉnh lại giá hoặc số lượng trước khi thêm</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-600 block mb-1">Giá nhập mới (đ)</label>
+                  <input
+                    type="number"
+                    value={editPrice || ''}
+                    onChange={(e) => setEditPrice(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-2.5 py-1.5 text-xs font-black text-slate-900 bg-white border-2 border-amber-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    placeholder="Nhập giá..."
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-600 block mb-1">Số lượng</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editQty || ''}
+                    onChange={(e) => setEditQty(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-2.5 py-1.5 text-xs font-black text-slate-900 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-center"
+                  />
+                </div>
+              </div>
+
+              {/* Quick suggestions */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {lastSupplierPrice && lastSupplierPrice > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setEditPrice(lastSupplierPrice)}
+                    className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-[10px] font-bold rounded-md transition"
+                  >
+                    Lấy giá lần trước: {formatNumber(lastSupplierPrice)} đ
+                  </button>
+                )}
+                {cheapestOtherSupplier && (
+                  <button
+                    type="button"
+                    onClick={() => setEditPrice(cheapestOtherSupplier.price)}
+                    className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-bold rounded-md transition"
+                  >
+                    Lấy giá rẻ nhất ({cheapestOtherSupplier.supplierName}): {formatNumber(cheapestOtherSupplier.price)} đ
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : null}
 
           {/* Detailed Warning Cards */}
           <div className="space-y-2.5">
@@ -134,7 +204,7 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
                     <div className="flex items-center gap-2">
                       <span>Lần trước: <strong>{formatNumber(lastSupplierPrice)} đ</strong></span>
                       <ArrowRight size={12} className="text-rose-400" />
-                      <span>Lần này: <strong>{formatNumber(inputPrice)} đ</strong></span>
+                      <span>Lần này: <strong>{formatNumber(editPrice)} đ</strong></span>
                     </div>
                     <div className="text-xs font-black text-rose-700 mt-1">
                       ➔ Tăng: +{formatNumber(priceIncreaseFromLast.amount)} đ/sp (+{priceIncreaseFromLast.percent.toFixed(1)}%)
@@ -167,7 +237,7 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
                     )}
                   </div>
                   <div className="text-xs text-amber-800 mt-1 font-bold">
-                    ➔ Nếu nhập {quantity} sản phẩm này, bạn tốn thêm tổng cộng: <strong className="text-rose-700 font-black">+{formatNumber(cheapestOtherSupplier.difference * quantity)} đ</strong>
+                    ➔ Nếu nhập {editQty} sản phẩm này, bạn tốn thêm tổng cộng: <strong className="text-rose-700 font-black">+{formatNumber(cheapestOtherSupplier.difference * editQty)} đ</strong>
                   </div>
                 </div>
               </div>
@@ -200,18 +270,20 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
           </button>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            {!isCustomizing ? (
+              <button
+                type="button"
+                onClick={() => setIsCustomizing(true)}
+                className="flex-1 sm:flex-initial px-4 py-2.5 bg-white hover:bg-amber-50 text-amber-800 border-2 border-amber-400 rounded-xl text-xs font-black uppercase transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
+              >
+                <Edit3 size={14} />
+                <span>Chỉnh lại giá</span>
+              </button>
+            ) : null}
             <button
               type="button"
-              onClick={onAdjustPrice}
-              className="flex-1 sm:flex-initial px-4 py-2.5 bg-white hover:bg-amber-50 text-amber-800 border-2 border-amber-400 rounded-xl text-xs font-black uppercase transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
-            >
-              <Edit3 size={14} />
-              <span>Chỉnh lại giá</span>
-            </button>
-            <button
-              type="button"
-              onClick={onConfirmAdd}
-              className="flex-1 sm:flex-initial px-4 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-black uppercase transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
+              onClick={handleConfirm}
+              className="flex-1 sm:flex-initial px-4 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-black uppercase transition flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
             >
               <Check size={16} strokeWidth={3} />
               <span>Vẫn thêm vào đơn</span>
