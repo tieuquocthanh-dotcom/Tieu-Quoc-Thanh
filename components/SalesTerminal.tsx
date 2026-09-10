@@ -992,7 +992,13 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           }
 
           const saleRef = doc(collection(db, 'sales'));
-          const initialPaymentHistory = actualAmountPaid === 0 ? [] : [{ date: finalCreatedAt, amount: actualAmountPaid, note: `Thanh toán qua ${paymentMethod?.name || 'Tiền mặt'}` }];
+          const initialPaymentHistory = actualAmountPaid === 0 ? [] : [{ 
+            date: finalCreatedAt, 
+            amount: actualAmountPaid, 
+            note: `Thanh toán qua ${paymentMethod?.name || 'Tiền mặt'}`,
+            paymentMethodId: selectedPaymentMethodId || null,
+            paymentMethodName: paymentMethod?.name || 'Tiền mặt'
+          }];
 
           batch.set(saleRef, { 
             items: cart.map(i => ({ 

@@ -477,7 +477,9 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
             newPaymentHistory = [...newPaymentHistory, {
                 date: Timestamp.now(),
                 amount: effectiveAmountPaid - oldAmountPaid,
-                note: `Đổi TK thu từ ${oldMethodName} sang ${newMethodName} (Đã thu: ${formatNumber(effectiveAmountPaid)} ₫)`
+                note: `Đổi TK thu từ ${oldMethodName} sang ${newMethodName} (Đã thu: ${formatNumber(effectiveAmountPaid)} ₫)`,
+                paymentMethodId: paymentMethodId || null,
+                paymentMethodName: newMethodName
             }];
         } 
         // Trường hợp 2: Cùng tài khoản (hoặc ban đầu chưa có PTTT)
@@ -512,7 +514,9 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                     amount: diffAmount,
                     note: effectiveAmountPaid === 0 
                         ? `Chuyển sang Ghi nợ (Đã trừ lại ${formatNumber(refundAmount)} ₫ trong TK ${oldMethodName})` 
-                        : `Điều chỉnh giảm tiền thu ${formatNumber(refundAmount)} ₫`
+                        : `Điều chỉnh giảm tiền thu ${formatNumber(refundAmount)} ₫`,
+                    paymentMethodId: activeAccSnap?.id || oldMethodId || null,
+                    paymentMethodName: activeAccSnap?.data()?.name || oldMethodName
                 }];
             } 
             // Nếu tăng tiền thu (chuyển từ nợ sang đã thanh toán hoặc thu thêm) -> Nạp thêm tiền
@@ -541,7 +545,9 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                     amount: diffAmount,
                     note: oldAmountPaid === 0 
                         ? `Thanh toán đơn hàng qua ${newMethodName}` 
-                        : `Thu thêm ${formatNumber(diffAmount)} ₫ qua ${newMethodName}`
+                        : `Thu thêm ${formatNumber(diffAmount)} ₫ qua ${newMethodName}`,
+                    paymentMethodId: activeAccSnap?.id || paymentMethodId || null,
+                    paymentMethodName: activeAccSnap?.data()?.name || newMethodName
                 }];
             }
         }
@@ -799,10 +805,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                 type="button"
                                 disabled={isOriginallyFullyPaid}
                                 onClick={() => {
-                                    if (isOriginallyFullyPaid) {
-                                        alert('Đơn hàng này đã được thanh toán đủ 100%. Không thể chuyển sang ghi nợ để bảo vệ sổ sách kế toán!');
-                                        return;
-                                    }
+                                    if (isOriginallyFullyPaid) return;
                                     setPaymentStatus('debt');
                                     // Khi bấm chuyển sang ghi nợ:
                                     // Nếu trước đó đang lưu nợ hoặc trả trước 1 phần thì giữ lại, nếu chưa có thì để 0
@@ -847,9 +850,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                             )}
                                         </div>
                                         <span className="text-[11px] text-emerald-700">
-                                            {isOriginallyFullyPaid
-                                                ? `Đơn hàng đã hoàn tất thanh toán. Tính năng chuyển sang ghi nợ đã được khóa để bảo toàn doanh thu và sổ quỹ.`
-                                                : `Đơn hàng không còn nợ • Số tiền thu: ${formatNumber(newTotal)} ₫`}
+                                            Đơn hàng không còn nợ • Số tiền thu: {formatNumber(newTotal)} ₫
                                         </span>
                                     </div>
                                 </div>
@@ -1010,7 +1011,16 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                         <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border border-slate-100 text-[11px] shadow-xs">
                                             <div>
                                                 <div className="flex items-center gap-1">
-                                                    <span className="font-black text-slate-800">Đợt {idx + 1}: {p.paymentMethodName || 'Tiền mặt'}</span>
+                                                    <span className="font-black text-slate-800">
+                                                        Đợt {idx + 1}: {
+                                                            p.paymentMethodName && p.paymentMethodName !== 'N/A' 
+                                                                ? p.paymentMethodName 
+                                                                : (paymentMethods.find(m => m.id === p.paymentMethodId)?.name 
+                                                                    || (p.note?.match(/(?:qua|từ|vào tài khoản)\s+([^()_—-]+)/i)?.[1]?.trim()) 
+                                                                    || sale?.paymentMethodName 
+                                                                    || 'Tiền mặt')
+                                                        }
+                                                    </span>
                                                     <span className="text-[10px] text-slate-400 font-medium">
                                                         ({p.date?.toDate?.()?.toLocaleDateString('vi-VN') || (p as any).createdAt?.toDate?.()?.toLocaleDateString('vi-VN') || 'Đợt trước'})
                                                     </span>

@@ -394,7 +394,9 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                   paymentHistory: arrayUnion({ 
                       date: ts, 
                       amount: amount, 
-                      note: `Thu hồi nợ qua ${method?.name || 'N/A'}` 
+                      note: `Thu hồi nợ qua ${method?.name || 'N/A'}`,
+                      paymentMethodId: paymentMethodId,
+                      paymentMethodName: method?.name || 'Tiền mặt'
                   }) 
               });
 

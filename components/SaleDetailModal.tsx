@@ -63,7 +63,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
   const fullPaymentHistory = useMemo((): PaymentHistoryEntry[] => {
     if (!sale) return [];
     
-    const history = sale.paymentHistory ? [...sale.paymentHistory] : [];
+    let history: PaymentHistoryEntry[] = sale.paymentHistory ? [...sale.paymentHistory] : [];
     const totalAmountInHistory = history.reduce((sum, h) => sum + (h.amount || 0), 0);
     const amountPaid = effectiveAmountPaid;
 
@@ -73,13 +73,39 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
             date: sale.createdAt,
             amount: diff,
             note: 'Thanh toán khi tạo đơn',
-            paymentMethodName: sale.paymentMethodName || 'Tiền mặt/Mặc định',
+            paymentMethodName: sale.paymentMethodName || 'Tiền mặt',
             paymentMethodId: sale.paymentMethodId
         });
     }
 
-    return history.sort((a, b) => (b.date?.toMillis?.() || 0) - (a.date?.toMillis?.() || 0));
-  }, [sale, effectiveAmountPaid]);
+    return history.map((entry) => {
+        let name = entry.paymentMethodName;
+        if (!name || name === 'N/A') {
+            if (entry.paymentMethodId) {
+                const found = localPaymentMethods.find(m => m.id === entry.paymentMethodId);
+                if (found) name = found.name;
+            }
+        }
+        if (!name || name === 'Tiền mặt') {
+            if (entry.note) {
+                const match = entry.note.match(/(?:qua|từ|vào tài khoản|vào)\s+([^()_—-]+)/i);
+                if (match && match[1]?.trim()) {
+                    name = match[1].trim();
+                }
+            }
+        }
+        if ((!name || name === 'Tiền mặt') && sale.paymentMethodName && sale.paymentMethodName.toLowerCase() !== 'tiền mặt') {
+            if (history.length === 1 || !entry.paymentMethodId || entry.paymentMethodId === sale.paymentMethodId) {
+                name = sale.paymentMethodName;
+            }
+        }
+
+        return {
+            ...entry,
+            paymentMethodName: name || sale.paymentMethodName || 'Tiền mặt'
+        };
+    }).sort((a, b) => (b.date?.toMillis?.() || 0) - (a.date?.toMillis?.() || 0));
+  }, [sale, effectiveAmountPaid, localPaymentMethods]);
 
   const handlePrint = () => {
     if (!sale) return;
