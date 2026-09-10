@@ -1275,6 +1275,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           return (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower);
       });
   }, [products, searchTerm, detailedInventory, selectedWarehouseId, shippingMode]);
+  const maxPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  useEffect(() => {
+    if (currentPage > maxPages) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, maxPages]);
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredProducts, currentPage, pageSize]);
   const totals = useMemo(() => {
     const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
@@ -1504,7 +1510,15 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                     type="text" 
                                     placeholder="GÕ TÊN SẢN PHẨM ĐỂ BÁN..." 
                                     value={searchTerm} 
-                                    onChange={e => setSearchTerm(e.target.value)} 
+                                    onChange={e => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }} 
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            setCurrentPage(1);
+                                        }
+                                    }}
                                     className="w-full pl-11 pr-11 py-3 bg-amber-50/70 border border-amber-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none font-bold text-base text-slate-900 shadow-sm transition-all placeholder:text-slate-400" 
                                 />
                                 {searchTerm && (
@@ -1512,6 +1526,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                         type="button"
                                         onClick={() => {
                                             setSearchTerm('');
+                                            setCurrentPage(1);
                                             searchInputRef.current?.focus();
                                         }}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-slate-200/80 hover:bg-slate-300 active:scale-90 text-slate-600 hover:text-slate-900 transition shadow-2xs cursor-pointer z-10"
@@ -1576,7 +1591,29 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 ))
                             )}
                         </div>
-                        <div className="mt-3 flex justify-between items-center border-t border-slate-100 pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
+                        <div className="mt-3 flex justify-between items-center border-t border-slate-100 pt-3 shrink-0">
+                            <div className="text-[10px] font-black text-slate-700 uppercase">Trang {currentPage} / {maxPages}</div>
+                            <div className="flex space-x-1">
+                                <button 
+                                    type="button"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                                    disabled={currentPage <= 1}
+                                    className="p-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 rounded-lg text-black font-black transition cursor-pointer"
+                                    title="Trang trước"
+                                >
+                                    <ChevronLeft size={16}/>
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setCurrentPage(p => Math.min(maxPages, p + 1))} 
+                                    disabled={currentPage >= maxPages}
+                                    className="p-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 rounded-lg text-black font-black transition cursor-pointer"
+                                    title="Trang kế tiếp (>)"
+                                >
+                                    <ChevronRight size={16}/>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1844,7 +1881,11 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                         <div className="flex flex-wrap gap-1.5 items-center opacity-90 mt-1.5">
                                             {sale.shipperName && <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><Truck size={10} className="mr-1"/> {sale.shipperName}</span>}
                                             <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {sale.paymentMethodName || 'Nợ/TM'}</span>
-                                            {sale.status === 'debt' && <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-red-600 text-white animate-pulse">CÒN NỢ</span>}
+                                            {sale.status === 'debt' && (
+                                                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-red-600 text-white animate-pulse flex items-center shadow-xs">
+                                                    CÒN NỢ: {formatNumber(Math.max(0, (sale.total || 0) - (sale.amountPaid || 0)))} ₫
+                                                </span>
+                                            )}
                                             {isAdmin && <span className="px-2 py-0.5 rounded text-[12px] font-black uppercase bg-green-600 text-white shadow-sm tracking-wide">LN ĐƠN: {formatNumber(totalProfit)}</span>}
                                         </div>
                                     </div>

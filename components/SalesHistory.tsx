@@ -504,6 +504,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                       placeholder="Tìm tên/SĐT khách..." 
                       value={customerSearch} 
                       onChange={e => { setCustomerSearch(e.target.value); setIsCustomerDropdownOpen(true); setCurrentPage(1); }} 
+                      onKeyDown={e => { if (e.key === 'Enter') setCurrentPage(1); }}
                       onFocus={() => setIsCustomerDropdownOpen(true)}
                       className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" 
                   />
@@ -525,7 +526,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
               </div>
               <div className="relative">
                   <Hash className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                  <input type="text" placeholder="Tìm mã đơn..." value={orderIdSearch} onChange={e => { setOrderIdSearch(e.target.value); setCurrentPage(1); }} className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" />
+                  <input type="text" placeholder="Tìm mã đơn..." value={orderIdSearch} onChange={e => { setOrderIdSearch(e.target.value); setCurrentPage(1); }} onKeyDown={e => { if (e.key === 'Enter') setCurrentPage(1); }} className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" />
                   {orderIdSearch && (
                       <button onClick={() => { setOrderIdSearch(''); setCurrentPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                           <X size={14}/>
@@ -539,6 +540,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                       placeholder="Tìm tên sản phẩm..." 
                       value={productSearch} 
                       onChange={e => { setProductSearch(e.target.value); setIsProductDropdownOpen(true); setCurrentPage(1); }} 
+                      onKeyDown={e => { if (e.key === 'Enter') setCurrentPage(1); }}
                       onFocus={() => setIsProductDropdownOpen(true)}
                       className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary outline-none" 
                   />
@@ -617,7 +619,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                             <div className="bg-slate-800 p-2.5 flex justify-between items-center text-white">
                                 <div className="flex items-center truncate mr-2">
                                     <span className={`text-[10px] font-black uppercase truncate bg-white/20 px-1.5 py-0.5 rounded mr-1.5 ${customerTextColor}`}>{sale.customerName}</span>
-                                    {sale.status === 'debt' && <span className="bg-red-600 text-[8px] px-1.5 rounded font-black animate-pulse">NỢ</span>}
+                                    {sale.status === 'debt' && <span className="bg-red-600 text-[8px] px-1.5 py-0.5 rounded font-black text-white animate-pulse">NỢ: {formatNumber(Math.max(0, (sale.total || 0) - (sale.amountPaid || 0)))} ₫</span>}
                                     {sale.issueInvoice && <span className="ml-1 bg-purple-600 text-[8px] px-1.5 rounded font-black uppercase">HĐ</span>}
                                 </div>
                                 <div className="flex gap-1">

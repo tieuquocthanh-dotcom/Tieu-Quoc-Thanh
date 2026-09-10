@@ -648,27 +648,19 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl animate-fade-in-down flex flex-col max-h-[95vh] overflow-hidden border border-slate-200">
         
         {/* HEADER MODAL */}
-        <div className="flex justify-between items-center px-5 py-3.5 border-b border-slate-800 bg-slate-900 text-white flex-shrink-0">
+        <div className="flex justify-between items-center px-4 sm:px-5 py-3.5 border-b border-slate-800 bg-slate-900 text-white flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <Edit3 className="text-primary" size={20} />
             <h3 className="text-base sm:text-lg font-black uppercase tracking-tight">
               Sửa đơn hàng #{sale.id.substring(0, 8).toUpperCase()}
             </h3>
             {finalRemainingDebt > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const el = document.getElementById('payment-debt-section');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 transition cursor-pointer"
-                title="Bấm để cuộn nhanh xuống phần Thanh toán & Thu nợ"
-              >
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-red-500/20 text-red-300 border border-red-500/40">
                 <AlertCircle size={13} className="text-red-400 animate-pulse" />
-                <span>Nợ: {formatNumber(finalRemainingDebt)} ₫ ↓</span>
-              </button>
+                <span>Còn nợ: {formatNumber(finalRemainingDebt)} ₫</span>
+              </span>
             ) : (
-              <span className="hidden sm:flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 <CheckCircle2 size={13} className="text-emerald-400" />
                 <span>Đã trả đủ</span>
               </span>
@@ -683,16 +675,23 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
           </button>
         </div>
 
-        {/* MODAL BODY */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 space-y-8">
+        {/* MODAL BODY (DẠNG CUỘN TUYẾN TÍNH GIỐNG ĐIỆN THOẠI) */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-slate-100/80 space-y-5">
 
-          {/* PHẦN 1: THÔNG TIN ĐƠN HÀNG & HÀNG HÓA */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* CỘT TRÁI: THÔNG TIN KHÁCH HÀNG & GIAO HÀNG */}
-              <div className="lg:col-span-1 space-y-4">
-                <div className="bg-white p-4 rounded-xl border-2 border-slate-200 shadow-sm space-y-4">
-                  {/* Khách hàng */}
-                  <div className="relative" ref={custDropdownRef}>
+          {/* PHẦN 1: THÔNG TIN KHÁCH HÀNG & ĐƠN HÀNG */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
+              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xs">
+                1
+              </div>
+              <h4 className="text-sm font-black uppercase text-slate-900 tracking-tight flex items-center gap-2">
+                <Users size={16} className="text-blue-600" />
+                <span>Thông tin khách hàng & Đơn hàng</span>
+              </h4>
+            </div>
+
+            {/* Khách hàng */}
+            <div className="relative" ref={custDropdownRef}>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-[10px] font-black text-slate-500 uppercase">Khách hàng</label>
                       <button
@@ -824,100 +823,90 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
                     )}
                   </div>
 
-                  {/* Ngày bán hàng & Xuất hóa đơn */}
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ngày bán hàng</label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                        <input 
-                          type="date" 
-                          value={saleDate} 
-                          onChange={e => setSaleDate(e.target.value)} 
-                          className="w-full pl-10 pr-3 py-2 border-2 border-slate-200 rounded-lg font-black text-sm outline-none focus:ring-2 focus:ring-primary text-slate-900 bg-white"
-                          style={{ colorScheme: 'light' }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center p-2.5 bg-blue-50 border-2 border-blue-100 rounded-lg">
-                      <input 
-                        type="checkbox" 
-                        id="edit-issue-invoice" 
-                        checked={issueInvoice} 
-                        onChange={e => setIssueInvoice(e.target.checked)} 
-                        className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-0 mr-3 cursor-pointer" 
-                      />
-                      <label htmlFor="edit-issue-invoice" className="text-xs font-black uppercase text-blue-800 cursor-pointer select-none">
-                        Xuất hóa đơn đỏ
-                      </label>
-                    </div>
-
-                    {/* Vận chuyển */}
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Đơn vị vận chuyển</label>
-                      <select 
-                        value={shipperId} 
-                        onChange={e => setShipperId(e.target.value)} 
-                        className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm"
-                      >
-                        <option value="">-- CHỌN ĐVVC --</option>
-                        {shippers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Trạng thái giao</label>
-                      <select 
-                        value={shippingMode} 
-                        onChange={e => setShippingMode(e.target.value as any)} 
-                        className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm"
-                      >
-                        <option value="shipped">Đã giao hàng</option>
-                        <option value="pending">Chờ gửi</option>
-                        <option value="order">Đặt hàng</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Phí vận chuyển</label>
-                      <NumericInput 
-                        value={shippingFee} 
-                        onChange={setShippingFee} 
-                        className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg font-black text-base text-right focus:border-primary outline-none text-slate-900 bg-white shadow-inner" 
-                      />
-                    </div>
-                  </div>
-
-                  {/* Banner chuyển sang tab thanh toán */}
-                  <div className="pt-2 border-t border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('payment')}
-                      className={`w-full p-3 rounded-xl border flex items-center justify-between transition cursor-pointer ${
-                        finalRemainingDebt > 0 
-                          ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900' 
-                          : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Wallet size={16} className={finalRemainingDebt > 0 ? 'text-amber-700' : 'text-emerald-700'} />
-                        <span className="text-xs font-black uppercase">
-                          {finalRemainingDebt > 0 ? `Còn nợ ${formatNumber(finalRemainingDebt)} ₫` : 'Đã trả đủ 100%'}
-                        </span>
-                      </div>
-                      <span className="text-xs font-black flex items-center gap-1">
-                        Sửa thanh toán <ArrowRight size={14} />
-                      </span>
-                    </button>
-                  </div>
+            {/* Grid thông tin đơn hàng */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ngày bán hàng</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                  <input 
+                    type="date" 
+                    value={saleDate} 
+                    onChange={e => setSaleDate(e.target.value)} 
+                    className="w-full pl-10 pr-3 py-2 border-2 border-slate-200 rounded-lg font-black text-sm outline-none focus:ring-2 focus:ring-primary text-slate-900 bg-white"
+                    style={{ colorScheme: 'light' }}
+                  />
                 </div>
               </div>
 
-              {/* CỘT PHẢI: CHI TIẾT SẢN PHẨM */}
-              <div className="lg:col-span-2 flex flex-col gap-4">
-                {/* Search Product Row */}
-                <div className="bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-800 shadow-md">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Đơn vị vận chuyển</label>
+                <select 
+                  value={shipperId} 
+                  onChange={e => setShipperId(e.target.value)} 
+                  className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm"
+                >
+                  <option value="">-- CHỌN ĐVVC --</option>
+                  {shippers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Trạng thái giao</label>
+                <select 
+                  value={shippingMode} 
+                  onChange={e => setShippingMode(e.target.value as any)} 
+                  className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none text-slate-900 bg-white shadow-sm"
+                >
+                  <option value="shipped">Đã giao hàng</option>
+                  <option value="pending">Chờ gửi</option>
+                  <option value="order">Đặt hàng</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Phí vận chuyển</label>
+                <NumericInput 
+                  value={shippingFee} 
+                  onChange={setShippingFee} 
+                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg font-black text-base text-right focus:border-primary outline-none text-slate-900 bg-white shadow-inner" 
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl">
+              <input 
+                type="checkbox" 
+                id="edit-issue-invoice" 
+                checked={issueInvoice} 
+                onChange={e => setIssueInvoice(e.target.checked)} 
+                className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-0 mr-3 cursor-pointer" 
+              />
+              <label htmlFor="edit-issue-invoice" className="text-xs font-black uppercase text-blue-800 cursor-pointer select-none">
+                Xuất hóa đơn đỏ
+              </label>
+            </div>
+          </div>
+
+          {/* PHẦN 2: CHI TIẾT HÀNG HÓA */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-xs">
+                  2
+                </div>
+                <h4 className="text-sm font-black uppercase text-slate-900 tracking-tight flex items-center gap-2">
+                  <ShoppingBag size={16} className="text-emerald-600" />
+                  <span>Chi tiết hàng hóa</span>
+                </h4>
+              </div>
+              <span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full text-xs font-black border border-emerald-200">
+                {editedItems.length} Sản phẩm
+              </span>
+            </div>
+
+            {/* Search Product Row */}
+            <div className="bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-800 shadow-md">
                   <div className="flex gap-2 relative">
                     <div className="flex-1 relative" ref={prodDropdownRef}>
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={18} />
@@ -1125,19 +1114,19 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* PHẦN 2: THANH TOÁN & THU NỢ (NẰM Ở DƯỚI) */}
-            <div id="payment-debt-section" className="pt-4 border-t-2 border-slate-300 space-y-6">
+            {/* PHẦN 3: THANH TOÁN & THU NỢ (NẰM TRỰC TIẾP Ở DƯỚI, CHỈ CẦN CUỘN XUỐNG) */}
+            <div id="payment-debt-section" className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-6">
               
               {/* TIÊU ĐỀ PHÂN ĐOẠN THANH TOÁN & THU NỢ */}
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-slate-900 text-primary flex items-center justify-center shadow-xs">
-                    <Wallet size={20} />
+                  <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-black text-xs">
+                    3
                   </div>
                   <div>
-                    <h4 className="text-base font-black uppercase text-slate-900 tracking-tight flex items-center gap-2">
+                    <h4 className="text-sm font-black uppercase text-slate-900 tracking-tight flex items-center gap-2">
+                      <Wallet size={16} className="text-purple-600" />
                       <span>Thanh toán & Thu nợ</span>
                     </h4>
                     <p className="text-xs text-slate-500 font-medium">

@@ -968,6 +968,12 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     const lower = searchTerm.toLowerCase();
     return products.filter(p => (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower));
   }, [products, searchTerm]);
+  const maxPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  useEffect(() => {
+    if (currentPage > maxPages) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, maxPages]);
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredProducts, currentPage, pageSize]);
 
   const suggestedProducts = useMemo(() => {
@@ -1102,7 +1108,15 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                     type="text" 
                                     placeholder="GÕ TÊN SẢN PHẨM ĐỂ NHẬP..." 
                                     value={searchTerm} 
-                                    onChange={e => setSearchTerm(e.target.value)} 
+                                    onChange={e => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }} 
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            setCurrentPage(1);
+                                        }
+                                    }}
                                     className="w-full pl-11 pr-11 py-3 bg-blue-50/70 border border-blue-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none font-bold text-base text-slate-900 shadow-sm transition-all placeholder:text-slate-400" 
                                 />
                                 {searchTerm && (
@@ -1110,6 +1124,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         type="button"
                                         onClick={() => {
                                             setSearchTerm('');
+                                            setCurrentPage(1);
                                             searchInputRef.current?.focus();
                                         }}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-slate-200/80 hover:bg-slate-300 active:scale-90 text-slate-600 hover:text-slate-900 transition shadow-2xs cursor-pointer z-10"
@@ -1183,7 +1198,29 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                 />
                             ))}
                         </div>
-                        <div className="mt-3 flex justify-between items-center border-t pt-3 shrink-0"><div className="text-[9px] font-black text-black uppercase">Trang {currentPage}</div><div className="flex space-x-1"><button onClick={() => setCurrentPage(p => Math.max(1, p-1))} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronLeft size={16}/></button><button onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 bg-slate-100 rounded-lg text-black font-black"><ChevronRight size={16}/></button></div></div>
+                        <div className="mt-3 flex justify-between items-center border-t pt-3 shrink-0">
+                            <div className="text-[10px] font-black text-slate-700 uppercase">Trang {currentPage} / {maxPages}</div>
+                            <div className="flex space-x-1">
+                                <button 
+                                    type="button"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                                    disabled={currentPage <= 1}
+                                    className="p-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 rounded-lg text-black font-black transition cursor-pointer"
+                                    title="Trang trước"
+                                >
+                                    <ChevronLeft size={16}/>
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setCurrentPage(p => Math.min(maxPages, p + 1))} 
+                                    disabled={currentPage >= maxPages}
+                                    className="p-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 rounded-lg text-black font-black transition cursor-pointer"
+                                    title="Trang kế tiếp (>)"
+                                >
+                                    <ChevronRight size={16}/>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

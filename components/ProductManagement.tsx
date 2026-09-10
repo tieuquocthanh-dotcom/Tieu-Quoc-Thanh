@@ -420,7 +420,21 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                     <div className="flex items-center gap-2 flex-wrap">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
-                            <input type="text" placeholder="Tìm theo tên hoặc viết tắt..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full sm:w-64 pl-10 pr-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm"/>
+                            <input 
+                                type="text" 
+                                placeholder="Tìm theo tên hoặc viết tắt..." 
+                                value={searchTerm} 
+                                onChange={e => {
+                                    setSearchTerm(e.target.value);
+                                    setCurrentPage(1);
+                                }} 
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        setCurrentPage(1);
+                                    }
+                                }}
+                                className="w-full sm:w-64 pl-10 pr-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm"
+                            />
                         </div>
                         <select value={selectedManufacturerId} onChange={e => setSelectedManufacturerId(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-xl bg-black text-white text-xs font-black uppercase outline-none"><option value="all">Tất cả hãng</option>{manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
                         <button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }} className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-lg transform active:scale-95 transition-all"><PlusCircle size={20} /><span>Thêm Mới</span></button>
