@@ -889,11 +889,11 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                         {/* Tổng kết dòng tiền sau điều chỉnh */}
                         <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-1.5 text-xs">
                             <div className="flex justify-between items-center font-bold text-slate-600">
-                                <span>Tổng tiền đơn:</span>
+                                <span>Tổng tiền hàng:</span>
                                 <span className="font-black text-slate-900">{formatNumber(newTotal)} ₫</span>
                             </div>
                             <div className="flex justify-between items-center font-bold">
-                                <span className="text-slate-600">Thực thu vào tài khoản:</span>
+                                <span className="text-slate-600">Số tiền đã nhận:</span>
                                 <span className={`font-black ${effectiveAmountPaid > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                                     {formatNumber(effectiveAmountPaid)} ₫
                                 </span>
