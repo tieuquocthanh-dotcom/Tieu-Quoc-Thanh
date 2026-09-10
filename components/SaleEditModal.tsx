@@ -899,7 +899,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                 </span>
                             </div>
                             <div className="flex justify-between items-center font-black pt-1 border-t border-slate-100">
-                                <span className="text-red-500 uppercase text-[11px]">Còn nợ khách hàng:</span>
+                                <span className="text-red-500 uppercase text-[11px]">Khách hàng còn nợ:</span>
                                 <span className="text-red-600 text-sm">{formatNumber(remainingDebt)} ₫</span>
                             </div>
                         </div>
