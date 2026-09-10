@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sale, Customer, PaymentMethod, Shipper, SaleItem, Product } from '../types';
-import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown, UserPlus, Check, Phone, MapPin, CheckCircle2, Clock, RotateCcw, ArrowDownLeft, ArrowUpRight, Info, History } from 'lucide-react';
+import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown, UserPlus, Check, Phone, MapPin, CheckCircle2, Clock, RotateCcw, ArrowDownLeft, ArrowUpRight, Info, History, Lock } from 'lucide-react';
 import { doc, serverTimestamp, runTransaction, collection, addDoc, Timestamp, increment, getDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
@@ -90,6 +90,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'debt'>('paid');
   const [debtType, setDebtType] = useState<'full' | 'partial'>('full'); // 'full' = nợ 100% (amountPaid = 0), 'partial' = trả trước 1 phần
   const [customPaidAmount, setCustomPaidAmount] = useState<number>(0);
+  const [isOriginallyFullyPaid, setIsOriginallyFullyPaid] = useState<boolean>(false);
 
   const [shippingMode, setShippingMode] = useState<'none' | 'pending' | 'shipped' | 'order'>('none');
   const [shippingFee, setShippingFee] = useState(0);
@@ -134,6 +135,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
       const isPaidInFull = (origTotal === 0) || (remainingOriginalDebt === 0) || (sale.status === 'paid' && remainingOriginalDebt === 0);
       const isOriginallyDebt = !isPaidInFull && remainingOriginalDebt > 0;
       
+      setIsOriginallyFullyPaid(isPaidInFull);
       setPaymentStatus(isOriginallyDebt ? 'debt' : 'paid');
       setDebtType(origPaid === 0 ? 'full' : 'partial');
       setCustomPaidAmount(isOriginallyDebt ? origPaid : origTotal);
@@ -762,14 +764,17 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                             <label className="text-[11px] font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
                                 <Wallet size={14} className="text-primary" /> Trạng thái thanh toán
                             </label>
-                            <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                            <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
                                 paymentStatus === 'paid' 
                                     ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
                                     : (customPaidAmount === 0 
                                         ? 'bg-red-100 text-red-800 border border-red-300' 
                                         : 'bg-amber-100 text-amber-800 border border-amber-300')
                             }`}>
-                                {paymentStatus === 'paid' ? 'Đã thanh toán đủ' : (customPaidAmount === 0 ? 'Nợ toàn bộ (100%)' : 'Nợ 1 phần')}
+                                {isOriginallyFullyPaid && <Lock size={11} className="text-emerald-700" />}
+                                {paymentStatus === 'paid' 
+                                    ? (isOriginallyFullyPaid ? 'Đã thanh toán đủ (Đã khóa nợ)' : 'Đã thanh toán đủ') 
+                                    : (customPaidAmount === 0 ? 'Nợ toàn bộ (100%)' : 'Nợ 1 phần')}
                             </span>
                         </div>
 
@@ -792,7 +797,12 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                             </button>
                             <button
                                 type="button"
+                                disabled={isOriginallyFullyPaid}
                                 onClick={() => {
+                                    if (isOriginallyFullyPaid) {
+                                        alert('Đơn hàng này đã được thanh toán đủ 100%. Không thể chuyển sang ghi nợ để bảo vệ sổ sách kế toán!');
+                                        return;
+                                    }
                                     setPaymentStatus('debt');
                                     // Khi bấm chuyển sang ghi nợ:
                                     // Nếu trước đó đang lưu nợ hoặc trả trước 1 phần thì giữ lại, nếu chưa có thì để 0
@@ -806,14 +816,17 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                         }
                                     }
                                 }}
-                                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-black transition-all cursor-pointer ${
-                                    paymentStatus === 'debt'
-                                        ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400/30'
-                                        : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                                title={isOriginallyFullyPaid ? "Đơn hàng đã thanh toán đủ 100%. Không thể chuyển sang ghi nợ!" : "Chuyển đơn sang ghi nợ"}
+                                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-black transition-all ${
+                                    isOriginallyFullyPaid
+                                        ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border border-dashed border-slate-300'
+                                        : paymentStatus === 'debt'
+                                            ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400/30 cursor-pointer'
+                                            : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/50 cursor-pointer'
                                 }`}
                             >
-                                <Clock size={15} />
-                                <span>GHI NỢ</span>
+                                {isOriginallyFullyPaid ? <Lock size={14} className="text-slate-400" /> : <Clock size={15} />}
+                                <span>{isOriginallyFullyPaid ? 'GHI NỢ (ĐÃ KHÓA)' : 'GHI NỢ'}</span>
                             </button>
                         </div>
 
@@ -822,11 +835,22 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                             <div className="bg-emerald-50/80 border border-emerald-200 p-3 rounded-xl text-emerald-900 text-xs flex items-center justify-between animate-fade-in">
                                 <div className="flex items-center gap-2.5">
                                     <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-600">
-                                        <CheckCircle2 size={18} />
+                                        {isOriginallyFullyPaid ? <Lock size={17} /> : <CheckCircle2 size={18} />}
                                     </div>
                                     <div>
-                                        <span className="font-black text-emerald-950 text-xs block">Khách hàng đã thanh toán đủ 100%</span>
-                                        <span className="text-[11px] text-emerald-700">Đơn hàng không còn nợ • Số tiền thu: {formatNumber(newTotal)} ₫</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-black text-emerald-950 text-xs block">Khách hàng đã thanh toán đủ 100%</span>
+                                            {isOriginallyFullyPaid && (
+                                                <span className="inline-flex items-center gap-1 text-[9px] font-black bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                    <Lock size={9} /> Khóa chuyển nợ
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-[11px] text-emerald-700">
+                                            {isOriginallyFullyPaid
+                                                ? `Đơn hàng đã hoàn tất thanh toán. Tính năng chuyển sang ghi nợ đã được khóa để bảo toàn doanh thu và sổ quỹ.`
+                                                : `Đơn hàng không còn nợ • Số tiền thu: ${formatNumber(newTotal)} ₫`}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
