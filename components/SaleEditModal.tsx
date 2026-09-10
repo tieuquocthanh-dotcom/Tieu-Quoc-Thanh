@@ -122,23 +122,21 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
       setShipperId(sale.shipperId || '');
       setPaymentMethodId(sale.paymentMethodId || '');
       
-      const origPaid = sale.amountPaid || 0;
-      const origTotal = sale.total || 0;
-      const isOriginallyDebt = sale.status === 'debt' || origPaid < origTotal;
+      const origTotal = Number(sale.total) || 0;
+      const sumHistory = (sale.paymentHistory || []).reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0);
+      const origPaid = Math.max(Number(sale.amountPaid) || 0, sumHistory);
+      const remainingOriginalDebt = Math.max(0, origTotal - origPaid);
+      
+      // Đơn đã thanh toán đủ khi:
+      // 1. Số tiền đã thanh toán >= tổng tiền (remainingOriginalDebt === 0)
+      // 2. Hoặc trạng thái đơn là 'paid' và không còn nợ
+      // 3. Hoặc đơn hàng tổng tiền = 0
+      const isPaidInFull = (origTotal === 0) || (remainingOriginalDebt === 0) || (sale.status === 'paid' && remainingOriginalDebt === 0);
+      const isOriginallyDebt = !isPaidInFull && remainingOriginalDebt > 0;
       
       setPaymentStatus(isOriginallyDebt ? 'debt' : 'paid');
-      if (isOriginallyDebt) {
-        if (origPaid === 0) {
-          setDebtType('full');
-          setCustomPaidAmount(0);
-        } else {
-          setDebtType('partial');
-          setCustomPaidAmount(origPaid);
-        }
-      } else {
-        setDebtType('full');
-        setCustomPaidAmount(origTotal);
-      }
+      setDebtType(origPaid === 0 ? 'full' : 'partial');
+      setCustomPaidAmount(isOriginallyDebt ? origPaid : origTotal);
 
       setShippingMode((sale.shippingStatus as 'pending' | 'none' | 'order' | 'shipped') || 'none');
       setShippingFee(sale.shippingFee || 0);
@@ -200,11 +198,8 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
     if (paymentStatus === 'paid') {
       return newTotal;
     }
-    if (debtType === 'full') {
-      return 0;
-    }
     return Math.max(0, Math.min(newTotal, customPaidAmount));
-  }, [paymentStatus, debtType, customPaidAmount, newTotal]);
+  }, [paymentStatus, customPaidAmount, newTotal]);
 
   // Số tiền còn nợ sau khi sửa
   const remainingDebt = useMemo(() => {
@@ -767,8 +762,14 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                             <label className="text-[11px] font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
                                 <Wallet size={14} className="text-primary" /> Trạng thái thanh toán
                             </label>
-                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
-                                {paymentStatus === 'paid' ? 'Đủ tiền' : (debtType === 'full' ? 'Nợ 100%' : 'Nợ 1 phần')}
+                            <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                                paymentStatus === 'paid' 
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                                    : (customPaidAmount === 0 
+                                        ? 'bg-red-100 text-red-800 border border-red-300' 
+                                        : 'bg-amber-100 text-amber-800 border border-amber-300')
+                            }`}>
+                                {paymentStatus === 'paid' ? 'Đã thanh toán đủ' : (customPaidAmount === 0 ? 'Nợ toàn bộ (100%)' : 'Nợ 1 phần')}
                             </span>
                         </div>
 
@@ -778,6 +779,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                 type="button"
                                 onClick={() => {
                                     setPaymentStatus('paid');
+                                    setDebtType('full');
                                 }}
                                 className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-black transition-all cursor-pointer ${
                                     paymentStatus === 'paid'
@@ -792,10 +794,16 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                                 type="button"
                                 onClick={() => {
                                     setPaymentStatus('debt');
-                                    // Nếu chuyển sang nợ và chưa chọn partial thì mặc định nợ 100% (customPaidAmount = 0)
+                                    // Khi bấm chuyển sang ghi nợ:
+                                    // Nếu trước đó đang lưu nợ hoặc trả trước 1 phần thì giữ lại, nếu chưa có thì để 0
                                     if (paymentStatus === 'paid') {
-                                      setDebtType('full');
-                                      setCustomPaidAmount(0);
+                                        if (originalAmountPaid > 0 && originalAmountPaid < newTotal) {
+                                            setCustomPaidAmount(originalAmountPaid);
+                                            setDebtType('partial');
+                                        } else {
+                                            setCustomPaidAmount(0);
+                                            setDebtType('full');
+                                        }
                                     }
                                 }}
                                 className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-black transition-all cursor-pointer ${
@@ -809,78 +817,130 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                             </button>
                         </div>
 
-                        {/* Tùy chọn chi tiết khi Ghi nợ */}
-                        {paymentStatus === 'debt' && (
-                            <div className="bg-white p-3 rounded-lg border border-amber-200/80 space-y-2.5 animate-fade-in">
-                                <div className="flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setDebtType('full');
-                                            setCustomPaidAmount(0);
+                        {/* Chi tiết theo trạng thái: ĐÃ THANH TOÁN vs GHI NỢ */}
+                        {paymentStatus === 'paid' ? (
+                            <div className="bg-emerald-50/80 border border-emerald-200 p-3 rounded-xl text-emerald-900 text-xs flex items-center justify-between animate-fade-in">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-600">
+                                        <CheckCircle2 size={18} />
+                                    </div>
+                                    <div>
+                                        <span className="font-black text-emerald-950 text-xs block">Khách hàng đã thanh toán đủ 100%</span>
+                                        <span className="text-[11px] text-emerald-700">Đơn hàng không còn nợ • Số tiền thu: {formatNumber(newTotal)} ₫</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-white p-3 rounded-xl border-2 border-amber-200 space-y-2.5 animate-fade-in">
+                                <div>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-[11px] font-black text-slate-700 uppercase">
+                                            Số tiền khách đã trả (hoặc trả trước):
+                                        </label>
+                                        <span className="text-xs font-black text-emerald-600">
+                                            {formatNumber(customPaidAmount)} ₫
+                                        </span>
+                                    </div>
+                                    <NumericInput
+                                        value={customPaidAmount}
+                                        onChange={(val) => {
+                                            const clamped = Math.max(0, Math.min(newTotal, val));
+                                            setCustomPaidAmount(clamped);
+                                            setDebtType(clamped === 0 ? 'full' : 'partial');
                                         }}
-                                        className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black border transition cursor-pointer ${
-                                            debtType === 'full'
-                                                ? 'bg-amber-50 border-amber-500 text-amber-900 font-black shadow-xs'
-                                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                                        }`}
-                                    >
-                                        Nợ toàn bộ (0 ₫)
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setDebtType('partial');
-                                            if (customPaidAmount === 0 && originalAmountPaid > 0 && originalAmountPaid < newTotal) {
-                                              setCustomPaidAmount(originalAmountPaid);
-                                            } else if (customPaidAmount === 0) {
-                                              setCustomPaidAmount(Math.round(newTotal / 2));
-                                            }
-                                        }}
-                                        className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black border transition cursor-pointer ${
-                                            debtType === 'partial'
-                                                ? 'bg-amber-50 border-amber-500 text-amber-900 font-black shadow-xs'
-                                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                                        }`}
-                                    >
-                                        Trả trước 1 phần
-                                    </button>
+                                        className="w-full px-3 py-2 border-2 border-amber-300 rounded-lg text-right font-black text-base outline-none text-slate-900 bg-amber-50/30 focus:bg-white focus:border-amber-500"
+                                    />
+                                    {/* Các nút chọn nhanh */}
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCustomPaidAmount(0);
+                                                setDebtType('full');
+                                            }}
+                                            className={`px-2.5 py-1 rounded-md text-[11px] font-black border transition cursor-pointer ${
+                                                customPaidAmount === 0 
+                                                    ? 'bg-amber-600 text-white border-amber-700 shadow-xs' 
+                                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                                            }`}
+                                        >
+                                            Chưa trả (Nợ 100%)
+                                        </button>
+                                        {newTotal > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const half = Math.round(newTotal / 2);
+                                                    setCustomPaidAmount(half);
+                                                    setDebtType('partial');
+                                                }}
+                                                className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition cursor-pointer ${
+                                                    customPaidAmount === Math.round(newTotal / 2) && customPaidAmount > 0
+                                                        ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                                                }`}
+                                            >
+                                                Trả trước 50% ({formatNumber(Math.round(newTotal / 2))} ₫)
+                                            </button>
+                                        )}
+                                        {originalAmountPaid > 0 && originalAmountPaid < newTotal && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCustomPaidAmount(originalAmountPaid);
+                                                    setDebtType('partial');
+                                                }}
+                                                className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition cursor-pointer ${
+                                                    customPaidAmount === originalAmountPaid
+                                                        ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                                                        : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                                                }`}
+                                                title="Khôi phục lại số tiền đã thu ở đơn trước khi sửa"
+                                            >
+                                                Số cũ: {formatNumber(originalAmountPaid)} ₫
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPaymentStatus('paid');
+                                                setDebtType('full');
+                                            }}
+                                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md text-[11px] font-black cursor-pointer transition ml-auto flex items-center gap-1"
+                                        >
+                                            <CheckCircle2 size={13} /> Khách trả đủ 100%
+                                        </button>
+                                    </div>
                                 </div>
 
-                                {debtType === 'partial' && (
-                                    <div className="space-y-1.5 pt-1 border-t border-slate-100">
-                                        <div className="flex justify-between items-center text-[10px] font-black text-slate-500">
-                                            <span>SỐ TIỀN KHÁCH ĐÃ TRẢ:</span>
-                                            <span className="text-emerald-600 font-black">{formatNumber(customPaidAmount)} ₫</span>
+                                {/* Trạng thái chi tiết của việc ghi nợ */}
+                                {customPaidAmount === 0 ? (
+                                    <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs font-medium text-red-700 flex items-center gap-2">
+                                        <AlertCircle size={15} className="text-red-500 shrink-0" />
+                                        <span>Khách hàng chưa trả tiền. Toàn bộ đơn hàng <strong>{formatNumber(newTotal)} ₫</strong> được ghi vào sổ nợ.</span>
+                                    </div>
+                                ) : customPaidAmount < newTotal ? (
+                                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-medium text-amber-900 flex items-center justify-between">
+                                        <div>
+                                            Khách trả trước: <strong className="text-emerald-700">{formatNumber(customPaidAmount)} ₫</strong>
                                         </div>
-                                        <NumericInput
-                                            value={customPaidAmount}
-                                            onChange={(val) => setCustomPaidAmount(Math.min(newTotal, Math.max(0, val)))}
-                                            className="w-full px-3 py-2 border-2 border-amber-300 rounded-lg text-right font-black text-sm outline-none text-slate-900 bg-amber-50/40 focus:bg-white focus:border-amber-500"
-                                        />
-                                        <div className="flex justify-between gap-1 text-[10px] text-slate-500">
-                                            <button
-                                                type="button"
-                                                onClick={() => setCustomPaidAmount(0)}
-                                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded font-bold cursor-pointer"
-                                            >
-                                                0 ₫
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setCustomPaidAmount(Math.round(newTotal / 2))}
-                                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded font-bold cursor-pointer"
-                                            >
-                                                50% ({formatNumber(Math.round(newTotal / 2))})
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setCustomPaidAmount(newTotal)}
-                                                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded font-bold cursor-pointer"
-                                            >
-                                                Đủ 100%
-                                            </button>
+                                        <div className="text-right">
+                                            Còn nợ lại: <strong className="text-red-600 font-bold">{formatNumber(newTotal - customPaidAmount)} ₫</strong>
                                         </div>
+                                    </div>
+                                ) : (
+                                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-800 flex items-center justify-between">
+                                        <span>Số tiền đã trả ({formatNumber(customPaidAmount)} ₫) bằng hoặc lớn hơn tổng đơn!</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPaymentStatus('paid');
+                                                setDebtType('full');
+                                            }}
+                                            className="underline text-emerald-900 hover:text-emerald-950 font-black cursor-pointer"
+                                        >
+                                            Chuyển sang "Đã thanh toán"
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -900,7 +960,9 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                             </div>
                             <div className="flex justify-between items-center font-black pt-1 border-t border-slate-100">
                                 <span className="text-red-500 uppercase text-[11px]">Khách hàng còn nợ:</span>
-                                <span className="text-red-600 text-sm">{formatNumber(remainingDebt)} ₫</span>
+                                <span className={`text-sm ${remainingDebt > 0 ? 'text-red-600 font-black' : 'text-emerald-600 font-black'}`}>
+                                    {remainingDebt > 0 ? `${formatNumber(remainingDebt)} ₫` : '0 ₫ (Hết nợ)'}
+                                </span>
                             </div>
                         </div>
 
