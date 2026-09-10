@@ -572,16 +572,18 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
   const addToReceipt = (product: Product, quantity: number, importPrice: number, keepSearch: boolean = false) => {
     if (quantity <= 0) return;
-    const existing = receipt.find(item => item.productId === product.id);
-    if (existing) {
-      setReceipt(receipt.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + quantity, importPrice } : item));
-    } else {
-      setReceipt([...receipt, { productId: product.id, productName: product.name, quantity, importPrice, originalImportPrice: product.importPrice, updateImportPrice: false, isCombo: !!product.isCombo, comboItems: product.comboItems || [] }]);
-    }
+    setReceipt(prev => {
+      const existing = prev.find(item => item.productId === product.id);
+      if (existing) {
+        return prev.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + quantity, importPrice } : item);
+      } else {
+        return [...prev, { productId: product.id, productName: product.name, quantity, importPrice, originalImportPrice: product.importPrice, updateImportPrice: false, isCombo: !!product.isCombo, comboItems: product.comboItems || [] }];
+      }
+    });
     if (!keepSearch) {
       setSearchTerm('');
     }
-    setToast({ message: "Đã thêm thành công!", type: 'success' });
+    setToast({ message: `Đã thêm ${product.name} vào đơn!`, type: 'success' });
   };
 
   const handleRequestAdd = (product: Product, quantity: number, importPrice: number, keepSearch: boolean = false) => {
@@ -644,13 +646,18 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
   const handleConfirmHighPriceAdd = (customPrice?: number, customQty?: number) => {
       if (!highPriceWarningData) return;
-      const finalPrice = typeof customPrice === 'number' && customPrice > 0 ? customPrice : highPriceWarningData.inputPrice;
-      const finalQty = typeof customQty === 'number' && customQty > 0 ? customQty : highPriceWarningData.quantity;
-      const ackKey = `${highPriceWarningData.product.id}_${finalPrice}`;
+      const targetProduct = highPriceWarningData.product;
+      const finalPrice = typeof customPrice === 'number' && customPrice >= 0 ? customPrice : (highPriceWarningData.inputPrice || 0);
+      const finalQty = typeof customQty === 'number' && customQty > 0 ? customQty : (highPriceWarningData.quantity || 1);
+      const keepSearch = !!highPriceWarningData.keepSearch;
+      
+      const ackKey = `${targetProduct.id}_${finalPrice}`;
       setAcknowledgedHighPriceIds(prev => new Set(prev).add(ackKey));
-      addToReceipt(highPriceWarningData.product, finalQty, finalPrice, highPriceWarningData.keepSearch);
+      
       setIsHighPriceModalOpen(false);
       setHighPriceWarningData(null);
+      
+      addToReceipt(targetProduct, finalQty, finalPrice, keepSearch);
   };
 
   const handleAdjustPrice = () => {

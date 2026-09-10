@@ -94,6 +94,15 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                 const parsed = JSON.parse(raw);
                 if (parsed && (parsed.cart?.length > 0 || parsed.selectedSupplierId || parsed.note)) {
                     setSavedDraft(parsed);
+                    // Tự động mở lại popup nếu trước đó đang mở dở (ví dụ người dùng chuyển sang tab Tồn kho kiểm tra hàng rồi quay lại)
+                    if (parsed.isOpen !== false) {
+                        setSelectedSupplierId(parsed.selectedSupplierId || '');
+                        setOrderStatus(parsed.orderStatus || 'pending');
+                        setCart(Array.isArray(parsed.cart) ? parsed.cart : []);
+                        setNote(parsed.note || '');
+                        setIsModalOpen(true);
+                        setIsMinimized(false);
+                    }
                 }
             }
         } catch (e) {
@@ -101,7 +110,7 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
         }
     }, []);
 
-    // Auto-save draft when draft content changes
+    // Auto-save draft when draft content or modal state changes
     useEffect(() => {
         if (!editingOrder && (cart.length > 0 || selectedSupplierId || note.trim())) {
             const draft = {
@@ -109,6 +118,7 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                 orderStatus,
                 cart,
                 note,
+                isOpen: isModalOpen,
                 updatedAt: Date.now()
             };
             try {
@@ -118,7 +128,7 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                 console.error("Lỗi lưu bản nháp:", e);
             }
         }
-    }, [selectedSupplierId, orderStatus, cart, note, editingOrder]);
+    }, [selectedSupplierId, orderStatus, cart, note, editingOrder, isModalOpen]);
 
     useEffect(() => {
         setTimeout(() => {
@@ -727,8 +737,23 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
 
             {/* CREATE/EDIT MODAL */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200">
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            if (cart.length > 0) {
+                                setIsModalOpen(false);
+                                setIsMinimized(true);
+                            } else {
+                                setIsModalOpen(false);
+                            }
+                        }
+                    }}
+                >
+                    <div 
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="p-4 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
                             <div className="flex items-center gap-2">
                                 <ClipboardList size={20} className="text-primary"/> 

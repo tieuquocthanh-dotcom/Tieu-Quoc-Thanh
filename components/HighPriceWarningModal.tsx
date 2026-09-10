@@ -63,9 +63,13 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
     priceIncreaseFromLast
   } = data;
 
-  const handleConfirm = () => {
-    const finalPrice = editPrice > 0 ? editPrice : data.inputPrice;
-    const finalQty = editQty > 0 ? editQty : data.quantity;
+  const handleConfirm = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const finalPrice = Number(editPrice) > 0 ? Number(editPrice) : (Number(data.inputPrice) || 0);
+    const finalQty = Number(editQty) > 0 ? Number(editQty) : (Number(data.quantity) || 1);
     onConfirmAdd(finalPrice, finalQty);
   };
 

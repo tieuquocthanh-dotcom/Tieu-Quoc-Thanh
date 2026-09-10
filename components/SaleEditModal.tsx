@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sale, Customer, PaymentMethod, Shipper, SaleItem, Product } from '../types';
-import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown, UserPlus, Check, Phone, MapPin, CheckCircle2, Clock, RotateCcw, ArrowDownLeft, ArrowUpRight, Info } from 'lucide-react';
+import { X, Save, Edit3, ShoppingBag, Plus, Minus, Trash2, Truck, Wallet, FileCheck2, AlertCircle, Loader, Users, Coins, Search, Tag, Calendar, ChevronUp, ChevronDown, UserPlus, Check, Phone, MapPin, CheckCircle2, Clock, RotateCcw, ArrowDownLeft, ArrowUpRight, Info, History } from 'lucide-react';
 import { doc, serverTimestamp, runTransaction, collection, addDoc, Timestamp, increment, getDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import CustomerModal from './CustomerModal';
+import QuickDebtPayModal from './QuickDebtPayModal';
 
 interface SaleEditModalProps {
   isOpen: boolean;
@@ -97,6 +98,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
   const [editedItems, setEditedItems] = useState<SaleItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [wholesalePrices, setWholesalePrices] = useState<Record<string, number>>({});
+  const [isQuickDebtModalOpen, setIsQuickDebtModalOpen] = useState(false);
 
   // Search Customer State
   const [custSearch, setCustSearch] = useState('');
@@ -902,6 +904,51 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
                             </div>
                         </div>
 
+                        {/* Chi tiết các đợt khách đã thanh toán */}
+                        {sale?.paymentHistory && sale.paymentHistory.length > 0 && (
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-1.5 text-xs">
+                                <div className="flex justify-between items-center text-[10px] font-black text-slate-600 uppercase">
+                                    <span className="flex items-center gap-1"><History size={13} className="text-primary"/> Các đợt đã thanh toán ({sale.paymentHistory.length}):</span>
+                                    {remainingDebt > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsQuickDebtModalOpen(true)}
+                                            className="text-emerald-700 hover:text-emerald-900 font-bold bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded text-[10px] uppercase flex items-center gap-1 cursor-pointer transition shadow-xs"
+                                        >
+                                            <Plus size={12} /> Thu thêm đợt mới
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                                    {sale.paymentHistory.map((p, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border border-slate-100 text-[11px] shadow-xs">
+                                            <div>
+                                                <div className="flex items-center gap-1">
+                                                    <span className="font-black text-slate-800">Đợt {idx + 1}: {p.paymentMethodName || 'Tiền mặt'}</span>
+                                                    <span className="text-[10px] text-slate-400 font-medium">
+                                                        ({p.date?.toDate?.()?.toLocaleDateString('vi-VN') || (p as any).createdAt?.toDate?.()?.toLocaleDateString('vi-VN') || 'Đợt trước'})
+                                                    </span>
+                                                </div>
+                                                {p.note && <span className="text-slate-500 text-[10px] block italic leading-tight">{p.note}</span>}
+                                            </div>
+                                            <span className="font-black text-emerald-600">+{formatNumber(p.amount)} ₫</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Nút thu nợ nhanh nếu đơn còn nợ và chưa có đợt thanh toán nào */}
+                        {remainingDebt > 0 && (!sale?.paymentHistory || sale.paymentHistory.length === 0) && (
+                            <button
+                                type="button"
+                                onClick={() => setIsQuickDebtModalOpen(true)}
+                                className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg text-xs font-black uppercase flex items-center justify-center gap-1.5 transition cursor-pointer"
+                            >
+                                <Wallet size={14} /> Ghi nhận khách trả nợ ({formatNumber(remainingDebt)} ₫)
+                            </button>
+                        )}
+
                         {/* Tài khoản thu tiền */}
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">
@@ -1135,6 +1182,19 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({ isOpen, onClose, sale, cu
           </button>
         </div>
       </div>
+
+      {isQuickDebtModalOpen && sale && (
+        <QuickDebtPayModal
+          isOpen={isQuickDebtModalOpen}
+          onClose={() => setIsQuickDebtModalOpen(false)}
+          sale={sale}
+          paymentMethods={paymentMethods}
+          onSuccess={() => {
+            setIsQuickDebtModalOpen(false);
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 };

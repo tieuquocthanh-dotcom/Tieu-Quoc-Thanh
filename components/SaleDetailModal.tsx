@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Sale, Product, PaymentHistoryEntry } from '../types';
+import { Sale, Product, PaymentHistoryEntry, PaymentMethod } from '../types';
 import { X, User, Warehouse, CreditCard, Truck, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, Wallet, StickyNote, Landmark, Clock } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import { doc, writeBatch, increment, getDoc, collection, query, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import ConfirmationModal from './ConfirmationModal';
 import SalePrintPreviewModal from './SalePrintPreviewModal';
+import QuickDebtPayModal from './QuickDebtPayModal';
 import * as XLSX from 'xlsx';
 
 interface SaleDetailModalProps {
@@ -14,6 +15,7 @@ interface SaleDetailModalProps {
   onClose: () => void;
   sale: Sale | null;
   userRole: 'admin' | 'staff' | null;
+  paymentMethods?: PaymentMethod[];
 }
 
 const DetailRow: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNode }> = ({ icon, label, value }) => (
@@ -26,10 +28,22 @@ const DetailRow: React.FC<{ icon: React.ReactNode; label: string; value: React.R
     </div>
 );
 
-const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale, userRole }) => {
+const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale, userRole, paymentMethods: propPaymentMethods }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [isPayDebtModalOpen, setIsPayDebtModalOpen] = useState(false);
+  const [localPaymentMethods, setLocalPaymentMethods] = useState<PaymentMethod[]>([]);
+
+  useEffect(() => {
+    if (propPaymentMethods && propPaymentMethods.length > 0) {
+      setLocalPaymentMethods(propPaymentMethods);
+    } else if (isOpen) {
+      getDocs(query(collection(db, 'paymentMethods'))).then(snap => {
+        setLocalPaymentMethods(snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentMethod)));
+      }).catch(err => console.error("Lỗi tải paymentMethods trong SaleDetailModal:", err));
+    }
+  }, [isOpen, propPaymentMethods]);
 
   const isAdmin = userRole === 'admin';
 
@@ -357,6 +371,15 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                                     <span className="text-[10px] font-black text-slate-400 uppercase">Còn nợ:</span>
                                     <span className={`text-xl font-black ${remainingDebt > 0 ? 'text-red-500' : 'text-green-500'}`}>{formatNumber(remainingDebt)} ₫</span>
                                 </div>
+                                {remainingDebt > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsPayDebtModalOpen(true)}
+                                        className="w-full mt-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+                                    >
+                                        <Wallet size={16} /> Thu tiền / Trả nợ ({formatNumber(remainingDebt)} ₫)
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -481,6 +504,17 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
             isOpen={isPrintPreviewOpen}
             onClose={() => setIsPrintPreviewOpen(false)}
             sale={sale}
+        />
+
+        <QuickDebtPayModal
+            isOpen={isPayDebtModalOpen}
+            onClose={() => setIsPayDebtModalOpen(false)}
+            sale={sale}
+            paymentMethods={localPaymentMethods}
+            onSuccess={() => {
+                setIsPayDebtModalOpen(false);
+                onClose();
+            }}
         />
     </>
   );

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, Timestamp, arrayUnion, writeBatch, increment, getDocs, orderBy, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Sale, GoodsReceipt, PaymentMethod, Customer, Supplier, Shipper, Product, Warehouse } from '../types';
-import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User, Edit, ChevronDown, ChevronRight, ArrowLeftRight, Repeat, Building2 } from 'lucide-react';
+import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User, Edit, ChevronDown, ChevronRight, ArrowLeftRight, Repeat, Building2, List, Layers, Phone, DollarSign } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import Pagination from './Pagination';
 import SaleDetailModal from './SaleDetailModal';
@@ -303,22 +303,44 @@ const PartialPaymentModal: React.FC<{
                 </div>
 
                 <div className="p-5 overflow-y-auto">
-                    <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-200 mb-4 text-xs">
+                    <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-200 mb-3 text-xs">
                         <div className="flex justify-between mb-1"><span className="text-slate-500 font-black uppercase">Mã phiếu:</span><span className="font-black">#{item.id.substring(0,8)}</span></div>
                         <div className="flex justify-between mb-1"><span className="text-slate-500 font-black uppercase">{isSale ? 'Khách hàng:' : 'Nhà cung cấp:'}</span><span className="font-black">{anyItem.customerName || anyItem.supplierName}</span></div>
                         <div className="border-t-2 border-slate-200 my-2 pt-2 space-y-1">
-                            <div className="flex justify-between"><span className="text-slate-500 font-black uppercase">Tổng giá trị:</span><span className="font-bold">{formatNumber(item.total)} ₫</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500 font-black uppercase">Tổng giá trị đơn:</span><span className="font-bold">{formatNumber(item.total)} ₫</span></div>
                             <div className="flex justify-between font-black text-red-600 pt-1"><span>CÒN NỢ:</span><span className="text-lg">{formatNumber(remainingDebt)} ₫</span></div>
                         </div>
                     </div>
 
-                    <div className="space-y-4">
+                    {/* Lịch sử các đợt đã thanh toán trước đây của đơn này nếu có */}
+                    {anyItem.paymentHistory && anyItem.paymentHistory.length > 0 && (
+                        <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-2.5 mb-3 text-xs space-y-1">
+                            <span className="text-[10px] font-black text-amber-800 uppercase block">
+                                Đã thanh toán {anyItem.paymentHistory.length} đợt trước đây:
+                            </span>
+                            <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
+                                {anyItem.paymentHistory.map((p: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between items-center bg-white p-1.5 rounded border border-amber-100 text-[11px]">
+                                        <div>
+                                            <span className="font-bold text-slate-800">Đợt {idx + 1}: {p.paymentMethodName || 'Tiền mặt'}</span>
+                                            {p.note && <span className="text-slate-400 text-[10px] block italic leading-tight">{p.note}</span>}
+                                        </div>
+                                        <span className="font-black text-emerald-600">+{formatNumber(p.amount)} ₫</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-3.5">
                         <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Phương thức thanh toán</label>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">
+                                {isSale ? 'Tài khoản nhận tiền *' : 'Tài khoản chi tiền *'}
+                            </label>
                             <select 
                                 value={selectedMethodId}
                                 onChange={(e) => setSelectedMethodId(e.target.value)}
-                                className={`w-full px-3 py-3 border-2 rounded-xl font-black focus:ring-2 focus:ring-primary outline-none bg-white text-black ${isInsufficientBalance ? 'border-red-500' : 'border-slate-300'}`}
+                                className={`w-full px-3 py-2.5 border-2 rounded-xl font-black focus:ring-2 focus:ring-primary outline-none bg-white text-black text-sm ${isInsufficientBalance ? 'border-red-500' : 'border-slate-300'}`}
                             >
                                 <option value="">-- Chọn tài khoản --</option>
                                 {paymentMethods.map(m => (
@@ -329,7 +351,7 @@ const PartialPaymentModal: React.FC<{
                             </select>
                             {selectedMethod && (
                                 <div className="mt-1 flex justify-between items-center text-xs px-1">
-                                    <span className="font-bold text-slate-500">Số dư trong tài khoản:</span>
+                                    <span className="font-bold text-slate-500">Số dư hiện tại:</span>
                                     <span className={`font-black ${!isSale && (selectedMethod.balance || 0) < payAmount ? 'text-red-600' : 'text-emerald-700'}`}>
                                         {formatNumber(selectedMethod.balance || 0)} ₫
                                     </span>
@@ -362,16 +384,63 @@ const PartialPaymentModal: React.FC<{
                             </>
                         )}
                         <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Số tiền thanh toán</label>
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="block text-[10px] font-black text-slate-500 uppercase">Số tiền thanh toán đợt này</label>
+                                <span className="text-[10px] font-bold text-slate-400">Tối đa: {formatNumber(remainingDebt)} ₫</span>
+                            </div>
                             <NumericInput 
                                 value={payAmount} 
                                 onChange={(val) => setPayAmount(Math.min(val, remainingDebt))}
-                                className="w-full px-4 py-3 bg-slate-900 text-white border-2 border-slate-800 rounded-xl font-black text-2xl text-right focus:border-primary outline-none shadow-inner"
+                                className="w-full px-4 py-2.5 bg-slate-900 text-white border-2 border-slate-800 rounded-xl font-black text-xl text-right focus:border-primary outline-none shadow-inner"
+                            />
+                            {/* Phím chọn nhanh số tiền */}
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setPayAmount(remainingDebt)}
+                                    className="px-2 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-black rounded-lg text-[11px] transition active:scale-95 cursor-pointer"
+                                >
+                                    Trả hết ({formatNumber(remainingDebt)} ₫)
+                                </button>
+                                {remainingDebt > 100000 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setPayAmount(Math.round(remainingDebt / 2))}
+                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[11px] transition active:scale-95 cursor-pointer"
+                                    >
+                                        50%
+                                    </button>
+                                )}
+                                {[1000000, 2000000, 5000000].filter(amt => amt < remainingDebt).map(amt => (
+                                    <button
+                                        key={amt}
+                                        type="button"
+                                        onClick={() => setPayAmount(amt)}
+                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[11px] transition active:scale-95 cursor-pointer"
+                                    >
+                                        {formatNumber(amt)} ₫
+                                    </button>
+                                ))}
+                            </div>
+                            {payAmount > 0 && payAmount < remainingDebt && (
+                                <p className="text-[11px] font-bold text-slate-500 mt-1">
+                                    Nợ còn lại sau thanh toán: <strong className="text-red-500">{formatNumber(remainingDebt - payAmount)} ₫</strong>
+                                </p>
+                            )}
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ghi chú thanh toán (Tùy chọn)</label>
+                            <input 
+                                type="text" 
+                                placeholder="VD: Khách chuyển khoản BIDV, Trả tiền mặt đợt 2..." 
+                                value={note} 
+                                onChange={(e) => setNote(e.target.value)} 
+                                className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold text-xs outline-none focus:border-primary text-slate-800"
                             />
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Ngày ghi nhận</label>
-                            <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold outline-none focus:border-primary" style={{ colorScheme: 'light' }}/>
+                            <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full px-3 py-2 border-2 border-slate-200 rounded-lg font-bold outline-none focus:border-primary text-xs" style={{ colorScheme: 'light' }}/>
                         </div>
                     </div>
                 </div>
@@ -659,6 +728,10 @@ const DebtManagement: React.FC = () => {
     const [isProcessingOffset, setIsProcessingOffset] = useState(false);
     const [showDualOnly, setShowDualOnly] = useState(false);
 
+    const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
+    const [flatPage, setFlatPage] = useState(1);
+    const [flatPageSize, setFlatPageSize] = useState(15);
+
     const [currentPage, setCurrentPage] = useState(1);
     const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
 
@@ -744,7 +817,31 @@ const DebtManagement: React.FC = () => {
     useEffect(() => {
         setSelectedIds(new Set());
         setCurrentPage(1);
+        setFlatPage(1);
     }, [activeTab, searchTerm]);
+
+    const filteredFlatList = useMemo(() => {
+        const list = activeTab === 'receivables' ? salesDebt : receiptsDebt;
+        if (!searchTerm.trim()) return list;
+        const term = searchTerm.toLowerCase().trim();
+        return list.filter(item => {
+            const anyItem = item as any;
+            const name = (anyItem.customerName || anyItem.supplierName || '').toLowerCase();
+            const phone = (anyItem.customerPhone || anyItem.supplierPhone || '').toLowerCase();
+            const id = (item.id || '').toLowerCase();
+            return name.includes(term) || phone.includes(term) || id.includes(term);
+        });
+    }, [activeTab, salesDebt, receiptsDebt, searchTerm]);
+
+    const paginatedFlatList = useMemo(() => {
+        const start = (flatPage - 1) * flatPageSize;
+        return filteredFlatList.slice(start, start + flatPageSize);
+    }, [filteredFlatList, flatPage, flatPageSize]);
+
+    const handleFlatPageSizeChange = (newSize: number) => {
+        setFlatPageSize(newSize);
+        setFlatPage(1);
+    };
 
     const currentSummary = useMemo(() => {
         const summaryMap = new Map<string, DebtorSummary>();
@@ -1352,6 +1449,30 @@ const DebtManagement: React.FC = () => {
                             {showDualOnly ? 'Đang lọc: Nợ Khách & NCC' : `Nợ 2 chiều (${dualDebtorsMap.size})`}
                         </button>
                     )}
+                    {/* Chế độ xem: Từng đơn nợ vs Gộp theo đối tác */}
+                    <div className="flex items-center gap-1 p-1 bg-white rounded-xl border-2 border-slate-200">
+                        <button 
+                            type="button"
+                            onClick={() => setViewMode('list')} 
+                            className={`px-3 py-2 rounded-lg font-black text-xs uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                                viewMode === 'list' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                            title="Xem và thu/trả nợ trực tiếp từng đơn"
+                        >
+                            <List size={15} /> Từng đơn ({filteredFlatList.length})
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => setViewMode('grouped')} 
+                            className={`px-3 py-2 rounded-lg font-black text-xs uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                                viewMode === 'grouped' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                            title="Gộp danh sách theo Khách hàng / Nhà cung cấp"
+                        >
+                            <Layers size={15} /> Theo đối tác ({filteredSummary.length})
+                        </button>
+                    </div>
+
                     <div className="flex items-center gap-2 p-1 bg-white rounded-xl border-2 border-slate-200">
                         <button onClick={() => setActiveTab('receivables')} className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all ${activeTab === 'receivables' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Phải Thu (Khách)</button>
                         <button onClick={() => setActiveTab('payables')} className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition-all ${activeTab === 'payables' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Phải Trả (NCC)</button>
@@ -1418,16 +1539,161 @@ const DebtManagement: React.FC = () => {
                 </div>
             </div>
 
-            <div className="space-y-6">
-                {loading ? (
-                    <div className="flex justify-center items-center py-20"><Loader className="animate-spin text-primary" size={40} /></div>
-                ) : filteredSummary.length === 0 ? (
-                    <div className="text-center py-20 bg-white rounded-2xl border-4 border-dashed border-slate-100">
-                        <Package size={60} className="mx-auto mb-4 text-slate-200"/>
-                        <p className="font-black text-slate-300 uppercase tracking-widest">Không có dữ liệu công nợ</p>
+            {loading ? (
+                <div className="flex justify-center items-center py-20"><Loader className="animate-spin text-primary" size={40} /></div>
+            ) : viewMode === 'list' ? (
+                <div>
+                    {filteredFlatList.length === 0 ? (
+                        <div className="text-center py-20 bg-white rounded-2xl border-4 border-dashed border-slate-100">
+                            <Package size={60} className="mx-auto mb-4 text-slate-200"/>
+                            <p className="font-black text-slate-300 uppercase tracking-widest">Không có đơn nợ nào</p>
+                        </div>
+                    ) : (
+                        <div className="bg-white border-2 border-slate-800 rounded-2xl overflow-hidden shadow-[4px_4px_0px_#0f172a]">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-900 text-white font-black text-[11px] uppercase tracking-wider">
+                                            <th className="p-3.5 text-center w-12">#</th>
+                                            <th className="p-3.5">Mã & Ngày tạo</th>
+                                            <th className="p-3.5">{activeTab === 'receivables' ? 'Khách hàng' : 'Nhà cung cấp'}</th>
+                                            <th className="p-3.5 text-right">Tổng giá trị</th>
+                                            <th className="p-3.5 text-right">Đã thanh toán</th>
+                                            <th className="p-3.5 text-right">Còn nợ</th>
+                                            <th className="p-3.5 text-center">Thao tác thu/trả nợ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y-2 divide-slate-100 font-bold">
+                                        {paginatedFlatList.map((item, idx) => {
+                                            const anyItem = item as any;
+                                            const isSale = activeTab === 'receivables';
+                                            const remainingDebt = (item.total || 0) - (anyItem.amountPaid || 0);
+                                            const partnerName = anyItem.customerName || anyItem.supplierName || (isSale ? 'Khách vãng lai' : 'Nhà cung cấp');
+                                            const partnerPhone = anyItem.customerPhone || anyItem.supplierPhone || '';
+                                            const dateStr = item.createdAt?.toDate?.()?.toLocaleString('vi-VN') || 'N/A';
+                                            const historyCount = anyItem.paymentHistory?.length || 0;
+
+                                            return (
+                                                <tr key={item.id} className="hover:bg-blue-50/50 transition-colors">
+                                                    <td className="p-3.5 text-center text-slate-400 font-mono text-[11px]">
+                                                        {(flatPage - 1) * flatPageSize + idx + 1}
+                                                    </td>
+                                                    <td className="p-3.5">
+                                                        <div className="font-mono font-black text-slate-900 text-sm">
+                                                            #{item.id.substring(0, 8)}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                                            <Calendar size={11} /> {dateStr}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3.5">
+                                                        <div className="font-black text-slate-900 text-sm uppercase">
+                                                            {partnerName}
+                                                        </div>
+                                                        {partnerPhone && (
+                                                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                                                <Phone size={11} className="text-slate-400" /> {partnerPhone}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3.5 text-right">
+                                                        <span className="font-black text-slate-800 text-sm">
+                                                            {formatNumber(item.total)} ₫
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3.5 text-right">
+                                                        <span className="font-black text-emerald-700">
+                                                            {formatNumber(anyItem.amountPaid || 0)} ₫
+                                                        </span>
+                                                        {historyCount > 0 && (
+                                                            <div className="text-[10px] text-slate-400 mt-0.5">
+                                                                ({historyCount} đợt đã trả)
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3.5 text-right">
+                                                        <span className="inline-block px-2.5 py-1 bg-red-50 border border-red-200 text-red-600 font-black text-sm rounded-lg">
+                                                            {formatNumber(remainingDebt)} ₫
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3.5 text-center">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPaymentItem({ item, type: isSale ? 'sale' : 'receipt' });
+                                                                    setIsPaymentModalOpen(true);
+                                                                }}
+                                                                className={`px-3 py-1.5 active:scale-95 text-white font-black rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer ${
+                                                                    isSale ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
+                                                                }`}
+                                                                title={isSale ? "Thu nợ đơn này" : "Trả nợ phiếu này"}
+                                                            >
+                                                                <Wallet size={14} />
+                                                                {isSale ? 'Thu nợ ngay' : 'Trả nợ ngay'}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (isSale) {
+                                                                        setSelectedSale(item as Sale);
+                                                                        setIsSaleDetailOpen(true);
+                                                                    } else {
+                                                                        setSelectedReceipt(item as GoodsReceipt);
+                                                                        setIsReceiptDetailOpen(true);
+                                                                    }
+                                                                }}
+                                                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                                                                title="Xem chi tiết"
+                                                            >
+                                                                <Eye size={15} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (isSale) {
+                                                                        setSelectedSale(item as Sale);
+                                                                        setIsSaleEditOpen(true);
+                                                                    } else {
+                                                                        setSelectedReceipt(item as GoodsReceipt);
+                                                                        setIsReceiptEditOpen(true);
+                                                                    }
+                                                                }}
+                                                                className="p-1.5 bg-slate-100 hover:bg-blue-100 text-blue-700 rounded-lg transition cursor-pointer"
+                                                                title="Sửa đơn"
+                                                            >
+                                                                <Edit size={15} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                    <div className="mt-4">
+                        <Pagination
+                            currentPage={flatPage}
+                            pageSize={flatPageSize}
+                            totalItems={filteredFlatList.length}
+                            onPageChange={setFlatPage}
+                            onPageSizeChange={handleFlatPageSizeChange}
+                        />
                     </div>
-                ) : (
-                    paginatedList.map(debtor => (
+                </div>
+            ) : (
+                <>
+                <div className="space-y-6">
+                    {filteredSummary.length === 0 ? (
+                        <div className="text-center py-20 bg-white rounded-2xl border-4 border-dashed border-slate-100">
+                            <Package size={60} className="mx-auto mb-4 text-slate-200"/>
+                            <p className="font-black text-slate-300 uppercase tracking-widest">Không có dữ liệu công nợ</p>
+                        </div>
+                    ) : (
+                        paginatedList.map(debtor => (
                         <div key={debtor.id} className="bg-white border-2 border-slate-800 rounded-2xl overflow-hidden shadow-[4px_4px_0px_#0f172a]">
                             <div className="bg-slate-800 p-4 flex flex-col md:flex-row justify-between items-start md:items-center text-white">
                                 <div className="flex items-center">
@@ -1558,11 +1824,13 @@ const DebtManagement: React.FC = () => {
                         </div>
                     ))
                 )}
-            </div>
+                </div>
 
-            <div className="mt-6">
-                <Pagination currentPage={currentPage} pageSize={pageSize} totalItems={filteredSummary.length} onPageChange={setCurrentPage} onPageSizeChange={handlePageSizeChange} />
-            </div>
+                <div className="mt-6">
+                    <Pagination currentPage={currentPage} pageSize={pageSize} totalItems={filteredSummary.length} onPageChange={setCurrentPage} onPageSizeChange={handlePageSizeChange} />
+                </div>
+                </>
+            )}
 
             {/* SELECTION SUMMARY BAR (FLOATING) */}
             {selectedIds.size > 0 && (
