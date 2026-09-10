@@ -103,7 +103,6 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
   shippers, 
   products 
 }) => {
-  const [activeTab, setActiveTab] = useState<'items' | 'payment'>('items');
   const [localCustomers, setLocalCustomers] = useState<Customer[]>(customers);
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   
@@ -187,9 +186,6 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
       // Chọn tài khoản mặc định cho đợt thu mới: ưu tiên tài khoản đã dùng hoặc tài khoản đầu tiên
       const defaultAccId = sale.paymentMethodId || (paymentMethods.length > 0 ? paymentMethods[0].id : '');
       setPayMethodId(defaultAccId);
-
-      // Mặc định mở tab items, nhưng nếu đơn hàng đang nợ thì user có thể thấy tab thanh toán nổi bật
-      setActiveTab('items');
     }
   }, [isOpen, sale, paymentMethods]);
 
@@ -401,8 +397,9 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
 
     // Nếu có thu thêm tiền đợt này (effectivePayThisTime > 0), bắt buộc phải có tài khoản nhận tiền
     if (effectivePayThisTime > 0 && !payMethodId) {
-      alert("Vui lòng chọn tài khoản nhận tiền cho đợt thanh toán này.");
-      setActiveTab('payment');
+      alert("Vui lòng chọn tài khoản nhận tiền cho đợt thanh toán này ở phần Thanh toán & Thu nợ bên dưới.");
+      const el = document.getElementById('pay-method-select');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -652,11 +649,30 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
         
         {/* HEADER MODAL */}
         <div className="flex justify-between items-center px-5 py-3.5 border-b border-slate-800 bg-slate-900 text-white flex-shrink-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Edit3 className="text-primary" size={20} />
             <h3 className="text-base sm:text-lg font-black uppercase tracking-tight">
               Sửa đơn hàng #{sale.id.substring(0, 8).toUpperCase()}
             </h3>
+            {finalRemainingDebt > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('payment-debt-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 transition cursor-pointer"
+                title="Bấm để cuộn nhanh xuống phần Thanh toán & Thu nợ"
+              >
+                <AlertCircle size={13} className="text-red-400 animate-pulse" />
+                <span>Nợ: {formatNumber(finalRemainingDebt)} ₫ ↓</span>
+              </button>
+            ) : (
+              <span className="hidden sm:flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <CheckCircle2 size={13} className="text-emerald-400" />
+                <span>Đã trả đủ</span>
+              </span>
+            )}
           </div>
           <button 
             type="button"
@@ -667,53 +683,11 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
           </button>
         </div>
 
-        {/* TABS NAVIGATION */}
-        <div className="flex border-b border-slate-200 bg-slate-100/80 px-4 sm:px-6 pt-2 gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('items')}
-            className={`pb-2.5 px-4 text-xs font-black uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-              activeTab === 'items'
-                ? 'border-primary text-primary bg-white rounded-t-lg shadow-xs'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 rounded-t-lg'
-            }`}
-          >
-            <ShoppingBag size={16} />
-            <span>1. Đơn hàng & Hàng hóa</span>
-            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-700 font-bold">
-              {editedItems.length} SP
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('payment')}
-            className={`pb-2.5 px-4 text-xs font-black uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-              activeTab === 'payment'
-                ? 'border-primary text-primary bg-white rounded-t-lg shadow-xs'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 rounded-t-lg'
-            }`}
-          >
-            <Wallet size={16} />
-            <span>2. Thanh toán & Thu nợ</span>
-            {finalRemainingDebt > 0 ? (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700 border border-red-200 animate-pulse">
-                Còn nợ: {formatNumber(finalRemainingDebt)} ₫
-              </span>
-            ) : (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-0.5">
-                <Check size={11} /> Đã trả đủ
-              </span>
-            )}
-          </button>
-        </div>
-
         {/* MODAL BODY */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 space-y-8">
 
-          {/* TAB 1: THÔNG TIN ĐƠN & HÀNG HÓA */}
-          {activeTab === 'items' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+          {/* PHẦN 1: THÔNG TIN ĐƠN HÀNG & HÀNG HÓA */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* CỘT TRÁI: THÔNG TIN KHÁCH HÀNG & GIAO HÀNG */}
               <div className="lg:col-span-1 space-y-4">
                 <div className="bg-white p-4 rounded-xl border-2 border-slate-200 shadow-sm space-y-4">
@@ -1152,12 +1126,39 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
                 </div>
               </div>
             </div>
-          )}
 
-          {/* TAB 2: THANH TOÁN & THU NỢ ĐA ĐỢT */}
-          {activeTab === 'payment' && (
-            <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+            {/* PHẦN 2: THANH TOÁN & THU NỢ (NẰM Ở DƯỚI) */}
+            <div id="payment-debt-section" className="pt-4 border-t-2 border-slate-300 space-y-6">
               
+              {/* TIÊU ĐỀ PHÂN ĐOẠN THANH TOÁN & THU NỢ */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-slate-900 text-primary flex items-center justify-center shadow-xs">
+                    <Wallet size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-black uppercase text-slate-900 tracking-tight flex items-center gap-2">
+                      <span>Thanh toán & Thu nợ</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Ghi nhận các đợt trả tiền, theo dõi công nợ và tự động phân bổ vào sổ quỹ tài khoản
+                    </p>
+                  </div>
+                </div>
+
+                {finalRemainingDebt > 0 ? (
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-red-100 text-red-700 border border-red-200 flex items-center gap-1.5 shadow-xs animate-pulse">
+                    <AlertCircle size={15} className="text-red-600" />
+                    Còn nợ lại: {formatNumber(finalRemainingDebt)} ₫
+                  </span>
+                ) : (
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-xs">
+                    <CheckCircle2 size={15} className="text-emerald-600" />
+                    Đã thanh toán đủ 100%
+                  </span>
+                )}
+              </div>
+
               {/* TRÊN CÙNG: 3 THẺ THỐNG KÊ RÕ RÀNG */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* 1. Tổng tiền hàng */}
@@ -1291,6 +1292,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
                         )}
                       </label>
                       <select
+                        id="pay-method-select"
                         value={payMethodId}
                         onChange={e => setPayMethodId(e.target.value)}
                         className="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-primary text-slate-900 bg-white shadow-sm"
@@ -1507,7 +1509,6 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
               </div>
 
             </div>
-          )}
 
         </div>
 
