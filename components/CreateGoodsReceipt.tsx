@@ -80,11 +80,15 @@ const NumericInput: React.FC<{
     );
 };
 
-const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () => void }> = ({ message, type, onClose }) => {
-    useEffect(() => { const timer = setTimeout(onClose, 4000); return () => clearTimeout(timer); }, [onClose]);
+const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () => void; duration?: number }> = ({ message, type, onClose, duration }) => {
+    useEffect(() => {
+        const time = duration !== undefined ? duration : (type === 'success' ? 1000 : 3000);
+        const timer = setTimeout(onClose, time);
+        return () => clearTimeout(timer);
+    }, [onClose, duration, type]);
     return (
         <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] flex items-center p-5 rounded-2xl shadow-2xl border-2 animate-fade-in-down ${type === 'error' ? 'bg-red-50 border-red-600 text-red-700' : 'bg-green-50 border-green-600 text-green-700'}`}>
-            {type === 'error' ? <XCircle className="mr-3" size={24} /> : <CheckCircle className="mr-3" size={24} />}
+            {type === 'error' ? <XCircle className="mr-3 shrink-0" size={24} /> : <CheckCircle className="mr-3 shrink-0" size={24} />}
             <span className="font-black uppercase text-sm">{message}</span>
             <button onClick={onClose} className="ml-4 hover:opacity-70"><X size={18} /></button>
         </div>
@@ -382,7 +386,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = isFullscreen ? 32 : 12;
-  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success'; duration?: number } | null>(null);
 
   // Modal states
   const [selectedReceiptDetail, setSelectedReceiptDetail] = useState<GoodsReceipt | null>(null);
@@ -583,7 +587,11 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     if (!keepSearch) {
       setSearchTerm('');
     }
-    setToast({ message: `Đã thêm ${product.name} vào đơn!`, type: 'success' });
+    setToast({ 
+      message: `Đã thêm ${product.name} (SL: ${formatNumber(quantity)}) thành công!`, 
+      type: 'success',
+      duration: 1000 
+    });
   };
 
   const handleRequestAdd = (product: Product, quantity: number, importPrice: number, keepSearch: boolean = false) => {
@@ -957,7 +965,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
         const newProduct = { id: docRef.id, ...data } as Product;
         addToReceipt(newProduct, 1, newProduct.importPrice);
         setIsProductModalOpen(false);
-        setToast({ message: "Đã tạo sản phẩm và thêm vào phiếu!", type: 'success' });
+        setToast({ message: `Đã tạo ${newProduct.name} và thêm vào phiếu (SL: 1) thành công!`, type: 'success', duration: 1000 });
     } catch (e) {
         console.error(e);
         setToast({ message: "Lỗi khi tạo sản phẩm.", type: 'error' });
@@ -988,7 +996,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
   return (
     <div className={`flex flex-col h-full gap-4 ${isFullscreen ? 'fixed inset-0 bg-slate-100 z-[100] p-4 overflow-y-auto' : ''}`}>
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
         
         <GoodsReceiptDetailModal receipt={selectedReceiptDetail} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
         <GoodsReceiptEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} receipt={selectedReceiptEdit} suppliers={suppliers} paymentMethods={paymentMethods} warehouses={warehouses} products={products} />

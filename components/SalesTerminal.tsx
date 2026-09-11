@@ -487,11 +487,15 @@ const getTodayString = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () => void }> = ({ message, type, onClose }) => {
-    useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, [onClose]);
+const Toast: React.FC<{ message: string; type: 'error' | 'success'; onClose: () => void; duration?: number }> = ({ message, type, onClose, duration }) => {
+    useEffect(() => {
+        const time = duration !== undefined ? duration : (type === 'success' ? 1000 : 3000);
+        const timer = setTimeout(onClose, time);
+        return () => clearTimeout(timer);
+    }, [onClose, duration, type]);
     return (
         <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-[200] flex items-center p-4 rounded-2xl shadow-2xl border-2 animate-fade-in-down ${type === 'error' ? 'bg-red-50 border-red-600 text-red-700' : 'bg-green-50 border-green-600 text-green-700'}`}>
-            {type === 'error' ? <XCircle className="mr-3" size={24} /> : <CheckCircle className="mr-3" size={24} />}
+            {type === 'error' ? <XCircle className="mr-3 shrink-0" size={24} /> : <CheckCircle className="mr-3 shrink-0" size={24} />}
             <span className="font-black uppercase text-sm">{message}</span>
             <button onClick={onClose} className="ml-4 hover:opacity-70"><X size={18} /></button>
         </div>
@@ -716,7 +720,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
-  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success'; duration?: number } | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('Khách vãng lai');
   const [isCustomerDropdownOpen, setCustomerDropdownOpen] = useState(false);
@@ -939,7 +943,11 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     if (!keepSearch) {
         setSearchTerm('');
     }
-    setToast({ message: "Đã thêm thành công!", type: 'success' });
+    setToast({ 
+      message: `Đã thêm ${product.name} (SL: ${formatNumber(quantity)}) thành công!`, 
+      type: 'success',
+      duration: 1000 
+    });
   };
 
   const moveItemUp = (index: number) => {
@@ -1303,7 +1311,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
   return (
     <div className={`flex flex-col h-full gap-4 ${isFullscreen ? 'fixed top-0 left-0 right-0 bottom-12 bg-slate-100 z-40 p-4 overflow-y-auto' : ''}`}>
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
         
         <SaleDetailModal 
           isOpen={isDetailModalOpen} 

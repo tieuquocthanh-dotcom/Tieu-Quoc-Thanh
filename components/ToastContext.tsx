@@ -4,13 +4,13 @@ import Toast from './Toast';
 type ToastType = 'success' | 'error';
 
 interface ToastContextProps {
-  showToast: (message: string, type: ToastType) => void;
+  showToast: (message: string, type: ToastType, duration?: number) => void;
 }
 
 const ToastContext = createContext<ToastContextProps | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType; duration?: number } | null>(null);
 
   useEffect(() => {
     const originalAlert = window.alert;
@@ -28,14 +28,14 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
   }, []);
 
-  const showToast = (message: string, type: ToastType) => {
-    setToast({ message, type });
+  const showToast = (message: string, type: ToastType, duration?: number) => {
+    setToast({ message, type, duration });
   };
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
     </ToastContext.Provider>
   );
 };
