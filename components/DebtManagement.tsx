@@ -5,6 +5,7 @@ import { db, auth } from '../services/firebase';
 import { Sale, GoodsReceipt, PaymentMethod, Customer, Supplier, Shipper, Product, Warehouse } from '../types';
 import { Loader, Search, ArrowUpRight, ArrowDownLeft, Wallet, Package, Users, Building, Eye, X, Calendar, CheckCircle, AlertTriangle, Clock, CreditCard, CheckCheck, Square, CheckSquare, User, Edit, ChevronDown, ChevronRight, ArrowLeftRight, Repeat, Building2, List, Layers, Phone, DollarSign } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
+import { searchVietnameseMatch, filterAndSortCustomers } from '../utils/vietnameseSearch';
 import Pagination from './Pagination';
 import SaleDetailModal from './SaleDetailModal';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
@@ -823,13 +824,15 @@ const DebtManagement: React.FC = () => {
     const filteredFlatList = useMemo(() => {
         const list = activeTab === 'receivables' ? salesDebt : receiptsDebt;
         if (!searchTerm.trim()) return list;
-        const term = searchTerm.toLowerCase().trim();
+        const term = searchTerm.trim();
         return list.filter(item => {
             const anyItem = item as any;
-            const name = (anyItem.customerName || anyItem.supplierName || '').toLowerCase();
-            const phone = (anyItem.customerPhone || anyItem.supplierPhone || '').toLowerCase();
-            const id = (item.id || '').toLowerCase();
-            return name.includes(term) || phone.includes(term) || id.includes(term);
+            const name = anyItem.customerName || anyItem.supplierName || '';
+            const phone = anyItem.customerPhone || anyItem.supplierPhone || '';
+            const id = item.id || '';
+            return searchVietnameseMatch(name, term) || 
+                   searchVietnameseMatch(phone, term) || 
+                   id.toLowerCase().includes(term.toLowerCase());
         });
     }, [activeTab, salesDebt, receiptsDebt, searchTerm]);
 
@@ -1507,10 +1510,12 @@ const DebtManagement: React.FC = () => {
                         )}
                         {isSearchDropdownOpen && searchTerm && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto overflow-x-hidden">
-                                {currentSummary.filter(d => (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())).length === 0 ? (
-                                    <div className="p-4 text-center text-xs font-black text-slate-400 uppercase tracking-widest">Không có dữ liệu</div>
-                                ) : (
-                                    currentSummary.filter(d => (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())).map(d => (
+                                {(() => {
+                                    const filtered = filterAndSortCustomers(currentSummary, searchTerm, 30);
+                                    if (filtered.length === 0) {
+                                        return <div className="p-4 text-center text-xs font-black text-slate-400 uppercase tracking-widest">Không có dữ liệu</div>;
+                                    }
+                                    return filtered.map(d => (
                                         <button 
                                             key={d.id} 
                                             onClick={() => {setSearchTerm(d.name); setIsSearchDropdownOpen(false);}}
@@ -1527,8 +1532,8 @@ const DebtManagement: React.FC = () => {
                                             </div>
                                             <div className="text-sm font-black text-primary">{formatNumber(d.totalDebt)} ₫</div>
                                         </button>
-                                    ))
-                                )}
+                                    ));
+                                })()}
                             </div>
                         )}
                     </div>

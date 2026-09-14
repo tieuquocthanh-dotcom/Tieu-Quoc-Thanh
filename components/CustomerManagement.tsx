@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, getDocs, where, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Customer } from '../types';
-import { PlusCircle, Edit, Trash2, XCircle, Loader, Users, Search, Contact } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, XCircle, Loader, Users, Search, Contact, X } from 'lucide-react';
 import Pagination from './Pagination';
 import ConfirmationModal from './ConfirmationModal';
 import CustomerModal from './CustomerModal';
+import { filterAndSortCustomers } from '../utils/vietnameseSearch';
 
 const CustomerManagement: React.FC = () => {
   const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
@@ -39,15 +40,10 @@ const CustomerManagement: React.FC = () => {
   }, []);
 
   const filteredCustomers = useMemo(() => {
-    if (!searchTerm) {
+    if (!searchTerm.trim()) {
       return allCustomers;
     }
-    const lowercasedFilter = searchTerm.toLowerCase();
-    return allCustomers.filter(customer =>
-      (customer.name && customer.name.toLowerCase().includes(lowercasedFilter)) ||
-      (customer.phone && customer.phone.toLowerCase().includes(lowercasedFilter)) ||
-      (customer.address && customer.address.toLowerCase().includes(lowercasedFilter))
-    );
+    return filterAndSortCustomers(allCustomers, searchTerm, allCustomers.length);
   }, [allCustomers, searchTerm]);
   
   const paginatedCustomers = useMemo(() => {
@@ -157,11 +153,30 @@ const CustomerManagement: React.FC = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
               <input
                 type="text"
-                placeholder="Tìm kiếm khách hàng..."
+                placeholder="Tìm tên, SĐT, địa chỉ..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setCurrentPage(1);
+                }}
+                className="w-full pl-10 pr-9 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  title="Xóa tìm kiếm"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
           </div>
 

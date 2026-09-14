@@ -6,6 +6,7 @@ import { Sale, SaleItem, Customer, Product, Manufacturer } from '../types';
 import { Loader, XCircle, Search, List, Package, Eye, DollarSign, TrendingUp, Building, User, Tag, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Pagination from './Pagination';
 import { formatNumber } from '../utils/formatting';
+import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
 import SaleDetailModal from './SaleDetailModal';
 
 const getInitialEndDate = () => new Date().toISOString().split('T')[0];
@@ -173,11 +174,7 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
     // Gợi ý khách hàng
     const suggestedCustomers = useMemo(() => {
         if (!customerSearchTerm.trim()) return [];
-        const lower = customerSearchTerm.toLowerCase();
-        return customers.filter(c => 
-            c.name.toLowerCase().includes(lower) || 
-            (c.phone && c.phone.includes(lower))
-        ).slice(0, 10);
+        return filterAndSortCustomers(customers, customerSearchTerm, 20);
     }, [customers, customerSearchTerm]);
 
     const flattenedItems = useMemo(() => {
@@ -224,9 +221,9 @@ const ProductSalesHistory: React.FC<ProductSalesHistoryProps> = ({ userRole }) =
                                   (item.productName || '').toLowerCase().includes(lowerProd) ||
                                   (item.shortName || '').toLowerCase().includes(lowerProd);
             
-            const matchCustomer = customerSearchTerm === '' || 
-                                  item.customerName.toLowerCase().includes(lowerCustSearch) ||
-                                  (item.customerPhone && item.customerPhone.includes(lowerCustSearch));
+            const matchCustomer = !customerSearchTerm.trim() || 
+                                  searchVietnameseMatch(item.customerName, customerSearchTerm) ||
+                                  (item.customerPhone ? searchVietnameseMatch(item.customerPhone, customerSearchTerm) : false);
             
             const matchManufacturer = selectedManufacturerId === 'all' || item.manufacturerId === selectedManufacturerId;
 

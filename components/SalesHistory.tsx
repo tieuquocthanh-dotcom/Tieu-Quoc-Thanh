@@ -9,6 +9,7 @@ import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import SalePrintPreviewModal from './SalePrintPreviewModal';
 import { formatNumber, parseNumber } from '../utils/formatting';
+import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
 import * as XLSX from 'xlsx';
 
 const getInitialEndDate = () => new Date().toISOString().split('T')[0];
@@ -321,10 +322,9 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
             if (endDate) { const ed = new Date(endDate); ed.setHours(23, 59, 59, 999); if (saleDate > ed) return false; }
         }
         if (customerSearch) {
-            const lowerSearch = customerSearch.toLowerCase();
-            const nameMatch = (sale.customerName || '').toLowerCase().includes(lowerSearch);
             const customer = customers.find(c => c.id === sale.customerId);
-            const phoneMatch = customer && customer.phone && customer.phone.includes(lowerSearch);
+            const nameMatch = searchVietnameseMatch(sale.customerName, customerSearch);
+            const phoneMatch = customer && customer.phone ? searchVietnameseMatch(customer.phone, customerSearch) : false;
             if (!nameMatch && !phoneMatch) return false;
         }
         if (orderIdSearch && !(sale.id || '').toLowerCase().includes(orderIdSearch.toLowerCase())) return false;
@@ -348,8 +348,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
 
   const suggestedCustomers = useMemo(() => {
       if (!customerSearch.trim()) return [];
-      const lower = customerSearch.toLowerCase();
-      return customers.filter(c => c.name.toLowerCase().includes(lower) || (c.phone && c.phone.includes(lower))).slice(0, 10);
+      return filterAndSortCustomers(customers, customerSearch, 20);
   }, [customers, customerSearch]);
 
   const suggestedProducts = useMemo(() => {

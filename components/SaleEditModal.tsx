@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
+import { filterAndSortCustomers } from '../utils/vietnameseSearch';
 import CustomerModal from './CustomerModal';
 
 interface SaleEditModalProps {
@@ -262,13 +263,8 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
   }, [newTotal, effectiveAmountPaid]);
 
   const filteredCustomers = useMemo(() => {
-    if (!custSearch) return localCustomers.slice(0, 15);
-    const lower = custSearch.toLowerCase();
-    return localCustomers.filter(c => 
-      (c.name || '').toLowerCase().includes(lower) || 
-      (c.phone || '').includes(lower) || 
-      (c.address || '').toLowerCase().includes(lower)
-    ).slice(0, 15);
+    if (!custSearch.trim()) return localCustomers.slice(0, 20);
+    return filterAndSortCustomers(localCustomers, custSearch, 30);
   }, [localCustomers, custSearch]);
 
   const filteredProducts = useMemo(() => {

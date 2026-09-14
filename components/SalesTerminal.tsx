@@ -19,6 +19,7 @@ import { ProductModal } from './ProductManagement';
 import { ShipperModal } from './ShippingManagement';
 import { User as FirebaseAuthUser } from 'firebase/auth';
 import { StockStatusBadge } from './StockStatusBadge';
+import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
 
 const NumericInput: React.FC<{
     value: number;
@@ -727,6 +728,21 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const customerDropdownRef = useRef<HTMLDivElement>(null);
   const [selectedShipperId, setSelectedShipperId] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+
+  // Xử lý click outside để đóng dropdown tìm kiếm khách hàng
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target as Node)) {
+        setCustomerDropdownOpen(false);
+        if (!customerSearchTerm.trim()) {
+          const currentCust = customers.find(c => c.id === selectedCustomerId);
+          setCustomerSearchTerm(currentCust ? currentCust.name : 'Khách vãng lai');
+        }
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [customerSearchTerm, selectedCustomerId, customers]);
 
   useEffect(() => {
     if (warehouses.length > 0 && !selectedWarehouseId) {
@@ -1450,10 +1466,88 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                                 <div className="flex items-center gap-3 w-full md:w-2/3 lg:w-1/2">
                                     <h3 className="text-sm font-black uppercase flex items-center text-blue-600 whitespace-nowrap"><Info size={16} className="mr-1 hidden sm:block"/> Nghiệp vụ</h3>
-                                    <div className="relative flex gap-1 flex-1 min-w-[200px]" ref={customerDropdownRef}><div className="relative flex-1"><User className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><input type="text" placeholder="Tìm khách..." value={customerSearchTerm} onChange={e => { setCustomerSearchTerm(e.target.value); setCustomerDropdownOpen(true); }} onFocus={() => { if (customerSearchTerm === 'Khách vãng lai') { setCustomerSearchTerm(''); setSelectedCustomerId(''); } setCustomerDropdownOpen(true); }} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black outline-none border-blue-300 ring-2 ring-blue-50 focus:ring-blue-200 shadow-sm" />{isCustomerDropdownOpen && customerSearchTerm && (<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto"><button onClick={() => { setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setCustomerDropdownOpen(false); setIsDebt(false); setWasLastOrderDebt(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b font-black text-blue-700">KHÁCH VÃNG LAI</button>{customers.filter(c => {
-    const term = (customerSearchTerm || '').toLowerCase();
-    return (c.name || '').toLowerCase().includes(term) || (c.phone || '').includes(term);
-}).slice(0,5).map(c => (<button key={c.id} onClick={() => { setSelectedCustomerId(c.id); setCustomerSearchTerm(c.name); setCustomerDropdownOpen(false); }} className="w-full text-left px-2 py-1.5 hover:bg-blue-50 text-[10px] border-b flex justify-between font-black text-black"><span>{c.name}</span><span>{c.phone}</span></button>))}</div>)}</div><button onClick={() => setIsCustomerModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border border-green-300 hover:bg-green-600 hover:text-white transition shadow-sm"><Plus size={18}/></button></div>
+                                    <div className="relative flex gap-1 flex-1 min-w-[200px]" ref={customerDropdownRef}>
+                                        <div className="relative flex-1">
+                                            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={16}/>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Tìm tên / SĐT khách..." 
+                                                value={customerSearchTerm} 
+                                                onChange={e => { 
+                                                    setCustomerSearchTerm(e.target.value); 
+                                                    setCustomerDropdownOpen(true); 
+                                                }} 
+                                                onFocus={() => { 
+                                                    if (customerSearchTerm === 'Khách vãng lai') { 
+                                                        setCustomerSearchTerm(''); 
+                                                        setSelectedCustomerId(''); 
+                                                    } 
+                                                    setCustomerDropdownOpen(true); 
+                                                }} 
+                                                className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black outline-none border-blue-300 ring-2 ring-blue-50 focus:ring-blue-200 shadow-sm text-slate-800" 
+                                            />
+                                            {customerSearchTerm && customerSearchTerm !== 'Khách vãng lai' && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => { 
+                                                        setSelectedCustomerId(''); 
+                                                        setCustomerSearchTerm('Khách vãng lai'); 
+                                                        setCustomerDropdownOpen(false); 
+                                                        setIsDebt(false); 
+                                                        setWasLastOrderDebt(false); 
+                                                    }}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                                                    title="Đặt về Khách vãng lai"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
+                                            {isCustomerDropdownOpen && (
+                                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => { 
+                                                            setSelectedCustomerId(''); 
+                                                            setCustomerSearchTerm('Khách vãng lai'); 
+                                                            setCustomerDropdownOpen(false); 
+                                                            setIsDebt(false); 
+                                                            setWasLastOrderDebt(false); 
+                                                        }} 
+                                                        className="w-full text-left px-3 py-2 hover:bg-blue-50 text-xs border-b font-black text-blue-700 flex justify-between items-center transition-colors"
+                                                    >
+                                                        <span>KHÁCH VÃNG LAI</span>
+                                                        <span className="text-[10px] text-slate-400 font-normal">Mặc định</span>
+                                                    </button>
+                                                    {(() => {
+                                                        const filtered = filterAndSortCustomers(customers, customerSearchTerm, 40);
+                                                        if (filtered.length === 0 && customerSearchTerm.trim()) {
+                                                            return (
+                                                                <div className="p-3 text-center text-xs text-slate-400 font-bold">
+                                                                    Không tìm thấy khách hàng nào khớp với "{customerSearchTerm}"
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return filtered.map(c => (
+                                                            <button 
+                                                                key={c.id} 
+                                                                type="button"
+                                                                onClick={() => { 
+                                                                    setSelectedCustomerId(c.id); 
+                                                                    setCustomerSearchTerm(c.name); 
+                                                                    setCustomerDropdownOpen(false); 
+                                                                }} 
+                                                                className={`w-full text-left px-3 py-2 hover:bg-blue-50 text-xs border-b last:border-0 flex justify-between items-center font-black transition-colors ${selectedCustomerId === c.id ? 'bg-blue-100 text-blue-900' : 'text-slate-800'}`}
+                                                            >
+                                                                <span className="truncate mr-2">{c.name}</span>
+                                                                <span className="text-slate-500 font-bold text-[11px] shrink-0">{c.phone || ''}</span>
+                                                            </button>
+                                                        ));
+                                                    })()}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button onClick={() => setIsCustomerModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border border-green-300 hover:bg-green-600 hover:text-white transition shadow-sm" title="Thêm khách hàng mới"><Plus size={18}/></button>
+                                    </div>
                                 </div>
                                 <div className="flex gap-4 md:shrink-0 w-full md:w-auto justify-end">
                                     <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={shippingPayer === 'customer'} onChange={e => setShippingPayer(e.target.checked ? 'customer' : 'shop')} className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-0" /><span className="text-xs font-black uppercase text-blue-600">Khách ship</span></label>
@@ -1808,23 +1902,33 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                           </div>
                           
                           <div className="relative mb-2">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16}/>
                               <input 
                                   type="text" 
                                   placeholder="Tìm đơn hàng theo tên SP, KH, sdt..." 
                                   value={todaySalesSearchTerm} 
                                   onChange={e => setTodaySalesSearchTerm(e.target.value)} 
-                                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none shadow-2xs"
+                                  className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none shadow-2xs"
                               />
+                              {todaySalesSearchTerm && (
+                                  <button
+                                      type="button"
+                                      onClick={() => setTodaySalesSearchTerm('')}
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-500 hover:text-slate-800 transition cursor-pointer z-10"
+                                      title="Xóa tìm kiếm (X)"
+                                      aria-label="Xóa nội dung tìm kiếm"
+                                  >
+                                      <X size={14} className="stroke-[2.5]" />
+                                  </button>
+                              )}
                           </div>
 
                           {todaySales.filter(sale => {
-                              const searchLower = todaySalesSearchTerm.toLowerCase();
-                              if (!searchLower) return true;
+                              if (!todaySalesSearchTerm.trim()) return true;
                               return (
-                                  (sale.customerName && sale.customerName.toLowerCase().includes(searchLower)) ||
-                                  ((sale as any).customerPhone && (sale as any).customerPhone.toLowerCase().includes(searchLower)) ||
-                                  (sale.items && sale.items.some(item => item.productName && item.productName.toLowerCase().includes(searchLower)))
+                                  (sale.customerName && searchVietnameseMatch(sale.customerName, todaySalesSearchTerm)) ||
+                                  ((sale as any).customerPhone && searchVietnameseMatch((sale as any).customerPhone, todaySalesSearchTerm)) ||
+                                  (sale.items && sale.items.some(item => item.productName && searchVietnameseMatch(item.productName, todaySalesSearchTerm)))
                               );
                            }).map((sale, orderIdx) => {
                               const totalProfit = sale.items?.reduce((acc, it) => acc + (it.price - (it.importPrice || 0)) * it.quantity, 0) || 0;
