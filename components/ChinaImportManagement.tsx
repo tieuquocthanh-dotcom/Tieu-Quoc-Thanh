@@ -40,7 +40,10 @@ const DecimalInput: React.FC<{
     onChange: (val: string) => void;
     className?: string;
     placeholder?: string;
-}> = ({ value, onChange, className, placeholder }) => {
+    autoFocus?: boolean;
+    onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+    onBlur?: () => void;
+}> = ({ value, onChange, className, placeholder, autoFocus, onKeyDown, onBlur }) => {
     const [isFocused, setIsFocused] = useState(false);
     const displayValue = isFocused ? value : (value === '' ? '' : formatNumber(parseNumber(value)));
 
@@ -55,9 +58,17 @@ const DecimalInput: React.FC<{
             inputMode="decimal"
             placeholder={placeholder}
             value={displayValue}
+            autoFocus={autoFocus}
             onChange={handleChange}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
+            onFocus={(e) => {
+                setIsFocused(true);
+                e.target.select();
+            }}
+            onBlur={() => {
+                setIsFocused(false);
+                if (onBlur) onBlur();
+            }}
+            onKeyDown={onKeyDown}
             className={className}
         />
     );
@@ -172,8 +183,8 @@ const EditImportModal: React.FC<{
     products: Product[];
     allImports: ChinaImport[];
     onClose: () => void;
-    onSave: (id: string, data: Partial<ChinaImport>) => void;
-    onDelete: (id: string) => void;
+    onSave: (id: string, data: Partial<ChinaImport>) => Promise<void> | void;
+    onDelete: (id: string) => Promise<void> | void;
 }> = ({ importData, products, allImports, onClose, onSave, onDelete }) => {
     const [orderName, setOrderName] = useState(importData.orderName || '');
     const [status, setStatus] = useState<ChinaImportStatus>(importData.status || 'ordered');
@@ -183,7 +194,7 @@ const EditImportModal: React.FC<{
     const [shippingFeeExtra, setShippingFeeExtra] = useState(importData.shippingFeeExtra.toString());
     const [currencyExchangeFee, setCurrencyExchangeFee] = useState((importData.currencyExchangeFee || 0).toString());
     const [note, setNote] = useState(importData.note || '');
-    const [cart, setCart] = useState<ChinaImportItem[]>(Array.isArray(importData.items) ? importData.items : []);
+    const [cart, setCart] = useState<ChinaImportItem[]>(() => Array.isArray(importData.items) ? JSON.parse(JSON.stringify(importData.items)) : []);
     
     // Autocomplete states for adding new items
     const [searchTerm, setSearchTerm] = useState('');
@@ -194,9 +205,11 @@ const EditImportModal: React.FC<{
     const dropdownRef = useRef<HTMLDivElement>(null);
     
     // Inline Edit States for table items
+    const originalItemRef = useRef<ChinaImportItem | null>(null);
     const [inlineEditingIndex, setInlineEditingIndex] = useState<number | null>(null);
     const [inlineQty, setInlineQty] = useState<string>('0');
     const [inlinePrice, setInlinePrice] = useState<string>('0');
+    const [isSaving, setIsSaving] = useState(false);
 
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
@@ -273,41 +286,129 @@ const EditImportModal: React.FC<{
 
     const handleStartInlineEdit = (index: number) => {
         const item = cart[index];
+        originalItemRef.current = { ...item };
         setInlineEditingIndex(index);
         setInlineQty(String(item.quantity).replace('.', ','));
         setInlinePrice(String(item.priceCNY).replace('.', ','));
     };
 
+    const handleInlineQtyChange = (newQtyStr: string) => {
+        setInlineQty(newQtyStr);
+        if (inlineEditingIndex !== null) {
+            const qtyNum = parseNumber(newQtyStr);
+            const priceNum = parseNumber(inlinePrice);
+            if (qtyNum > 0) {
+                setCart(prev => {
+                    const next = [...prev];
+                    const activePrice = priceNum > 0 ? priceNum : next[inlineEditingIndex].priceCNY;
+                    next[inlineEditingIndex] = {
+                        ...next[inlineEditingIndex],
+                        quantity: qtyNum,
+                        totalCNY: qtyNum * activePrice
+                    };
+                    return next;
+                });
+            }
+        }
+    };
+
+    const handleInlinePriceChange = (newPriceStr: string) => {
+        setInlinePrice(newPriceStr);
+        if (inlineEditingIndex !== null) {
+            const qtyNum = parseNumber(inlineQty);
+            const priceNum = parseNumber(newPriceStr);
+            if (priceNum >= 0) {
+                setCart(prev => {
+                    const next = [...prev];
+                    const activeQty = qtyNum > 0 ? qtyNum : next[inlineEditingIndex].quantity;
+                    next[inlineEditingIndex] = {
+                        ...next[inlineEditingIndex],
+                        priceCNY: priceNum,
+                        totalCNY: activeQty * priceNum
+                    };
+                    return next;
+                });
+            }
+        }
+    };
+
     const handleSaveInlineEdit = (index: number) => {
         const qty = parseNumber(inlineQty);
         const price = parseNumber(inlinePrice);
-        if (qty <= 0 || price <= 0) return;
+        if (qty <= 0) {
+            alert("Số lượng phải lớn hơn 0");
+            return;
+        }
 
-        const newCart = [...cart];
-        newCart[index] = {
-            ...newCart[index],
-            quantity: qty,
-            priceCNY: price,
-            totalCNY: qty * price
-        };
-        setCart(newCart);
+        setCart(prev => {
+            const newCart = [...prev];
+            newCart[index] = {
+                ...newCart[index],
+                quantity: qty,
+                priceCNY: price,
+                totalCNY: qty * price
+            };
+            return newCart;
+        });
+        originalItemRef.current = null;
         setInlineEditingIndex(null);
     };
 
-    const handleSave = () => {
-        onSave(importData.id, {
-            orderName,
-            status,
-            items: cart,
-            exchangeRate: parsedExchangeRate,
-            shippingFeeCN: parsedShippingFeeCN,
-            shippingFeeVN: parseNumber(shippingFeeVN),
-            shippingFeeExtra: parseNumber(shippingFeeExtra),
-            currencyExchangeFee: parseNumber(currencyExchangeFee),
-            totalCostCNY: finalTotalCNY,
-            totalCostVND: finalTotalVND,
-            note,
-        });
+    const handleCancelInlineEdit = (index: number) => {
+        if (originalItemRef.current) {
+            const restored = originalItemRef.current;
+            setCart(prev => {
+                const next = [...prev];
+                next[index] = restored;
+                return next;
+            });
+        }
+        originalItemRef.current = null;
+        setInlineEditingIndex(null);
+    };
+
+    const handleSave = async () => {
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            // Commit active inline editing row if still open
+            let finalCart = [...cart];
+            if (inlineEditingIndex !== null && inlineEditingIndex >= 0 && inlineEditingIndex < finalCart.length) {
+                const qty = parseNumber(inlineQty);
+                const price = parseNumber(inlinePrice);
+                if (qty > 0) {
+                    finalCart[inlineEditingIndex] = {
+                        ...finalCart[inlineEditingIndex],
+                        quantity: qty,
+                        priceCNY: price,
+                        totalCNY: qty * price
+                    };
+                }
+            }
+
+            const currentTotalProductCNY = finalCart.reduce((sum, item) => sum + (item.totalCNY || 0), 0);
+            const currentFinalTotalCNY = currentTotalProductCNY + parsedShippingFeeCN;
+            const currentFinalTotalVND = (currentFinalTotalCNY * parsedExchangeRate) + parseNumber(shippingFeeVN) + parseNumber(shippingFeeExtra) + parseNumber(currencyExchangeFee);
+
+            await onSave(importData.id, {
+                orderName,
+                status,
+                items: finalCart,
+                exchangeRate: parsedExchangeRate,
+                shippingFeeCN: parsedShippingFeeCN,
+                shippingFeeVN: parseNumber(shippingFeeVN),
+                shippingFeeExtra: parseNumber(shippingFeeExtra),
+                currencyExchangeFee: parseNumber(currencyExchangeFee),
+                totalCostCNY: currentFinalTotalCNY,
+                totalCostVND: currentFinalTotalVND,
+                note,
+            });
+        } catch (error) {
+            console.error("Lỗi khi lưu đơn hàng TQ:", error);
+            alert("Lỗi khi lưu đơn: " + (error instanceof Error ? error.message : String(error)));
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -387,48 +488,93 @@ const EditImportModal: React.FC<{
                                         {cart.map((item, index) => {
                                             const isEditingThis = inlineEditingIndex === index;
                                             return (
-                                                <tr key={index} className={`transition-colors ${isEditingThis ? 'bg-orange-50' : 'hover:bg-slate-50'}`}>
+                                                <tr key={index} className={`transition-colors ${isEditingThis ? 'bg-orange-50 ring-1 ring-orange-300' : 'hover:bg-slate-50'}`}>
                                                     <td className="p-3 text-slate-900 font-bold">{item.productName}</td>
                                                     <td className="p-3 text-center">
                                                         {isEditingThis ? (
                                                             <DecimalInput 
                                                                 value={inlineQty} 
-                                                                onChange={setInlineQty}
-                                                                className="w-16 p-1 border-2 border-orange-400 rounded text-center font-black bg-white text-black"
+                                                                onChange={handleInlineQtyChange}
+                                                                autoFocus
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') handleSaveInlineEdit(index);
+                                                                    if (e.key === 'Escape') handleCancelInlineEdit(index);
+                                                                }}
+                                                                className="w-20 p-1 border-2 border-orange-400 rounded text-center font-black bg-white text-black shadow-inner"
                                                             />
                                                         ) : (
-                                                            <span className="text-blue-600 font-black">{item.quantity}</span>
+                                                            <span 
+                                                                onClick={() => handleStartInlineEdit(index)}
+                                                                className="text-blue-600 font-black cursor-pointer hover:underline hover:bg-blue-50 px-2 py-1 rounded" 
+                                                                title="Bấm để sửa số lượng"
+                                                            >
+                                                                {item.quantity}
+                                                            </span>
                                                         )}
                                                     </td>
                                                     <td className="p-3 text-right">
                                                         {isEditingThis ? (
                                                             <DecimalInput 
                                                                 value={inlinePrice} 
-                                                                onChange={setInlinePrice}
-                                                                className="w-24 p-1 border-2 border-orange-400 rounded text-right font-black bg-white text-black"
+                                                                onChange={handleInlinePriceChange}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') handleSaveInlineEdit(index);
+                                                                    if (e.key === 'Escape') handleCancelInlineEdit(index);
+                                                                }}
+                                                                className="w-24 p-1 border-2 border-orange-400 rounded text-right font-black bg-white text-black shadow-inner"
                                                             />
                                                         ) : (
-                                                            <span className="text-slate-900 font-medium">{formatNumber(item.priceCNY)}</span>
+                                                            <span 
+                                                                onClick={() => handleStartInlineEdit(index)}
+                                                                className="text-slate-900 font-medium cursor-pointer hover:underline hover:bg-slate-100 px-2 py-1 rounded" 
+                                                                title="Bấm để sửa đơn giá"
+                                                            >
+                                                                {formatNumber(item.priceCNY)}
+                                                            </span>
                                                         )}
                                                     </td>
                                                     <td className="p-3 text-right font-black text-red-600">
-                                                        {isEditingThis ? (
-                                                            formatNumber(Number(inlineQty) * Number(inlinePrice))
-                                                        ) : (
-                                                            formatNumber(item.totalCNY)
-                                                        )}
+                                                        {formatNumber(item.totalCNY)}
                                                     </td>
                                                     <td className="p-3 text-center">
                                                         <div className="flex justify-center space-x-1">
                                                             {isEditingThis ? (
                                                                 <>
-                                                                    <button onClick={() => handleSaveInlineEdit(index)} className="text-green-600 hover:bg-green-100 p-1.5 rounded-lg border border-green-200 shadow-sm" title="Lưu dòng này"><Check size={16}/></button>
-                                                                    <button onClick={() => setInlineEditingIndex(null)} className="text-slate-500 hover:bg-slate-100 p-1.5 rounded-lg border border-slate-200 shadow-sm" title="Hủy bỏ"><RotateCcw size={16}/></button>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => handleSaveInlineEdit(index)} 
+                                                                        className="text-green-700 bg-green-50 hover:bg-green-100 p-1.5 rounded-lg border border-green-300 shadow-sm" 
+                                                                        title="Lưu dòng này (Enter)"
+                                                                    >
+                                                                        <Check size={16}/>
+                                                                    </button>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => handleCancelInlineEdit(index)} 
+                                                                        className="text-slate-600 bg-slate-50 hover:bg-slate-100 p-1.5 rounded-lg border border-slate-300 shadow-sm" 
+                                                                        title="Hủy bỏ (Esc)"
+                                                                    >
+                                                                        <RotateCcw size={16}/>
+                                                                    </button>
                                                                 </>
                                                             ) : (
                                                                 <>
-                                                                    <button onClick={() => handleStartInlineEdit(index)} className="text-blue-600 hover:bg-blue-100 p-1.5 rounded-lg border border-blue-100 shadow-sm" title="Sửa dòng này"><Edit size={16}/></button>
-                                                                    <button onClick={() => { const nc = [...cart]; nc.splice(index, 1); setCart(nc); }} className="text-red-500 hover:bg-red-100 p-1.5 rounded-lg border border-red-100 shadow-sm" title="Xóa"><Trash2 size={16}/></button>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => handleStartInlineEdit(index)} 
+                                                                        className="text-blue-600 hover:bg-blue-100 p-1.5 rounded-lg border border-blue-100 shadow-sm" 
+                                                                        title="Sửa dòng này"
+                                                                    >
+                                                                        <Edit size={16}/>
+                                                                    </button>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => { const nc = [...cart]; nc.splice(index, 1); setCart(nc); }} 
+                                                                        className="text-red-500 hover:bg-red-100 p-1.5 rounded-lg border border-red-100 shadow-sm" 
+                                                                        title="Xóa"
+                                                                    >
+                                                                        <Trash2 size={16}/>
+                                                                    </button>
                                                                 </>
                                                             )}
                                                         </div>
@@ -489,7 +635,15 @@ const EditImportModal: React.FC<{
                     <button onClick={() => setIsDeleteConfirmOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl font-black text-xs uppercase flex items-center transition active:scale-95"><Trash2 size={16} className="mr-2"/> Xóa Đơn</button>
                     <div className="flex gap-3">
                         <button onClick={onClose} className="px-5 py-2 bg-white border border-slate-300 rounded-xl text-slate-600 font-black text-xs uppercase hover:bg-slate-100 transition">Hủy bỏ</button>
-                        <button onClick={handleSave} className="px-8 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-200 transition active:scale-95">Lưu Thay Đổi</button>
+                        <button 
+                            type="button"
+                            onClick={handleSave} 
+                            disabled={isSaving}
+                            className="px-8 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-200 transition active:scale-95 flex items-center"
+                        >
+                            {isSaving ? <Loader size={16} className="animate-spin mr-2" /> : <Save size={16} className="mr-2" />}
+                            {isSaving ? "Đang lưu..." : "Lưu Thay Đổi"}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -747,7 +901,35 @@ const ChinaImportManagement: React.FC = () => {
     return (
         <div className="h-full flex flex-col">
             {isProductModalOpen && <ProductModal product={null} manufacturers={manufacturers} allProductsForCombo={products} onClose={() => setIsProductModalOpen(false)} onSave={async (d) => { const r = await addDoc(collection(db, 'products'), { ...d, createdAt: serverTimestamp() }); setSelectedProductId(r.id); setSearchTerm(d.name); setIsProductModalOpen(false); }} existingNames={products.map(p => p.name)}/>}
-            {editingImport && <EditImportModal importData={editingImport} products={products} allImports={imports} onClose={() => setEditingImport(null)} onSave={async (id, d) => { await updateDoc(doc(db, 'chinaImports', id), d); setEditingImport(null); }} onDelete={async (id) => { await deleteDoc(doc(db, 'chinaImports', id)); setEditingImport(null); }}/>}
+            {editingImport && (
+                <EditImportModal 
+                    importData={editingImport} 
+                    products={products} 
+                    allImports={imports} 
+                    onClose={() => setEditingImport(null)} 
+                    onSave={async (id, d) => { 
+                        try {
+                            await updateDoc(doc(db, 'chinaImports', id), {
+                                ...d,
+                                updatedAt: serverTimestamp()
+                            });
+                            setEditingImport(null); 
+                        } catch (err) {
+                            console.error("Lỗi khi cập nhật đơn hàng:", err);
+                            alert("Lỗi khi lưu đơn hàng: " + (err instanceof Error ? err.message : String(err)));
+                        }
+                    }} 
+                    onDelete={async (id) => { 
+                        try {
+                            await deleteDoc(doc(db, 'chinaImports', id)); 
+                            setEditingImport(null); 
+                        } catch (err) {
+                            console.error("Lỗi khi xóa đơn hàng:", err);
+                            alert("Lỗi khi xóa đơn hàng: " + (err instanceof Error ? err.message : String(err)));
+                        }
+                    }}
+                />
+            )}
             {viewingImport && <ChinaImportDetailModal importData={viewingImport} onClose={() => setViewingImport(null)}/>}
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 flex-shrink-0">

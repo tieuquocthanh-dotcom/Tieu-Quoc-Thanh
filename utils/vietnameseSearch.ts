@@ -28,44 +28,73 @@ export const getVietnameseSearchScore = (
   const tClean = removeVietnameseTones(tNorm);
   const qClean = removeVietnameseTones(qNorm);
 
+  const qHasAccents = qNorm !== qClean;
+
   // Exact matches
   if (tNorm === qNorm) return 1000;
-  if (tClean === qClean) return 900;
-  if (tNorm.startsWith(qNorm)) return 800;
-  if (tClean.startsWith(qClean)) return 700;
+  if (!qHasAccents && tClean === qClean) return 950;
 
-  const tWordsNorm = tNorm.split(/\s+/).filter(Boolean);
-  const tWordsClean = tClean.split(/\s+/).filter(Boolean);
-  const qWordsNorm = qNorm.split(/\s+/).filter(Boolean);
-  const qWordsClean = qClean.split(/\s+/).filter(Boolean);
+  // Clean words of boundary punctuation (e.g. "Hùng,", "Hùng.", "(Hùng)")
+  const cleanWord = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+  const tWordsNorm = tNorm.split(/\s+/).map(cleanWord).filter(Boolean);
+  const tWordsClean = tClean.split(/\s+/).map(cleanWord).filter(Boolean);
+  const qWordsNorm = qNorm.split(/\s+/).map(cleanWord).filter(Boolean);
+  const qWordsClean = qClean.split(/\s+/).map(cleanWord).filter(Boolean);
 
   // Single word query matching exact word in target
   // e.g. target: "Nguyễn Văn Hùng", query: "hùng" -> word matches "hùng"!
   if (qWordsNorm.length === 1) {
     const qwNorm = qWordsNorm[0];
     const qwClean = qWordsClean[0];
-    if (tWordsNorm.some(w => w === qwNorm)) return 650;
-    if (tWordsNorm.some(w => w.startsWith(qwNorm))) return 550;
-    if (tWordsClean.some(w => w === qwClean)) return 450;
-    if (tWordsClean.some(w => w.startsWith(qwClean))) return 350;
+    const lastWordNorm = tWordsNorm[tWordsNorm.length - 1];
+    const lastWordClean = tWordsClean[tWordsClean.length - 1];
+
+    // Priority 1: When query has accents, match exact accented words
+    if (lastWordNorm === qwNorm) return 960; // Exact last name match (e.g. "Nguyễn Văn Hùng" -> "hùng")
+    if (tWordsNorm.some(w => w === qwNorm)) return 920; // Any exact accented word match
+    if (tNorm.startsWith(qNorm)) return 900; // Target starts with query (with accents)
+    if (tWordsNorm.some(w => w.startsWith(qwNorm))) return 850; // Word starts with query
+
+    // Priority 2: When query does NOT have accents (e.g. "hung")
+    if (!qHasAccents) {
+      if (lastWordClean === qwClean) return 820;
+      if (tWordsClean.some(w => w === qwClean)) return 800;
+      if (tClean.startsWith(qClean)) return 750;
+      if (tWordsClean.some(w => w.startsWith(qwClean))) return 700;
+    } else {
+      // Query HAS accents, but target only matches without accents
+      // If target itself in DB has no accents (e.g. "Nguyen Van Hung" in db), match clean:
+      const targetHasNoAccents = tNorm === tClean;
+      if (targetHasNoAccents) {
+        if (lastWordClean === qwClean) return 810;
+        if (tWordsClean.some(w => w === qwClean)) return 790;
+        if (tClean.startsWith(qClean)) return 740;
+      } else {
+        // Target in DB has DIFFERENT accents (e.g. target is "Hưng" and query is "hùng"): very low score
+        if (tClean.startsWith(qClean)) return 150;
+        if (tWordsClean.some(w => w === qwClean)) return 140;
+        if (tWordsClean.some(w => w.startsWith(qwClean))) return 120;
+      }
+    }
   }
 
   // Multi word query
   if (qWordsNorm.length > 1) {
     // Exact match of phrase with accents
-    if (tNorm.includes(qNorm)) return 750;
-    if (tClean.includes(qClean)) return 650;
+    if (tNorm.includes(qNorm)) return 940;
+    if (tClean.includes(qClean)) return !qHasAccents ? 800 : 300;
 
     const allWordsMatchNorm = qWordsNorm.every(qw => tWordsNorm.some(tw => tw.startsWith(qw)));
-    if (allWordsMatchNorm) return 600;
+    if (allWordsMatchNorm) return 880;
+
     const allWordsMatchClean = qWordsClean.every(qw => tWordsClean.some(tw => tw.startsWith(qw)));
-    if (allWordsMatchClean) return 500;
+    if (allWordsMatchClean) return !qHasAccents ? 720 : 250;
   }
 
   // Substring inside words (e.g. "hùng" inside "phùng" or "thùng")
   // Keep score low so that true word matches always appear first!
-  if (tNorm.includes(qNorm)) return 100;
-  if (tClean.includes(qClean)) return 50;
+  if (tNorm.includes(qNorm)) return 400;
+  if (tClean.includes(qClean)) return !qHasAccents ? 200 : 50;
 
   return 0;
 };
@@ -124,7 +153,7 @@ export const getCustomerMatchScore = (customer: CustomerSearchable, query: strin
 export const filterAndSortCustomers = <T extends CustomerSearchable>(
   customers: T[],
   query: string,
-  limit: number = 40
+  limit: number = 60
 ): T[] => {
   if (!query || !query.trim()) {
     return customers.slice(0, limit);
