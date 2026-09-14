@@ -858,11 +858,13 @@ const DebtManagement: React.FC = () => {
             
             if (activeTab === 'receivables') {
                 const sale = item as Sale;
-                id = sale.customerId || 'guest';
-                name = sale.customerName || 'Khách vãng lai';
-                if (!sale.customerName || sale.customerName === 'Khách vãng lai') {
+                id = sale.supplierId || sale.customerId || 'guest';
+                name = sale.supplierName || sale.customerName || 'Khách vãng lai';
+                if (!name || name === 'Khách vãng lai') {
+                    const supp = suppliers.find(s => s.id === sale.supplierId || s.id === sale.customerId);
                     const customer = customers.find(c => c.id === sale.customerId);
-                    if (customer) name = customer.name;
+                    if (supp) name = supp.name;
+                    else if (customer) name = customer.name;
                 }
             } else {
                 const receipt = item as GoodsReceipt;
@@ -907,10 +909,12 @@ const DebtManagement: React.FC = () => {
         salesDebt.forEach(sale => {
             const remaining = (sale.total || 0) - (sale.amountPaid || 0);
             if (remaining <= 0) return;
-            let name = sale.customerName || 'Khách vãng lai';
-            if (!sale.customerName || sale.customerName === 'Khách vãng lai') {
+            let name = sale.supplierName || sale.customerName || 'Khách vãng lai';
+            if ((!sale.customerName && !sale.supplierName) || name === 'Khách vãng lai') {
+                const supp = suppliers.find(s => s.id === sale.supplierId || s.id === sale.customerId);
                 const cust = customers.find(c => c.id === sale.customerId);
-                if (cust) name = cust.name;
+                if (supp) name = supp.name;
+                else if (cust) name = cust.name;
             }
             const key = normalizeName(name);
             if (!key || key === 'khach vang lai' || key === 'khách vãng lai') return;

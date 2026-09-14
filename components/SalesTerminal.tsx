@@ -2,11 +2,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, where, increment, collectionGroup, addDoc, Timestamp, updateDoc, getDocs, limit, arrayUnion, runTransaction, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
-import { Product, SaleItem, Customer, Warehouse, PaymentMethod, Shipper, Sale, Supplier, Manufacturer } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes, Printer } from 'lucide-react';
+import { Product, SaleItem, Customer, Warehouse, PaymentMethod, Shipper, Sale, Supplier, Manufacturer, GoodsReceipt } from '../types';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes, Printer, Building2, Repeat } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import SalesHistory from './SalesHistory';
 import CustomerModal from './CustomerModal';
+import { SupplierModal } from './SupplierManagement';
 import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import DraftOrderModal from './DraftOrderModal';
@@ -726,10 +727,28 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [customerSearchTerm, setCustomerSearchTerm] = useState('Khách vãng lai');
   const [isCustomerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Bán cho Nhà cung cấp & Theo dõi công nợ 2 chiều
+  const [isSellingToSupplier, setIsSellingToSupplier] = useState(false);
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
+  const [isSupplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
+  const supplierDropdownRef = useRef<HTMLDivElement>(null);
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+
+  // Thống kê nợ 2 chiều theo thời gian thực khi chọn Nhà cung cấp
+  const [supplierDebtSummary, setSupplierDebtSummary] = useState<{
+    payableDebt: number;      // Mình nợ NCC (từ nhập hàng)
+    receivableDebt: number;   // NCC nợ mình (từ các đơn bán)
+    payableCount: number;
+    receivableCount: number;
+    loading: boolean;
+  } | null>(null);
+
   const [selectedShipperId, setSelectedShipperId] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
 
-  // Xử lý click outside để đóng dropdown tìm kiếm khách hàng
+  // Xử lý click outside để đóng dropdown tìm kiếm khách hàng & nhà cung cấp
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target as Node)) {
@@ -739,10 +758,99 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           setCustomerSearchTerm(currentCust ? currentCust.name : 'Khách vãng lai');
         }
       }
+      if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(event.target as Node)) {
+        setSupplierDropdownOpen(false);
+        if (!supplierSearchTerm.trim()) {
+          const currentSupp = suppliers.find(s => s.id === selectedSupplierId);
+          setSupplierSearchTerm(currentSupp ? currentSupp.name : '');
+        }
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [customerSearchTerm, selectedCustomerId, customers]);
+  }, [customerSearchTerm, selectedCustomerId, customers, supplierSearchTerm, selectedSupplierId, suppliers]);
+
+  // Lắng nghe dữ liệu công nợ 2 chiều khi chọn Nhà cung cấp
+  useEffect(() => {
+    if (!isSellingToSupplier || !selectedSupplierId) {
+      setSupplierDebtSummary(null);
+      return;
+    }
+
+    setSupplierDebtSummary({
+      payableDebt: 0,
+      receivableDebt: 0,
+      payableCount: 0,
+      receivableCount: 0,
+      loading: true
+    });
+
+    // 1. Đơn nhập hàng (mình nợ NCC)
+    const qReceipts = query(
+      collection(db, "goodsReceipts"),
+      where("supplierId", "==", selectedSupplierId)
+    );
+
+    // 2. Đơn bán hàng (NCC nợ mình - customerId lưu supplierId)
+    const qSales = query(
+      collection(db, "sales"),
+      where("customerId", "==", selectedSupplierId)
+    );
+
+    let currentPayable = 0;
+    let currentPayableCount = 0;
+    let currentReceivable = 0;
+    let currentReceivableCount = 0;
+
+    const unsubReceipts = onSnapshot(qReceipts, (snapshot) => {
+      currentPayable = 0;
+      currentPayableCount = 0;
+      snapshot.forEach(docSnap => {
+        const r = docSnap.data() as GoodsReceipt;
+        const remaining = (r.total || 0) - (r.amountPaid || 0);
+        if (remaining > 0) {
+          currentPayable += remaining;
+          currentPayableCount++;
+        }
+      });
+      setSupplierDebtSummary(prev => ({
+        payableDebt: currentPayable,
+        receivableDebt: prev ? prev.receivableDebt : currentReceivable,
+        payableCount: currentPayableCount,
+        receivableCount: prev ? prev.receivableCount : currentReceivableCount,
+        loading: false
+      }));
+    }, (err) => {
+      console.error("Lỗi lấy nợ nhập hàng:", err);
+    });
+
+    const unsubSales = onSnapshot(qSales, (snapshot) => {
+      currentReceivable = 0;
+      currentReceivableCount = 0;
+      snapshot.forEach(docSnap => {
+        const s = docSnap.data() as Sale;
+        const remaining = (s.total || 0) - (s.amountPaid || 0);
+        if (remaining > 0) {
+          currentReceivable += remaining;
+          currentReceivableCount++;
+        }
+      });
+      setSupplierDebtSummary(prev => ({
+        payableDebt: prev ? prev.payableDebt : currentPayable,
+        receivableDebt: currentReceivable,
+        payableCount: prev ? prev.payableCount : currentPayableCount,
+        receivableCount: currentReceivableCount,
+        loading: false
+      }));
+    }, (err) => {
+      console.error("Lỗi lấy nợ bán hàng:", err);
+    });
+
+    return () => {
+      unsubReceipts();
+      unsubSales();
+    };
+  }, [isSellingToSupplier, selectedSupplierId]);
 
   useEffect(() => {
     if (warehouses.length > 0 && !selectedWarehouseId) {
@@ -836,9 +944,11 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     setLoading(false);
   }, []);
 
-  // CẬP NHẬT Logic: Lấy giá bán gần nhất cho khách hàng sỉ, ĐVVC, PTTT và Trạng thái nợ lần trước
+  // CẬP NHẬT Logic: Lấy giá bán gần nhất cho khách hàng sỉ / NCC, ĐVVC, PTTT và Trạng thái nợ lần trước
   useEffect(() => {
-    if (!selectedCustomerId) {
+    const targetPartnerId = isSellingToSupplier ? selectedSupplierId : selectedCustomerId;
+
+    if (!targetPartnerId) {
       setWholesalePrices({});
       setSelectedShipperId('');
       setIndexErrorUrl(null);
@@ -847,12 +957,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
       return;
     }
 
-    const customer = customers.find(c => c.id === selectedCustomerId);
+    const customer = !isSellingToSupplier ? customers.find(c => c.id === targetPartnerId) : null;
 
-    // Truy vấn 50 đơn hàng gần nhất của khách này
+    // Truy vấn 50 đơn hàng gần nhất của đối tác này
     const q = query(
       collection(db, "sales"),
-      where("customerId", "==", selectedCustomerId),
+      where("customerId", "==", targetPartnerId),
       orderBy("createdAt", "desc"),
       limit(50) 
     );
@@ -876,33 +986,33 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
             setSelectedPaymentMethodId('');
         }
 
-        // Tự động chọn Ghi nợ nếu đơn hàng gần nhất của khách hàng này là ghi nợ
+        // Tự động chọn Ghi nợ nếu đơn hàng gần nhất của đối tác này là ghi nợ
         const latestSaleDoc = snapshot.docs[0]?.data() as Sale | undefined;
         if (latestSaleDoc) {
             const isLatestDebt = latestSaleDoc.status === 'debt' || 
                 ((latestSaleDoc.total || 0) > 0 && (latestSaleDoc.amountPaid || 0) < (latestSaleDoc.total || 0));
             setWasLastOrderDebt(isLatestDebt);
 
-            // Chỉ tự động kích hoạt khi mới chọn hoặc đổi khách hàng
-            if (lastLoadedCustomerIdRef.current !== selectedCustomerId) {
+            // Chỉ tự động kích hoạt khi mới chọn hoặc đổi đối tác
+            if (lastLoadedCustomerIdRef.current !== targetPartnerId) {
                 if (isLatestDebt) {
                     setIsDebt(true);
                     setAmountPaidInput('');
                 } else {
                     setIsDebt(false);
                 }
-                lastLoadedCustomerIdRef.current = selectedCustomerId;
+                lastLoadedCustomerIdRef.current = targetPartnerId;
             }
         } else {
             setWasLastOrderDebt(false);
-            if (lastLoadedCustomerIdRef.current !== selectedCustomerId) {
+            if (lastLoadedCustomerIdRef.current !== targetPartnerId) {
                 setIsDebt(false);
-                lastLoadedCustomerIdRef.current = selectedCustomerId;
+                lastLoadedCustomerIdRef.current = targetPartnerId;
             }
         }
 
-        // Cập nhật giá bán sỉ gần nhất
-        if (customer?.type === 'wholesale') {
+        // Cập nhật giá bán sỉ gần nhất (hoặc đơn bán cho NCC)
+        if (isSellingToSupplier || customer?.type === 'wholesale') {
             const prices: Record<string, number> = {};
             // Duyệt ngược từ cũ nhất đến mới nhất trong snapshot để giá đơn mới nhất ghi đè lên giá cũ
             for (let i = snapshot.docs.length - 1; i >= 0; i--) {
@@ -917,9 +1027,9 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
         }
       } else {
         setWasLastOrderDebt(false);
-        if (lastLoadedCustomerIdRef.current !== selectedCustomerId) {
+        if (lastLoadedCustomerIdRef.current !== targetPartnerId) {
             setIsDebt(false);
-            lastLoadedCustomerIdRef.current = selectedCustomerId;
+            lastLoadedCustomerIdRef.current = targetPartnerId;
         }
         setWholesalePrices({});
         setSelectedShipperId(''); // Không có lịch sử thì clear ĐVVC
@@ -936,7 +1046,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     });
 
     return () => unsubscribe();
-  }, [selectedCustomerId, customers]);
+  }, [isSellingToSupplier, selectedCustomerId, selectedSupplierId, customers]);
 
   const calculateEffectiveStock = (product: Product, warehouseId: string) => {
       if (!warehouseId) return 0;
@@ -990,9 +1100,17 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
   const handleCheckout = async () => {
       const actualAmountPaidInput = isDebt ? 0 : (amountPaidInput === '' ? (cart.reduce((a, b) => a + b.price * b.quantity, 0) + shippingFee) : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
-      console.log("handleCheckout called", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId, actualAmountPaidInput });
-      if (cart.length === 0 || !selectedWarehouseId || !selectedShipperId || (actualAmountPaidInput > 0 && !selectedPaymentMethodId) || (!selectedCustomerId && !customerSearchTerm.trim())) { 
-          setToast({ message: "Vui lòng chọn đầy đủ Khách hàng, Kho xuất, Đơn vị vận chuyển và Phương thức thanh toán.", type: 'error' }); 
+      console.log("handleCheckout called", { cartLength: cart.length, selectedWarehouseId, isDebt, selectedPaymentMethodId, actualAmountPaidInput, isSellingToSupplier });
+      
+      const isPartnerValid = isSellingToSupplier 
+          ? (!!selectedSupplierId || !!supplierSearchTerm.trim())
+          : (!!selectedCustomerId || !!customerSearchTerm.trim());
+
+      if (cart.length === 0 || !selectedWarehouseId || !selectedShipperId || (actualAmountPaidInput > 0 && !selectedPaymentMethodId) || !isPartnerValid) { 
+          setToast({ 
+              message: `Vui lòng chọn đầy đủ ${isSellingToSupplier ? 'Nhà cung cấp' : 'Khách hàng'}, Kho xuất, Đơn vị vận chuyển và Phương thức thanh toán.`, 
+              type: 'error' 
+          }); 
           return; 
       }
       setIsProcessing(true);
@@ -1001,7 +1119,26 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
           const total = itemTotal + shippingFee;
           const actualAmountPaid = isDebt ? 0 : (amountPaidInput === '' ? total : parseInt(amountPaidInput.replace(/[^\d]/g, '') || '0'));
-          const customerName = selectedCustomerId ? customers.find(c => c.id === selectedCustomerId)?.name : (customerSearchTerm || 'Khách vãng lai');
+          
+          const selectedSupplier = isSellingToSupplier ? suppliers.find(s => s.id === selectedSupplierId) : null;
+          const selectedCustomer = !isSellingToSupplier ? customers.find(c => c.id === selectedCustomerId) : null;
+
+          const finalPartnerName = isSellingToSupplier 
+              ? (selectedSupplier ? selectedSupplier.name : (supplierSearchTerm || 'Nhà cung cấp'))
+              : (selectedCustomer ? selectedCustomer.name : (customerSearchTerm || 'Khách vãng lai'));
+
+          const finalPartnerPhone = isSellingToSupplier 
+              ? (selectedSupplier?.phone || '') 
+              : (selectedCustomer?.phone || '');
+
+          const finalPartnerAddress = isSellingToSupplier 
+              ? (selectedSupplier?.address || '') 
+              : (selectedCustomer?.address || '');
+
+          const finalPartnerId = isSellingToSupplier 
+              ? (selectedSupplierId || null) 
+              : (selectedCustomerId || null);
+
           const paymentMethod = paymentMethods.find(p => p.id === selectedPaymentMethodId);
           const selectedWarehouseName = warehouses.find(w => w.id === selectedWarehouseId)?.name || 'N/A';
           
@@ -1038,8 +1175,13 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
             shippingFee,
             amountPaid: actualAmountPaid, 
             paymentHistory: initialPaymentHistory,
-            customerId: selectedCustomerId || null, 
-            customerName: customerName || 'Khách vãng lai', 
+            customerId: finalPartnerId, 
+            customerName: finalPartnerName, 
+            customerPhone: finalPartnerPhone,
+            customerAddress: finalPartnerAddress,
+            partnerType: isSellingToSupplier ? 'supplier' : 'customer',
+            supplierId: isSellingToSupplier ? finalPartnerId : null,
+            supplierName: isSellingToSupplier ? finalPartnerName : null,
             warehouseId: selectedWarehouseId, 
             warehouseName: selectedWarehouseName, 
             paymentMethodId: actualAmountPaid > 0 ? (selectedPaymentMethodId || null) : null, 
@@ -1065,7 +1207,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                 type: 'deposit', 
                 amount: actualAmountPaid, 
                 balanceAfter: currentBal + actualAmountPaid, 
-                note: `Đơn hàng ${customerName}`, 
+                note: `Đơn bán cho ${isSellingToSupplier ? 'NCC' : 'KH'}: ${finalPartnerName}`, 
                 relatedId: saleRef.id, 
                 relatedType: 'sale', 
                 createdAt: finalCreatedAt, 
@@ -1119,7 +1261,26 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
           await batch.commit();
 
-          setCart([]); setIsDebt(false); setAmountPaidInput(''); setIssueInvoice(false); setSelectedCustomerId(''); setCustomerSearchTerm('Khách vãng lai'); setSelectedPaymentMethodId(''); setSelectedShipperId(''); setShippingFee(0); setSaleDate(getTodayString()); setShippingMode('shipped'); setToast({ message: "Thanh toán thành công! Đã cập nhật vào danh sách hôm nay.", type: 'success' });
+          setCart([]); 
+          setIsDebt(false); 
+          setAmountPaidInput(''); 
+          setIssueInvoice(false); 
+          if (isSellingToSupplier) {
+              setSelectedSupplierId('');
+              setSupplierSearchTerm('');
+          } else {
+              setSelectedCustomerId(''); 
+              setCustomerSearchTerm('Khách vãng lai');
+          }
+          setSelectedPaymentMethodId(''); 
+          setSelectedShipperId(''); 
+          setShippingFee(0); 
+          setSaleDate(getTodayString()); 
+          setShippingMode('shipped'); 
+          setToast({ 
+              message: `Thanh toán thành công! Đã tạo đơn bán cho ${isSellingToSupplier ? 'Nhà cung cấp' : 'Khách hàng'}.`, 
+              type: 'success' 
+          });
       } catch (e: any) { console.error(e); alert("Lỗi khi thanh toán: " + e.message); } finally { setIsProcessing(false); }
   };
 
@@ -1148,6 +1309,16 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
         setIsCustomerModalOpen(false);
         setToast({ message: "Đã thêm khách hàng!", type: 'success' });
     } catch (e) { console.error(e); setToast({ message: "Lỗi thêm khách hàng", type: 'error' }); }
+  };
+
+  const handleQuickCreateSupplier = async (data: any) => {
+    try {
+        const docRef = await addDoc(collection(db, 'suppliers'), { ...data, createdAt: serverTimestamp() });
+        setSelectedSupplierId(docRef.id);
+        setSupplierSearchTerm(data.name);
+        setIsSupplierModalOpen(false);
+        setToast({ message: "Đã thêm nhà cung cấp!", type: 'success' });
+    } catch (e) { console.error(e); setToast({ message: "Lỗi thêm nhà cung cấp", type: 'error' }); }
   };
 
   const handleSaveShipper = async (data: any) => {
@@ -1339,15 +1510,21 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           isOpen={isPrintModalOpen}
           onClose={() => setIsPrintModalOpen(false)}
           sale={selectedSaleForPrint}
-          customer={customers.find(c => c.id === selectedSaleForPrint?.customerId) || null}
+          customer={customers.find(c => c.id === selectedSaleForPrint?.customerId) || (suppliers.find(s => s.id === (selectedSaleForPrint as any)?.supplierId || s.id === selectedSaleForPrint?.customerId) as any) || null}
         />
         <DraftOrderModal
           isOpen={isDraftOrderModalOpen}
           onClose={() => setIsDraftOrderModalOpen(false)}
           cart={cart}
-          customerName={customers.find(c => c.id === selectedCustomerId)?.name || customerSearchTerm || 'Khách vãng lai'}
-          customerPhone={customers.find(c => c.id === selectedCustomerId)?.phone}
-          customerAddress={customers.find(c => c.id === selectedCustomerId)?.address}
+          customerName={isSellingToSupplier
+            ? (suppliers.find(s => s.id === selectedSupplierId)?.name || supplierSearchTerm || 'Nhà cung cấp')
+            : (customers.find(c => c.id === selectedCustomerId)?.name || customerSearchTerm || 'Khách vãng lai')}
+          customerPhone={isSellingToSupplier
+            ? suppliers.find(s => s.id === selectedSupplierId)?.phone
+            : customers.find(c => c.id === selectedCustomerId)?.phone}
+          customerAddress={isSellingToSupplier
+            ? suppliers.find(s => s.id === selectedSupplierId)?.address
+            : customers.find(c => c.id === selectedCustomerId)?.address}
           warehouseName={warehouses.find(w => w.id === selectedWarehouseId)?.name}
           shipperName={shippers.find(s => s.id === selectedShipperId)?.name}
           paymentMethodName={paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name}
@@ -1395,6 +1572,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
         )}
         {isProductModalOpen && <ProductModal product={null} manufacturers={manufacturers} allProductsForCombo={products} onClose={() => setIsProductModalOpen(false)} onSave={async (d) => { await addDoc(collection(db, 'products'), { ...d, createdAt: serverTimestamp() }); setIsProductModalOpen(false); }} existingNames={products.map(p => p.name)} />}
         {isCustomerModalOpen && <CustomerModal customer={null} onClose={() => setIsCustomerModalOpen(false)} onSave={handleSaveCustomer} existingCustomers={customers} />}
+        {isSupplierModalOpen && <SupplierModal supplier={null} onClose={() => setIsSupplierModalOpen(false)} onSave={handleQuickCreateSupplier} existingNames={suppliers.map(s => s.name)} />}
         {isShipperModalOpen && <ShipperModal shipper={null} onClose={() => setIsShipperModalOpen(false)} onSave={handleSaveShipper} existingNames={shippers.map(s => s.name)} />}
 
         <QuickImportModal 
@@ -1464,46 +1642,58 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
                         <div className="bg-slate-50 p-3 rounded-xl border space-y-3 shrink-0">
                             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-                                <div className="flex items-center gap-3 w-full md:w-2/3 lg:w-1/2">
+                                <div className="flex flex-wrap items-center gap-3 w-full md:w-2/3 lg:w-3/5">
                                     <h3 className="text-sm font-black uppercase flex items-center text-blue-600 whitespace-nowrap"><Info size={16} className="mr-1 hidden sm:block"/> Nghiệp vụ</h3>
-                                    <div className="relative flex gap-1 flex-1 min-w-[200px]" ref={customerDropdownRef}>
-                                        <div className="relative flex-1">
-                                            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={16}/>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Tìm tên / SĐT khách..." 
-                                                value={customerSearchTerm} 
-                                                onChange={e => { 
-                                                    setCustomerSearchTerm(e.target.value); 
-                                                    setCustomerDropdownOpen(true); 
-                                                }} 
-                                                onFocus={() => { 
-                                                    if (customerSearchTerm === 'Khách vãng lai') { 
-                                                        setCustomerSearchTerm(''); 
-                                                        setSelectedCustomerId(''); 
-                                                    } 
-                                                    setCustomerDropdownOpen(true); 
-                                                }} 
-                                                className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black outline-none border-blue-300 ring-2 ring-blue-50 focus:ring-blue-200 shadow-sm text-slate-800" 
-                                            />
-                                            {customerSearchTerm && customerSearchTerm !== 'Khách vãng lai' && (
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => { 
-                                                        setSelectedCustomerId(''); 
-                                                        setCustomerSearchTerm('Khách vãng lai'); 
-                                                        setCustomerDropdownOpen(false); 
-                                                        setIsDebt(false); 
-                                                        setWasLastOrderDebt(false); 
-                                                    }}
-                                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                                                    title="Đặt về Khách vãng lai"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            )}
-                                            {isCustomerDropdownOpen && (
-                                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+                                    
+                                    {/* Toggle chọn Khách hàng hoặc Nhà cung cấp */}
+                                    <div className="flex items-center gap-1 p-0.5 bg-slate-200/80 rounded-lg border border-slate-300">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsSellingToSupplier(false)}
+                                            className={`px-2.5 py-1 rounded-md text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
+                                                !isSellingToSupplier
+                                                    ? 'bg-white text-blue-700 shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            <User size={13} /> Khách hàng
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsSellingToSupplier(true)}
+                                            className={`px-2.5 py-1 rounded-md text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
+                                                isSellingToSupplier
+                                                    ? 'bg-amber-500 text-white shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                            title="Bán hàng cho Nhà cung cấp & Theo dõi nợ 2 chiều"
+                                        >
+                                            <Building2 size={13} /> Nhà cung cấp
+                                        </button>
+                                    </div>
+
+                                    {!isSellingToSupplier ? (
+                                        <div className="relative flex gap-1 flex-1 min-w-[200px]" ref={customerDropdownRef}>
+                                            <div className="relative flex-1">
+                                                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={16}/>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Tìm tên / SĐT khách..." 
+                                                    value={customerSearchTerm} 
+                                                    onChange={e => { 
+                                                        setCustomerSearchTerm(e.target.value); 
+                                                        setCustomerDropdownOpen(true); 
+                                                    }} 
+                                                    onFocus={() => { 
+                                                        if (customerSearchTerm === 'Khách vãng lai') { 
+                                                            setCustomerSearchTerm(''); 
+                                                            setSelectedCustomerId(''); 
+                                                        } 
+                                                        setCustomerDropdownOpen(true); 
+                                                    }} 
+                                                    className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black outline-none border-blue-300 ring-2 ring-blue-50 focus:ring-blue-200 shadow-sm text-slate-800" 
+                                                />
+                                                {customerSearchTerm && customerSearchTerm !== 'Khách vãng lai' && (
                                                     <button 
                                                         type="button"
                                                         onClick={() => { 
@@ -1512,42 +1702,133 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                             setCustomerDropdownOpen(false); 
                                                             setIsDebt(false); 
                                                             setWasLastOrderDebt(false); 
-                                                        }} 
-                                                        className="w-full text-left px-3 py-2 hover:bg-blue-50 text-xs border-b font-black text-blue-700 flex justify-between items-center transition-colors"
+                                                        }}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                                                        title="Đặt về Khách vãng lai"
                                                     >
-                                                        <span>KHÁCH VÃNG LAI</span>
-                                                        <span className="text-[10px] text-slate-400 font-normal">Mặc định</span>
+                                                        <X size={14} />
                                                     </button>
-                                                    {(() => {
-                                                        const filtered = filterAndSortCustomers(customers, customerSearchTerm, 40);
-                                                        if (filtered.length === 0 && customerSearchTerm.trim()) {
-                                                            return (
-                                                                <div className="p-3 text-center text-xs text-slate-400 font-bold">
-                                                                    Không tìm thấy khách hàng nào khớp với "{customerSearchTerm}"
-                                                                </div>
-                                                            );
-                                                        }
-                                                        return filtered.map(c => (
-                                                            <button 
-                                                                key={c.id} 
-                                                                type="button"
-                                                                onClick={() => { 
-                                                                    setSelectedCustomerId(c.id); 
-                                                                    setCustomerSearchTerm(c.name); 
-                                                                    setCustomerDropdownOpen(false); 
-                                                                }} 
-                                                                className={`w-full text-left px-3 py-2 hover:bg-blue-50 text-xs border-b last:border-0 flex justify-between items-center font-black transition-colors ${selectedCustomerId === c.id ? 'bg-blue-100 text-blue-900' : 'text-slate-800'}`}
-                                                            >
-                                                                <span className="truncate mr-2">{c.name}</span>
-                                                                <span className="text-slate-500 font-bold text-[11px] shrink-0">{c.phone || ''}</span>
-                                                            </button>
-                                                        ));
-                                                    })()}
-                                                </div>
-                                            )}
+                                                )}
+                                                {isCustomerDropdownOpen && (
+                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => { 
+                                                                setSelectedCustomerId(''); 
+                                                                setCustomerSearchTerm('Khách vãng lai'); 
+                                                                setCustomerDropdownOpen(false); 
+                                                                setIsDebt(false); 
+                                                                setWasLastOrderDebt(false); 
+                                                            }} 
+                                                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-xs border-b font-black text-blue-700 flex justify-between items-center transition-colors"
+                                                        >
+                                                            <span>KHÁCH VÃNG LAI</span>
+                                                            <span className="text-[10px] text-slate-400 font-normal">Mặc định</span>
+                                                        </button>
+                                                        {(() => {
+                                                            const filtered = filterAndSortCustomers(customers, customerSearchTerm, 40);
+                                                            if (filtered.length === 0 && customerSearchTerm.trim()) {
+                                                                return (
+                                                                    <div className="p-3 text-center text-xs text-slate-400 font-bold">
+                                                                        Không tìm thấy khách hàng nào khớp với "{customerSearchTerm}"
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return filtered.map(c => (
+                                                                <button 
+                                                                    key={c.id} 
+                                                                    type="button"
+                                                                    onClick={() => { 
+                                                                        setSelectedCustomerId(c.id); 
+                                                                        setCustomerSearchTerm(c.name); 
+                                                                        setCustomerDropdownOpen(false); 
+                                                                    }} 
+                                                                    className={`w-full text-left px-3 py-2 hover:bg-blue-50 text-xs border-b last:border-0 flex justify-between items-center font-black transition-colors ${selectedCustomerId === c.id ? 'bg-blue-100 text-blue-900' : 'text-slate-800'}`}
+                                                                >
+                                                                    <span className="truncate mr-2">{c.name}</span>
+                                                                    <span className="text-slate-500 font-bold text-[11px] shrink-0">{c.phone || ''}</span>
+                                                                </button>
+                                                            ));
+                                                        })()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button onClick={() => setIsCustomerModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border border-green-300 hover:bg-green-600 hover:text-white transition shadow-sm" title="Thêm khách hàng mới"><Plus size={18}/></button>
                                         </div>
-                                        <button onClick={() => setIsCustomerModalOpen(true)} className="p-2 bg-green-100 text-green-600 rounded-lg border border-green-300 hover:bg-green-600 hover:text-white transition shadow-sm" title="Thêm khách hàng mới"><Plus size={18}/></button>
-                                    </div>
+                                    ) : (
+                                        <div className="relative flex gap-1 flex-1 min-w-[200px]" ref={supplierDropdownRef}>
+                                            <div className="relative flex-1">
+                                                <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-600" size={16}/>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Tìm tên / SĐT nhà cung cấp..." 
+                                                    value={supplierSearchTerm} 
+                                                    onChange={e => { 
+                                                        setSupplierSearchTerm(e.target.value); 
+                                                        setSupplierDropdownOpen(true); 
+                                                    }} 
+                                                    onFocus={() => { 
+                                                        setSupplierDropdownOpen(true); 
+                                                    }} 
+                                                    className="w-full pl-8 pr-7 py-2 border rounded-lg text-sm font-black outline-none border-amber-400 ring-2 ring-amber-100 focus:ring-amber-200 shadow-sm text-slate-800 bg-amber-50/20" 
+                                                />
+                                                {supplierSearchTerm && (
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => { 
+                                                            setSelectedSupplierId(''); 
+                                                            setSupplierSearchTerm(''); 
+                                                            setSupplierDropdownOpen(false); 
+                                                        }}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                                                        title="Xóa tìm kiếm NCC"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
+                                                {isSupplierDropdownOpen && (
+                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+                                                        {(() => {
+                                                            const filtered = filterAndSortCustomers(suppliers, supplierSearchTerm, 40);
+                                                            if (filtered.length === 0) {
+                                                                return (
+                                                                    <div className="p-3 text-center text-xs text-slate-400 font-bold">
+                                                                        {supplierSearchTerm.trim() ? `Không tìm thấy NCC nào khớp với "${supplierSearchTerm}"` : 'Chưa có nhà cung cấp nào'}
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return filtered.map(s => (
+                                                                <button 
+                                                                    key={s.id} 
+                                                                    type="button"
+                                                                    onClick={() => { 
+                                                                        setSelectedSupplierId(s.id); 
+                                                                        setSupplierSearchTerm(s.name); 
+                                                                        setSupplierDropdownOpen(false); 
+                                                                    }} 
+                                                                    className={`w-full text-left px-3 py-2 hover:bg-amber-50 text-xs border-b last:border-0 flex justify-between items-center font-black transition-colors ${selectedSupplierId === s.id ? 'bg-amber-100 text-amber-900' : 'text-slate-800'}`}
+                                                                >
+                                                                    <div className="flex flex-col text-left">
+                                                                        <span className="truncate">{s.name}</span>
+                                                                        {s.address && <span className="text-[10px] text-slate-400 font-normal truncate">{s.address}</span>}
+                                                                    </div>
+                                                                    <span className="text-amber-700 font-bold text-[11px] shrink-0 ml-2">{s.phone || ''}</span>
+                                                                </button>
+                                                            ));
+                                                        })()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setIsSupplierModalOpen(true)} 
+                                                className="p-2 bg-amber-100 text-amber-700 rounded-lg border border-amber-300 hover:bg-amber-600 hover:text-white transition shadow-sm" 
+                                                title="Thêm nhà cung cấp mới"
+                                            >
+                                                <Plus size={18}/>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex gap-4 md:shrink-0 w-full md:w-auto justify-end">
                                     <label className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={shippingPayer === 'customer'} onChange={e => setShippingPayer(e.target.checked ? 'customer' : 'shop')} className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-0" /><span className="text-xs font-black uppercase text-blue-600">Khách ship</span></label>
@@ -1558,7 +1839,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                 ? 'bg-red-50 border border-red-300 ring-2 ring-red-100 shadow-xs' 
                                                 : 'hover:bg-slate-100'
                                         }`}
-                                        title={wasLastOrderDebt ? "Đã tự động chọn Ghi nợ vì đơn hàng gần nhất của khách này là nợ" : "Đánh dấu đơn ghi nợ"}
+                                        title={wasLastOrderDebt ? "Đã tự động chọn Ghi nợ vì đơn hàng gần nhất của đối tác này là nợ" : "Đánh dấu đơn ghi nợ"}
                                     >
                                         <input 
                                             type="checkbox" 
@@ -1575,6 +1856,44 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                     </label>
                                 </div>
                             </div>
+
+                            {/* Bảng theo dõi Công nợ 2 chiều khi Bán hàng cho Nhà cung cấp */}
+                            {isSellingToSupplier && selectedSupplierId && supplierDebtSummary && (
+                                <div className="p-3 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-300 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
+                                    <div className="flex items-start md:items-center gap-2.5">
+                                        <div className="p-2 bg-amber-500 text-white rounded-lg shadow-xs shrink-0 mt-0.5 md:mt-0">
+                                            <Repeat size={18} />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-black text-slate-800 uppercase text-xs">
+                                                    Công nợ 2 chiều: <strong className="text-amber-900">{suppliers.find(s => s.id === selectedSupplierId)?.name}</strong>
+                                                </span>
+                                                <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded font-black text-[10px] uppercase tracking-wider border border-amber-300">
+                                                    Đối tác NCC
+                                                </span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 font-bold">
+                                                <span>Mình nợ NCC (nhập hàng): <strong className="text-red-600 text-xs">{formatNumber(supplierDebtSummary.payableDebt)} ₫</strong> {supplierDebtSummary.payableCount > 0 && `(${supplierDebtSummary.payableCount} đơn)`}</span>
+                                                <span className="text-slate-300">|</span>
+                                                <span>NCC nợ mình (đã bán): <strong className="text-blue-600 text-xs">{formatNumber(supplierDebtSummary.receivableDebt)} ₫</strong> {supplierDebtSummary.receivableCount > 0 && `(${supplierDebtSummary.receivableCount} đơn)`}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {supplierDebtSummary.payableDebt > 0 && supplierDebtSummary.receivableDebt > 0 ? (
+                                            <div className="px-3 py-1.5 bg-amber-200 text-amber-900 rounded-lg font-black text-xs border border-amber-400 flex items-center gap-1.5 shadow-sm">
+                                                <CheckCheck size={14} className="text-amber-700" />
+                                                <span>Có thể đối trừ: <strong>{formatNumber(Math.min(supplierDebtSummary.payableDebt, supplierDebtSummary.receivableDebt))} ₫</strong></span>
+                                            </div>
+                                        ) : (
+                                            <div className="text-[11px] text-slate-500 font-bold italic bg-white/70 px-2.5 py-1 rounded-lg border border-slate-200">
+                                                {supplierDebtSummary.payableDebt > 0 ? 'Đang có nợ nhập hàng' : supplierDebtSummary.receivableDebt > 0 ? 'Đang có nợ bán hàng' : 'Chưa có nợ 2 chiều tồn'}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
                                 <div className="relative"><Archive className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedWarehouseId} onChange={e => setSelectedWarehouseId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary appearance-none"><option value="">Kho xuất...</option>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
                                 <div className="relative flex gap-1"><div className="relative flex-1"><Truck className="absolute left-2 top-1/2 -translate-y-1/2 text-black" size={16}/><select value={selectedShipperId} onChange={e => setSelectedShipperId(e.target.value)} className="w-full pl-8 pr-1 py-2 border rounded-lg text-sm font-black focus:ring-2 focus:ring-primary appearance-none"><option value="">ĐVVC...</option>{shippers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div><button onClick={() => setIsShipperModalOpen(true)} className="p-2 bg-blue-100 text-blue-600 rounded-lg border hover:bg-blue-600 transition"><Plus size={18}/></button></div>
@@ -1951,6 +2270,11 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                     <div className="bg-slate-900 px-3 py-2 text-white border-b border-slate-800">
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-1.5 overflow-hidden">
+                                                {sale.partnerType === 'supplier' && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-500 text-slate-950 shrink-0 shadow-xs">
+                                                        NCC
+                                                    </span>
+                                                )}
                                                 <span 
                                                     className={`text-xs font-black uppercase truncate bg-white/10 px-2 py-0.5 rounded leading-tight max-w-[150px] sm:max-w-[210px] ${customerTextColor}`}
                                                     title={sale.customerName || 'Khách vãng lai'}

@@ -478,7 +478,20 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                         <Info size={14} className="mr-2 text-primary"/> Thông tin vận đơn & Khách hàng
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <DetailRow icon={<User size={16} />} label="Khách Hàng" value={sale.customerName || 'Khách vãng lai'} />
+                        <DetailRow 
+                            icon={<User size={16} />} 
+                            label={sale.partnerType === 'supplier' ? 'Nhà Cung Cấp' : 'Khách Hàng'} 
+                            value={
+                                <span className="flex items-center gap-1.5">
+                                    {sale.customerName || 'Khách vãng lai'}
+                                    {sale.partnerType === 'supplier' && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                                            NCC
+                                        </span>
+                                    )}
+                                </span>
+                            } 
+                        />
                         <DetailRow icon={<Calendar size={16} />} label="Ngày Tạo Đơn" value={sale.createdAt?.toDate?.()?.toLocaleString('vi-VN') || 'N/A'} />
                         <DetailRow icon={<Warehouse size={16} />} label="Kho Xuất" value={sale.warehouseName} />
                         <DetailRow icon={<Truck size={16} />} label="ĐV Vận Chuyển" value={sale.shipperName || 'N/A'} />

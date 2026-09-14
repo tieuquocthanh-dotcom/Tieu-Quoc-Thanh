@@ -91,6 +91,11 @@ export interface Sale {
   id: string;
   customerId: string;
   customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  partnerType?: 'customer' | 'supplier';
+  supplierId?: string;
+  supplierName?: string;
   warehouseId: string;
   warehouseName?: string;
   items: SaleItem[];
