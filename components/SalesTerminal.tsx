@@ -93,6 +93,9 @@ const QuickImportModal: React.FC<{
     isProcessing: boolean;
 }> = ({ isOpen, onClose, product, warehouses, suppliers, paymentMethods, onConfirm, isProcessing }) => {
     const [supplierId, setSupplierId] = useState('');
+    const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
+    const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
+    const supplierDropdownRef = useRef<HTMLDivElement>(null);
     const [warehouseId, setWarehouseId] = useState('');
     const [quantity, setQuantity] = useState(1);
     const [importPrice, setImportPrice] = useState(0);
@@ -100,6 +103,24 @@ const QuickImportModal: React.FC<{
     const [paymentMethodId, setPaymentMethodId] = useState('');
     const [updateBasePrice, setUpdateBasePrice] = useState(true);
     const [lastSupplierPrice, setLastSupplierPrice] = useState<number | null>(null);
+
+    // Xử lý click outside để đóng dropdown tìm kiếm nhà cung cấp
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(event.target as Node)) {
+                setIsSupplierDropdownOpen(false);
+                if (!supplierId && supplierSearchTerm.trim()) {
+                    const exact = suppliers.find(s => s.name.toLowerCase() === supplierSearchTerm.trim().toLowerCase());
+                    if (exact) {
+                        setSupplierId(exact.id);
+                        setSupplierSearchTerm(exact.name);
+                    }
+                }
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [supplierId, supplierSearchTerm, suppliers]);
 
     // Truy vấn giá nhập gần nhất của NCC này cho sản phẩm này
     useEffect(() => {
@@ -141,31 +162,103 @@ const QuickImportModal: React.FC<{
             setPaymentStatus('debt');
             setPaymentMethodId('');
             setUpdateBasePrice(true);
+            setSupplierId('');
+            setSupplierSearchTerm('');
+            setIsSupplierDropdownOpen(false);
+            if (warehouses.length > 0 && !warehouseId) {
+                setWarehouseId(warehouses[0].id);
+            }
         }
-    }, [isOpen, product]);
+    }, [isOpen, product, warehouses]);
 
     if (!isOpen || !product) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
-                <div className="bg-green-600 p-4 text-white flex justify-between items-center">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="bg-green-600 p-4 text-white flex justify-between items-center shrink-0">
                     <h3 className="font-black uppercase text-sm flex items-center"><DownloadCloud className="mr-2" size={20}/> Nhập hàng nhanh</h3>
                     <button onClick={onClose}><X size={24}/></button>
                 </div>
-                <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
                     <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-200">
                         <p className="text-[10px] font-black text-slate-400 uppercase">Sản phẩm</p>
                         <p className="text-sm font-black text-slate-800 uppercase">{product.name}</p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="relative" ref={supplierDropdownRef}>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Nhà cung cấp</label>
-                            <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className="w-full p-2 border-2 border-slate-200 rounded-lg font-bold text-sm outline-none focus:border-primary">
-                                <option value="">-- CHỌN NCC --</option>
-                                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
+                            <div className="relative">
+                                <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                <input 
+                                    type="text" 
+                                    placeholder="Gõ tên hoặc SĐT NCC..." 
+                                    value={supplierSearchTerm} 
+                                    onChange={e => { 
+                                        setSupplierSearchTerm(e.target.value); 
+                                        setIsSupplierDropdownOpen(true);
+                                        if (supplierId) setSupplierId('');
+                                    }} 
+                                    onFocus={() => { 
+                                        setIsSupplierDropdownOpen(true); 
+                                    }} 
+                                    className={`w-full pl-8 pr-7 py-2 border-2 rounded-lg font-black text-sm outline-none transition-all shadow-xs ${
+                                        supplierId 
+                                            ? 'border-emerald-500 bg-emerald-50/40 text-slate-900 ring-2 ring-emerald-100' 
+                                            : 'border-slate-200 focus:border-primary text-slate-800'
+                                    }`}
+                                />
+                                {supplierSearchTerm && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => { 
+                                            setSupplierId(''); 
+                                            setSupplierSearchTerm(''); 
+                                            setIsSupplierDropdownOpen(false); 
+                                        }}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                                        title="Xóa tìm kiếm NCC"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {isSupplierDropdownOpen && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-xl shadow-2xl z-[250] max-h-56 overflow-y-auto divide-y divide-slate-100 animate-fade-in">
+                                    {(() => {
+                                        const filtered = filterAndSortCustomers(suppliers, supplierSearchTerm, 30);
+                                        if (filtered.length === 0) {
+                                            return (
+                                                <div className="p-3 text-center text-xs text-slate-400 font-bold">
+                                                    {supplierSearchTerm.trim() 
+                                                        ? `Không tìm thấy NCC nào khớp với "${supplierSearchTerm}"` 
+                                                        : "Không có nhà cung cấp nào"}
+                                                </div>
+                                            );
+                                        }
+                                        return filtered.map(s => (
+                                            <button 
+                                                key={s.id} 
+                                                type="button"
+                                                onClick={() => { 
+                                                    setSupplierId(s.id); 
+                                                    setSupplierSearchTerm(s.name); 
+                                                    setIsSupplierDropdownOpen(false); 
+                                                }} 
+                                                className={`w-full text-left px-3 py-2.5 hover:bg-emerald-50 text-xs flex justify-between items-center transition-colors ${supplierId === s.id ? 'bg-emerald-100 text-emerald-900 font-black' : 'text-slate-800 font-semibold'}`}
+                                            >
+                                                <div className="truncate mr-2">
+                                                    <span className="block font-bold uppercase">{s.name}</span>
+                                                    {s.phone && <span className="text-[10px] text-slate-400 font-mono">{s.phone}</span>}
+                                                </div>
+                                                {supplierId === s.id && <CheckCircle size={15} className="text-emerald-600 shrink-0" />}
+                                            </button>
+                                        ));
+                                    })()}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Kho nhập</label>

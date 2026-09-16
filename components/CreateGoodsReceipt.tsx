@@ -1325,13 +1325,34 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                     </div>
                     <div className="p-3 bg-slate-50 border-t border-slate-200 flex-1 overflow-y-auto pb-20">
                         <div className="space-y-3">
-                            {todayReceipts.map(r => (
+                            {todayReceipts.map((r, receiptIdx) => {
+                                // Phối màu chữ luân phiên giúp phân biệt rõ ràng 2 đơn sát nhau như trong danh sách phần bán hàng
+                                const isEvenReceipt = receiptIdx % 2 === 0;
+                                const supplierTextColor = isEvenReceipt 
+                                    ? 'text-yellow-300' // Đơn chẵn: Màu vàng sáng trên nền tối
+                                    : 'text-cyan-300';   // Đơn lẻ: Màu xanh ngọc sáng trên nền tối
+
+                                const receiptTime = r.createdAt?.toDate 
+                                    ? r.createdAt.toDate().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) 
+                                    : '';
+
+                                return (
                                 <div key={r.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all">
-                                    <div className="bg-slate-900 p-2.5 text-white border-b border-slate-800">
+                                    <div className="bg-slate-900 px-3 py-2 text-white border-b border-slate-800">
                                         <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-2 overflow-hidden">
-                                                <span className="text-[11px] font-bold uppercase truncate bg-white/15 px-2 py-0.5 rounded leading-none">{r.supplierName}</span>
-                                                {r.hasInvoice && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded font-bold uppercase shadow-2xs">HĐ ĐỎ</span>}
+                                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                                <span 
+                                                    className={`text-xs font-black uppercase truncate bg-white/10 px-2 py-0.5 rounded leading-tight max-w-[150px] sm:max-w-[200px] ${supplierTextColor}`}
+                                                    title={r.supplierName || 'NCC'}
+                                                >
+                                                    {r.supplierName || 'NCC'}
+                                                </span>
+                                                {receiptTime && (
+                                                    <span className="text-[10px] text-slate-400 font-mono hidden sm:inline-block">
+                                                        {receiptTime}
+                                                    </span>
+                                                )}
+                                                {r.hasInvoice && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded font-bold uppercase shadow-2xs shrink-0">HĐ ĐỎ</span>}
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
                                                 <button onClick={() => { setSelectedReceiptEdit(r); setIsEditModalOpen(true); }} className="p-1 bg-white/15 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
@@ -1340,10 +1361,13 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                             </div>
                                         </div>
                                         
-                                        {/* CẬP NHẬT: Thông tin Trạng thái, PTTT, Kho nhập */}
+                                        {/* CẬP NHẬT: Thông tin Trạng thái, PTTT, Kho nhập, Người tạo */}
                                         <div className="flex flex-wrap gap-1.5 items-center opacity-90 mt-1.5">
                                             <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded"><Archive size={10} className="mr-1"/> {r.warehouseName}</span>
                                             <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {r.paymentMethodName || 'Ghi nợ'}</span>
+                                            {r.creatorName && (
+                                                <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded text-slate-300" title="Người lập phiếu"><Users size={10} className="mr-1"/> {r.creatorName}</span>
+                                            )}
                                             <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs ${r.paymentStatus === 'debt' ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-600 text-white'}`}>
                                                 {r.paymentStatus === 'debt' ? 'CÒN NỢ' : 'ĐÃ TRẢ'}
                                             </span>
@@ -1367,7 +1391,8 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         ))}
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
