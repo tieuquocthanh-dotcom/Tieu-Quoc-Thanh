@@ -268,6 +268,7 @@ export const getAppIcon = (name: string, size = 18) => {
     case 'productAnalytics': return <BarChart3 size={size} />;
     case 'supplierAnalytics': case 'customerAnalytics': return <PieChart size={size} />;
     case 'products': return <Package size={size} />;
+    case 'productInvoices': return <FileText size={size} />;
     case 'quotations': return <FileText size={size} />;
     case 'customers': return <Contact size={size} />;
     case 'suppliers': return <Users size={size} />;

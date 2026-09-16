@@ -228,4 +228,27 @@ export interface PaymentHistoryEntry {
   };
 }
 
-export type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions';
+export interface ProductInvoiceItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice?: number;
+  vatRate?: number;
+  notes?: string;
+}
+
+export interface ProductInvoice {
+  id: string;
+  invoiceNumber: string;
+  issueDate: string;
+  supplierId?: string;
+  supplierName?: string;
+  items: ProductInvoiceItem[];
+  totalQuantity: number;
+  totalAmount?: number;
+  notes?: string;
+  createdAt: any;
+  creatorName?: string;
+}
+
+export type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions' | 'productInvoices';

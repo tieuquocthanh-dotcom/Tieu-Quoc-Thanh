@@ -1329,7 +1329,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
               }
           });
 
-          if (issueInvoice) {
+          const shouldDeductInvoice = issueInvoice || localStorage.getItem('invoiceDeductMode') === 'all_sales';
+          if (shouldDeductInvoice) {
               cart.forEach(i => {
                   if (i.isCombo && i.comboItems) {
                       i.comboItems.forEach(cItem => {
@@ -2161,7 +2162,27 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                         return (
                         <div key={item.productId} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80 animate-fade-in space-y-2 shadow-2xs">
                             <div className="flex justify-between items-start gap-1">
-                                <span className="font-bold text-primary text-[13px] truncate uppercase leading-tight flex-1">{idx+1}. {item.productName}</span>
+                                <div className="flex-1 min-w-0">
+                                    <span className="font-bold text-primary text-[13px] truncate uppercase leading-tight block">{idx+1}. {item.productName}</span>
+                                    {(issueInvoice || localStorage.getItem('invoiceDeductMode') === 'all_sales') && (
+                                        <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded leading-none ${
+                                                (item.invoicedStock || 0) >= item.quantity 
+                                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                                    : (item.invoicedStock || 0) > 0
+                                                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                            }`}>
+                                                Tồn HĐ: {item.invoicedStock || 0}
+                                                {(item.invoicedStock || 0) < item.quantity && (
+                                                    <span className="ml-1 text-rose-600 font-bold">
+                                                        ({(item.invoicedStock || 0) <= 0 ? 'Hết HĐ' : `Thiếu ${item.quantity - (item.invoicedStock || 0)}`})
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                     <button 
                                         type="button"

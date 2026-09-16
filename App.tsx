@@ -35,6 +35,7 @@ import PlannedOrderManagement from './components/PlannedOrderManagement';
 import NoteManagement from './components/NoteManagement';
 import SavingsManagement from './components/SavingsManagement';
 import RestockPredictions from './components/RestockPredictions';
+import ProductInvoiceManagement from './components/ProductInvoiceManagement';
 import WindowManager from './components/windows/WindowManager';
 import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw, Monitor, AppWindow } from 'lucide-react';
 import { View } from './types';
@@ -388,6 +389,7 @@ const App: React.FC = () => {
       case 'notes': return <NoteManagement user={user} />;
       case 'savings': return <SavingsManagement user={user} />;
       case 'restockPredictions': return <RestockPredictions />;
+      case 'productInvoices': return <ProductInvoiceManagement userRole={userRole} user={user} />;
       default: return <SalesTerminal userRole={userRole} user={user} />;
     }
   };
@@ -623,6 +625,7 @@ const App: React.FC = () => {
                     title: "Hàng Hóa & Đối Tác",
                     items: [
                         { targetView: "products" as View, icon: <Package size={16}/>, label: "Sản Phẩm" },
+                        { targetView: "productInvoices" as View, icon: <FileText size={16}/>, label: "Quản Lý Hóa Đơn SP" },
                         { targetView: "quotations" as View, icon: <FileText size={16}/>, label: "Quản Lý Báo Giá" },
                         { targetView: "customers" as View, icon: <Contact size={16}/>, label: "Khách Hàng" },
                         { targetView: "suppliers" as View, icon: <Users size={16}/>, label: "Nhà Cung Cấp" },

@@ -37,6 +37,7 @@ import PlannedOrderManagement from '../PlannedOrderManagement';
 import NoteManagement from '../NoteManagement';
 import SavingsManagement from '../SavingsManagement';
 import RestockPredictions from '../RestockPredictions';
+import ProductInvoiceManagement from '../ProductInvoiceManagement';
 import MobileAppSwitcher from './MobileAppSwitcher';
 
 interface WindowManagerProps {
@@ -125,6 +126,16 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       categoryLabel: 'Sản phẩm',
       iconName: 'products',
       color: 'bg-violet-600',
+      adminOnly: true,
+      defaultSize: { width: 1100, height: 700 }
+    },
+    {
+      id: 'productInvoices',
+      title: 'Quản Lý Hóa Đơn SP',
+      category: 'kho_hang',
+      categoryLabel: 'Hóa đơn',
+      iconName: 'productInvoices',
+      color: 'bg-blue-600',
       adminOnly: true,
       defaultSize: { width: 1100, height: 700 }
     },
@@ -633,6 +644,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       case 'notes': return <NoteManagement user={user} />;
       case 'savings': return <SavingsManagement user={user} />;
       case 'restockPredictions': return <RestockPredictions />;
+      case 'productInvoices': return <ProductInvoiceManagement userRole={userRole} user={user} />;
       default: return <SalesTerminal userRole={userRole} user={user} unreadCount={unreadSalesCount} onMarkAsRead={onMarkSalesAsRead} />;
     }
   };
