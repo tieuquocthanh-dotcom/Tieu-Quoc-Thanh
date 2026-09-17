@@ -84,36 +84,46 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
     const qClean = removeVietnameseTones(q).toLowerCase();
     const qNorm = normalizeVietnamese(q);
+    const qNoSpace = qClean.replace(/\s+/g, '');
 
     return apps.filter(app => {
       if (userRole !== 'admin' && app.adminOnly) return false;
+      // When searching with a query, search across all categories so features are never hidden
       const matchesCategory = selectedCategory === 'all' || app.category === selectedCategory;
-      if (!matchesCategory) return false;
+      const isSearchMatch = (() => {
+        // 1. Direct or Vietnamese-aware match on app.title
+        if (searchVietnameseMatch(app.title, q)) return true;
 
-      // 1. Direct or Vietnamese-aware match on app.title
-      if (searchVietnameseMatch(app.title, q)) return true;
+        // 2. Unaccented match (e.g. "hoa don" matches "Hóa đơn")
+        const titleClean = removeVietnameseTones(app.title).toLowerCase();
+        if (titleClean.includes(qClean)) return true;
+        if (qNoSpace && titleClean.replace(/\s+/g, '').includes(qNoSpace)) return true;
 
-      // 2. Unaccented match (e.g. "hoa don" matches "Hóa đơn")
-      const titleClean = removeVietnameseTones(app.title).toLowerCase();
-      if (titleClean.includes(qClean)) return true;
+        // 3. Normalized match (harmonizing tone placements e.g. hoá vs hóa)
+        const titleNorm = normalizeVietnamese(app.title);
+        if (titleNorm.includes(qNorm)) return true;
 
-      // 3. Normalized match (harmonizing tone placements e.g. hoá vs hóa)
-      const titleNorm = normalizeVietnamese(app.title);
-      if (titleNorm.includes(qNorm)) return true;
+        // 4. Match category label
+        if (searchVietnameseMatch(app.categoryLabel, q)) return true;
 
-      // 4. Match category label
-      if (searchVietnameseMatch(app.categoryLabel, q)) return true;
+        // 5. Match custom keywords if available
+        if (app.keywords && app.keywords.some(k => {
+          const kClean = removeVietnameseTones(k).toLowerCase();
+          return (
+            searchVietnameseMatch(k, q) || 
+            kClean.includes(qClean) ||
+            (qNoSpace && kClean.replace(/\s+/g, '').includes(qNoSpace)) ||
+            normalizeVietnamese(k).includes(qNorm)
+          );
+        })) {
+          return true;
+        }
 
-      // 5. Match custom keywords if available
-      if (app.keywords && app.keywords.some(k => 
-        searchVietnameseMatch(k, q) || 
-        removeVietnameseTones(k).toLowerCase().includes(qClean) ||
-        normalizeVietnamese(k).includes(qNorm)
-      )) {
-        return true;
-      }
+        return false;
+      })();
 
-      return false;
+      // If user selected a specific category tab, allow either category match or direct search match
+      return isSearchMatch;
     });
   }, [apps, searchTerm, selectedCategory, userRole]);
 

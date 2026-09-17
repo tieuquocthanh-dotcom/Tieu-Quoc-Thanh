@@ -118,6 +118,7 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
     // Modals
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedProductForQuickInvoice, setSelectedProductForQuickInvoice] = useState<Product | null>(null);
+    const [invoiceToEdit, setInvoiceToEdit] = useState<ProductInvoice | null>(null);
     const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
     const [productToAdjust, setProductToAdjust] = useState<Product | null>(null);
     const [adjustedStockValue, setAdjustedStockValue] = useState<number>(0);
@@ -307,6 +308,7 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                 <div className="flex items-center gap-2.5">
                     <button
                         onClick={() => {
+                            setInvoiceToEdit(null);
                             setSelectedProductForQuickInvoice(null);
                             setIsCreateModalOpen(true);
                         }}
@@ -540,6 +542,7 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                                         <div className="flex items-center justify-center gap-1.5">
                                                             <button
                                                                 onClick={() => {
+                                                                    setInvoiceToEdit(null);
                                                                     setSelectedProductForQuickInvoice(p);
                                                                     setIsCreateModalOpen(true);
                                                                 }}
@@ -629,17 +632,16 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                         <th className="py-3 px-4">Số / Ký Hiệu HĐ</th>
                                         <th className="py-3 px-4">Ngày Xuất Hóa Đơn</th>
                                         <th className="py-3 px-4">Nhà Cung Cấp</th>
-                                        <th className="py-3 px-4">Sản Phẩm Trong HĐ</th>
                                         <th className="py-3 px-4 text-center">Tổng SL HĐ</th>
                                         <th className="py-3 px-4 text-right">Tổng Tiền HĐ</th>
                                         <th className="py-3 px-4">Người Nhập</th>
-                                        <th className="py-3 px-4 text-center w-28">Thao Tác</th>
+                                        <th className="py-3 px-4 text-center w-32">Thao Tác</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 bg-white font-medium">
                                     {filteredInvoices.length === 0 ? (
                                         <tr>
-                                            <td colSpan={9} className="py-8 text-center text-slate-400 font-bold">
+                                            <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
                                                 Chưa có phiếu nhập hóa đơn nào
                                             </td>
                                         </tr>
@@ -662,16 +664,6 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                                     </td>
                                                     <td className="py-3 px-4 font-black uppercase text-slate-800">
                                                         {inv.supplierName || '---'}
-                                                    </td>
-                                                    <td className="py-3 px-4">
-                                                        <div className="space-y-0.5 max-w-xs">
-                                                            {inv.items?.map((it, iIdx) => (
-                                                                <div key={iIdx} className="text-xs flex justify-between gap-2">
-                                                                    <span className="font-bold text-slate-700 truncate">{it.productName}</span>
-                                                                    <span className="font-black text-blue-600 shrink-0">x{it.quantity}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
                                                     </td>
                                                     <td className="py-3 px-4 text-center">
                                                         <span className="font-black text-base text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
@@ -697,10 +689,21 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                                                     setSelectedInvoiceDetail(inv);
                                                                     setIsDetailModalOpen(true);
                                                                 }}
-                                                                className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition"
-                                                                title="Xem chi tiết hóa đơn"
+                                                                className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition"
+                                                                title="Xem chi tiết các sản phẩm trong hóa đơn"
                                                             >
                                                                 <Eye size={15} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setInvoiceToEdit(inv);
+                                                                    setSelectedProductForQuickInvoice(null);
+                                                                    setIsCreateModalOpen(true);
+                                                                }}
+                                                                className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white rounded-lg transition"
+                                                                title="Chỉnh sửa hóa đơn"
+                                                            >
+                                                                <Edit3 size={15} />
                                                             </button>
                                                             <button
                                                                 onClick={() => setInvoiceToDelete(inv)}
@@ -733,17 +736,20 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                 )}
             </div>
 
-            {/* MODAL 1: CREATE NEW INVOICE ENTRY */}
+            {/* MODAL 1: CREATE OR EDIT INVOICE ENTRY */}
             {isCreateModalOpen && (
                 <CreateInvoiceModal
                     isOpen={isCreateModalOpen}
                     onClose={() => {
                         setIsCreateModalOpen(false);
                         setSelectedProductForQuickInvoice(null);
+                        setInvoiceToEdit(null);
                     }}
                     initialProduct={selectedProductForQuickInvoice}
+                    invoiceToEdit={invoiceToEdit}
                     products={products}
                     suppliers={suppliers}
+                    invoices={invoices}
                     currentUser={user}
                     onSuccess={(msg) => showToast(msg, 'success')}
                 />
@@ -876,7 +882,20 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                 </div>
                             </div>
                         </div>
-                        <div className="p-4 bg-slate-50 border-t border-slate-200 text-right">
+                        <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+                            <button
+                                onClick={() => {
+                                    const inv = selectedInvoiceDetail;
+                                    setIsDetailModalOpen(false);
+                                    setInvoiceToEdit(inv);
+                                    setSelectedProductForQuickInvoice(null);
+                                    setIsCreateModalOpen(true);
+                                }}
+                                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs uppercase flex items-center gap-1.5 transition shadow-2xs"
+                            >
+                                <Edit3 size={15} />
+                                Chỉnh Sửa Hóa Đơn Này
+                            </button>
                             <button
                                 onClick={() => setIsDetailModalOpen(false)}
                                 className="px-5 py-2 bg-slate-800 text-white rounded-xl font-bold text-xs uppercase hover:bg-slate-900 transition"
@@ -912,13 +931,15 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
     );
 };
 
-// SUB-COMPONENT: MODAL CREATE INVOICE
+// SUB-COMPONENT: MODAL CREATE / EDIT INVOICE
 interface CreateInvoiceModalProps {
     isOpen: boolean;
     onClose: () => void;
     initialProduct: Product | null;
+    invoiceToEdit?: ProductInvoice | null;
     products: Product[];
     suppliers: Supplier[];
+    invoices: ProductInvoice[];
     currentUser: any;
     onSuccess: (msg: string) => void;
 }
@@ -927,26 +948,59 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
     isOpen,
     onClose,
     initialProduct,
+    invoiceToEdit,
     products,
     suppliers,
+    invoices,
     currentUser,
     onSuccess
 }) => {
-    const [invoiceNumber, setInvoiceNumber] = useState('');
-    const [issueDate, setIssueDate] = useState(getLocalYYYYMMDD());
-    const [supplierId, setSupplierId] = useState('');
-    const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
+    // Helper: find previous invoice price for a product, prioritizing selected supplier
+    const getPreviousInvoicePrice = (productId: string, currentSupplierId?: string) => {
+        // 1. Try to find from this supplier's previous invoices (sorted newest to oldest)
+        if (currentSupplierId) {
+            for (const inv of invoices) {
+                if (invoiceToEdit && inv.id === invoiceToEdit.id) continue;
+                if (inv.supplierId === currentSupplierId) {
+                    const matchItem = inv.items?.find(it => it.productId === productId && typeof it.unitPrice === 'number' && it.unitPrice > 0);
+                    if (matchItem && matchItem.unitPrice !== undefined) {
+                        return { price: matchItem.unitPrice, source: 'ncc' as const };
+                    }
+                }
+            }
+        }
+        // 2. Try to find from any previous invoice
+        for (const inv of invoices) {
+            if (invoiceToEdit && inv.id === invoiceToEdit.id) continue;
+            const matchItem = inv.items?.find(it => it.productId === productId && typeof it.unitPrice === 'number' && it.unitPrice > 0);
+            if (matchItem && matchItem.unitPrice !== undefined) {
+                return { price: matchItem.unitPrice, source: 'other_invoice' as const };
+            }
+        }
+        // 3. Fallback to product importPrice
+        const prod = products.find(p => p.id === productId);
+        return { price: prod?.importPrice || 0, source: 'import_price' as const };
+    };
+
+    const [invoiceNumber, setInvoiceNumber] = useState(() => invoiceToEdit?.invoiceNumber || '');
+    const [issueDate, setIssueDate] = useState(() => invoiceToEdit?.issueDate || getLocalYYYYMMDD());
+    const [supplierId, setSupplierId] = useState(() => invoiceToEdit?.supplierId || '');
+    const [supplierSearchTerm, setSupplierSearchTerm] = useState(() => invoiceToEdit?.supplierName || '');
     const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
     const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
     const supplierDropdownRef = useRef<HTMLDivElement>(null);
-    const [notes, setNotes] = useState('');
+    const [notes, setNotes] = useState(() => invoiceToEdit?.notes || '');
     const [items, setItems] = useState<ProductInvoiceItem[]>(() => {
+        if (invoiceToEdit && invoiceToEdit.items) {
+            return JSON.parse(JSON.stringify(invoiceToEdit.items));
+        }
         if (initialProduct) {
+            const prev = getPreviousInvoicePrice(initialProduct.id);
             return [{
                 productId: initialProduct.id,
                 productName: initialProduct.name,
                 quantity: 1,
-                unitPrice: initialProduct.importPrice || 0
+                unitPrice: prev.price
             }];
         }
         return [];
@@ -966,6 +1020,22 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
             document.removeEventListener('touchstart', handleClickOutside);
         };
     }, []);
+
+    // When a supplier is chosen, update price of items if that supplier has previous invoice prices
+    const handleSelectSupplier = (s: Supplier) => {
+        setSupplierId(s.id);
+        setSupplierSearchTerm(s.name);
+        setIsSupplierDropdownOpen(false);
+
+        // Auto-update prices of already selected items if this supplier has a previous price recorded
+        setItems(prevItems => prevItems.map(it => {
+            const prev = getPreviousInvoicePrice(it.productId, s.id);
+            if (prev.source === 'ncc') {
+                return { ...it, unitPrice: prev.price };
+            }
+            return it;
+        }));
+    };
 
     // Quick add new supplier like in goods receipt
     const handleQuickCreateSupplier = async (data: any) => {
@@ -992,11 +1062,12 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
             updated[existingIdx].quantity += 1;
             setItems(updated);
         } else {
+            const prevPriceInfo = getPreviousInvoicePrice(product.id, supplierId);
             setItems([...items, {
                 productId: product.id,
                 productName: product.name,
                 quantity: 1,
-                unitPrice: product.importPrice || 0
+                unitPrice: prevPriceInfo.price
             }]);
         }
         setProductSearchTerm('');
@@ -1035,33 +1106,84 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
         setIsSubmitting(true);
         try {
             const batch = writeBatch(db);
-            const invoiceRef = doc(collection(db, 'productInvoices'));
 
-            const invoiceData = {
-                invoiceNumber: invoiceNumber.trim() || `HD-${Date.now().toString().slice(-6)}`,
-                issueDate: issueDate || getLocalYYYYMMDD(),
-                supplierId: supplierId || '',
-                supplierName: sup?.name || supplierSearchTerm.trim() || 'Nhà Cung Cấp',
-                notes: notes.trim(),
-                items,
-                totalQuantity,
-                totalAmount,
-                createdAt: serverTimestamp(),
-                creatorName: currentUser?.displayName || currentUser?.email || 'Admin'
-            };
+            if (invoiceToEdit) {
+                // EDIT MODE
+                // 1. Calculate stock adjustments for totalInvoicedStock
+                const oldItemQtyMap = new Map<string, number>();
+                (invoiceToEdit.items || []).forEach(it => {
+                    if (it.productId) {
+                        oldItemQtyMap.set(it.productId, (oldItemQtyMap.get(it.productId) || 0) + (Number(it.quantity) || 0));
+                    }
+                });
 
-            batch.set(invoiceRef, invoiceData);
+                const newItemQtyMap = new Map<string, number>();
+                items.forEach(it => {
+                    if (it.productId) {
+                        newItemQtyMap.set(it.productId, (newItemQtyMap.get(it.productId) || 0) + (Number(it.quantity) || 0));
+                    }
+                });
 
-            // Increase totalInvoicedStock for each product in this invoice
-            items.forEach(it => {
-                if (it.productId && it.quantity > 0) {
-                    const pRef = doc(db, 'products', it.productId);
-                    batch.update(pRef, { totalInvoicedStock: increment(it.quantity) });
-                }
-            });
+                // Difference for all affected products
+                const allProductIds = new Set<string>([...oldItemQtyMap.keys(), ...newItemQtyMap.keys()]);
+                allProductIds.forEach(pId => {
+                    const oldQty = oldItemQtyMap.get(pId) || 0;
+                    const newQty = newItemQtyMap.get(pId) || 0;
+                    const diff = newQty - oldQty;
+                    if (diff !== 0) {
+                        const pRef = doc(db, 'products', pId);
+                        batch.update(pRef, { totalInvoicedStock: increment(diff) });
+                    }
+                });
 
-            await batch.commit();
-            onSuccess(`Đã lưu hóa đơn số ${invoiceData.invoiceNumber} thành công và tăng ${totalQuantity} tồn hóa đơn!`);
+                const invoiceRef = doc(db, 'productInvoices', invoiceToEdit.id);
+                const updatedData = {
+                    invoiceNumber: invoiceNumber.trim() || invoiceToEdit.invoiceNumber || `HD-${Date.now().toString().slice(-6)}`,
+                    issueDate: issueDate || getLocalYYYYMMDD(),
+                    supplierId: supplierId || '',
+                    supplierName: sup?.name || supplierSearchTerm.trim() || 'Nhà Cung Cấp',
+                    notes: notes.trim(),
+                    items,
+                    totalQuantity,
+                    totalAmount,
+                    updatedAt: serverTimestamp(),
+                    lastEditorName: currentUser?.displayName || currentUser?.email || 'Admin'
+                };
+
+                batch.update(invoiceRef, updatedData);
+                await batch.commit();
+                onSuccess(`Đã cập nhật hóa đơn số ${updatedData.invoiceNumber} thành công!`);
+            } else {
+                // CREATE MODE
+                const invoiceRef = doc(collection(db, 'productInvoices'));
+
+                const invoiceData = {
+                    invoiceNumber: invoiceNumber.trim() || `HD-${Date.now().toString().slice(-6)}`,
+                    issueDate: issueDate || getLocalYYYYMMDD(),
+                    supplierId: supplierId || '',
+                    supplierName: sup?.name || supplierSearchTerm.trim() || 'Nhà Cung Cấp',
+                    notes: notes.trim(),
+                    items,
+                    totalQuantity,
+                    totalAmount,
+                    createdAt: serverTimestamp(),
+                    creatorName: currentUser?.displayName || currentUser?.email || 'Admin'
+                };
+
+                batch.set(invoiceRef, invoiceData);
+
+                // Increase totalInvoicedStock for each product in this invoice
+                items.forEach(it => {
+                    if (it.productId && it.quantity > 0) {
+                        const pRef = doc(db, 'products', it.productId);
+                        batch.update(pRef, { totalInvoicedStock: increment(it.quantity) });
+                    }
+                });
+
+                await batch.commit();
+                onSuccess(`Đã lưu hóa đơn số ${invoiceData.invoiceNumber} thành công và tăng ${totalQuantity} tồn hóa đơn!`);
+            }
+
             onClose();
         } catch (error) {
             console.error("Lỗi lưu hóa đơn:", error);
@@ -1081,9 +1203,17 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
+                <div className={`${invoiceToEdit ? 'bg-amber-600' : 'bg-blue-600'} p-4 text-white flex justify-between items-center shrink-0`}>
                     <h3 className="font-black uppercase text-sm flex items-center gap-2">
-                        <PlusCircle size={20} /> Nhập Hóa Đơn Sản Phẩm Từ NCC
+                        {invoiceToEdit ? (
+                            <>
+                                <Edit3 size={20} /> Chỉnh Sửa Hóa Đơn: {invoiceToEdit.invoiceNumber || 'HĐ'}
+                            </>
+                        ) : (
+                            <>
+                                <PlusCircle size={20} /> Nhập Hóa Đơn Sản Phẩm Từ NCC
+                            </>
+                        )}
                     </h3>
                     <button onClick={onClose} className="text-white/80 hover:text-white">
                         <X size={22} />
@@ -1176,11 +1306,7 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                                                         <button
                                                             key={s.id}
                                                             type="button"
-                                                            onClick={() => {
-                                                                setSupplierId(s.id);
-                                                                setSupplierSearchTerm(s.name);
-                                                                setIsSupplierDropdownOpen(false);
-                                                            }}
+                                                            onClick={() => handleSelectSupplier(s)}
                                                             className="w-full text-left px-3 py-2.5 hover:bg-blue-50 text-xs font-bold text-slate-800 flex justify-between items-center transition"
                                                         >
                                                             <span className="truncate">{s.name}</span>
@@ -1259,22 +1385,39 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                                             Không tìm thấy sản phẩm nào khớp
                                         </div>
                                     ) : (
-                                        searchFilteredProducts.map(p => (
-                                            <button
-                                                key={p.id}
-                                                type="button"
-                                                onClick={() => handleAddItem(p)}
-                                                className="w-full text-left p-2.5 hover:bg-blue-50 text-xs flex justify-between items-center transition"
-                                            >
-                                                <div>
-                                                    <span className="font-bold uppercase text-slate-800 block">{p.name}</span>
-                                                    <span className="text-[10px] text-slate-400">Giá nhập gốc: {formatNumber(p.importPrice || 0)} ₫</span>
-                                                </div>
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                                                    Tồn HĐ hiện tại: {p.totalInvoicedStock || 0}
-                                                </span>
-                                            </button>
-                                        ))
+                                        searchFilteredProducts.map(p => {
+                                            const prevPrice = getPreviousInvoicePrice(p.id, supplierId);
+                                            return (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => handleAddItem(p)}
+                                                    className="w-full text-left p-2.5 hover:bg-blue-50 text-xs flex justify-between items-center transition"
+                                                >
+                                                    <div>
+                                                        <span className="font-bold uppercase text-slate-800 block">{p.name}</span>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            {prevPrice.source === 'ncc' ? (
+                                                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                                                    Giá HĐ NCC lần trước: {formatNumber(prevPrice.price)} ₫
+                                                                </span>
+                                                            ) : prevPrice.source === 'other_invoice' ? (
+                                                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                                                    Giá HĐ gần nhất: {formatNumber(prevPrice.price)} ₫
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[10px] text-slate-400">
+                                                                    Giá nhập gốc: {formatNumber(prevPrice.price)} ₫
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                                        Tồn HĐ hiện tại: {p.totalInvoicedStock || 0}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })
                                     )}
                                 </div>
                             )}
@@ -1382,10 +1525,10 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                         <button
                             type="submit"
                             disabled={isSubmitting || items.length === 0}
-                            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase transition shadow-sm disabled:bg-slate-300 flex items-center justify-center gap-2"
+                            className={`flex-1 py-2.5 ${invoiceToEdit ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl font-black text-xs uppercase transition shadow-sm disabled:bg-slate-300 flex items-center justify-center gap-2`}
                         >
                             <Save size={16} />
-                            <span>{isSubmitting ? 'Đang Lưu...' : 'Lưu Hóa Đơn'}</span>
+                            <span>{isSubmitting ? 'Đang Lưu...' : (invoiceToEdit ? 'Cập Nhật Hóa Đơn' : 'Lưu Hóa Đơn')}</span>
                         </button>
                     </div>
                 </form>

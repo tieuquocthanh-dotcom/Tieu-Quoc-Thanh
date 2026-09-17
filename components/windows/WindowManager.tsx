@@ -136,8 +136,16 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       categoryLabel: 'Hóa đơn',
       iconName: 'productInvoices',
       color: 'bg-blue-600',
-      adminOnly: true,
-      keywords: ['hóa đơn', 'hoá đơn', 'hoa don', 'hóa đơn sp', 'hoá đơn sp', 'hóa đơn sản phẩm', 'hoá đơn sản phẩm', 'hóa đơn ncc', 'hoá đơn ncc', 'nhập hóa đơn', 'tồn hóa đơn', 'vat'],
+      adminOnly: false,
+      keywords: [
+        'hóa đơn', 'hoá đơn', 'hoa don', 'hoadon',
+        'hóa đơn sp', 'hoá đơn sp', 'hoa don sp',
+        'hóa đơn sản phẩm', 'hoá đơn sản phẩm', 'hoa don san pham',
+        'hóa đơn ncc', 'hoá đơn ncc', 'hoa don ncc',
+        'nhập hóa đơn', 'nhập hoá đơn', 'nhap hoa don',
+        'tồn hóa đơn', 'tồn hoá đơn', 'ton hoa don',
+        'vat', 'invoice', 'invoices'
+      ],
       defaultSize: { width: 1100, height: 700 }
     },
     {

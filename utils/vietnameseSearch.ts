@@ -1,18 +1,30 @@
-export const normalizeVietnameseTonePlacement = (str: string): string => {
+export const cleanVietnameseWhitespace = (str: string): string => {
   if (!str) return '';
   return str
-    .normalize('NFC')
+    .replace(/[\u00a0\u1680\u2000-\u200b\u200c\u200d\u2028\u2029\u202f\u205f\u3000\ufeff]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+export const normalizeVietnameseTonePlacement = (str: string): string => {
+  if (!str) return '';
+  // Ensure NFC first so decomposed characters like 'o' + acute on 'a' or combining diacritics are composed
+  const cleaned = cleanVietnameseWhitespace(str).normalize('NFC');
+  return cleaned
+    // oa -> óa vs oá
     .replace(/oá/g, 'óa').replace(/oà/g, 'òa').replace(/oả/g, 'ỏa').replace(/oã/g, 'õa').replace(/oạ/g, 'ọa')
     .replace(/oé/g, 'óe').replace(/oè/g, 'òe').replace(/oẻ/g, 'ỏe').replace(/oẽ/g, 'õe').replace(/oẹ/g, 'ọe')
     .replace(/uý/g, 'úy').replace(/uỳ/g, 'ùy').replace(/uỷ/g, 'ủy').replace(/uỹ/g, 'ũy').replace(/uỵ/g, 'ụy')
+    .replace(/uá/g, 'úa').replace(/uà/g, 'ùa').replace(/uả/g, 'ủa').replace(/uã/g, 'ũa').replace(/uạ/g, 'ụa')
     .replace(/Oá/g, 'Óa').replace(/Oà/g, 'Òa').replace(/Oả/g, 'Ỏa').replace(/Oã/g, 'Õa').replace(/Oạ/g, 'Ọa')
     .replace(/Oé/g, 'Óe').replace(/Oè/g, 'Òe').replace(/Oẻ/g, 'Ỏe').replace(/Oẽ/g, 'Õe').replace(/Oẹ/g, 'Ọe')
-    .replace(/Uý/g, 'Úy').replace(/Uỳ/g, 'Ùy').replace(/Uỷ/g, 'Ủy').replace(/Uỹ/g, 'Ũy').replace(/Uỵ/g, 'Ụy');
+    .replace(/Uý/g, 'Úy').replace(/Uỳ/g, 'Ùy').replace(/Uỷ/g, 'Ủy').replace(/Uỹ/g, 'Ũy').replace(/Uỵ/g, 'Ụy')
+    .replace(/Uá/g, 'Úa').replace(/Uà/g, 'Ùa').replace(/Uả/g, 'Ủa').replace(/Uã/g, 'Ũa').replace(/Uạ/g, 'Ụa');
 };
 
 export const removeVietnameseTones = (str: string): string => {
   if (!str) return '';
-  return str
+  return cleanVietnameseWhitespace(str)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
