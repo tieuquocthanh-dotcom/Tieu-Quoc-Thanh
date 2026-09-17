@@ -11,6 +11,7 @@ export interface AppDefinition {
   adminOnly?: boolean;
   defaultSize?: { width: number; height: number };
   badgeCount?: number;
+  keywords?: string[];
 }
 
 export interface WindowState {

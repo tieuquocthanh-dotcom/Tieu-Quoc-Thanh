@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     collection, 
     onSnapshot, 
@@ -8,7 +8,8 @@ import {
     writeBatch, 
     serverTimestamp, 
     deleteDoc, 
-    increment 
+    increment,
+    addDoc
 } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Supplier, Manufacturer, ProductInvoice, ProductInvoiceItem } from '../types';
@@ -35,11 +36,57 @@ import {
     CheckCheck, 
     RefreshCw, 
     SlidersHorizontal,
-    Info
+    Info,
+    Users
 } from 'lucide-react';
-import { formatNumber, getLocalYYYYMMDD } from '../utils/formatting';
-import { searchVietnameseMatch } from '../utils/vietnameseSearch';
+import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
+import { searchVietnameseMatch, removeVietnameseTones } from '../utils/vietnameseSearch';
 import ConfirmationModal from './ConfirmationModal';
+import { SupplierModal } from './SupplierManagement';
+import Pagination from './Pagination';
+
+// Helper component for formatted numeric input
+const NumericInput: React.FC<{
+    value: number;
+    onChange: (val: number) => void;
+    className?: string;
+    placeholder?: string;
+}> = ({ value, onChange, className, placeholder }) => {
+    const [localValue, setLocalValue] = useState(formatNumber(value));
+
+    useEffect(() => {
+        const parsed = parseNumber(localValue);
+        if (value !== parsed) {
+            setLocalValue(formatNumber(value));
+        }
+    }, [value]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        setLocalValue(raw);
+        onChange(parseNumber(raw));
+    };
+
+    const handleBlur = () => {
+        const parsed = parseNumber(localValue);
+        setLocalValue(formatNumber(parsed));
+    };
+
+    return (
+        <input
+            type="text"
+            inputMode="numeric"
+            value={localValue}
+            placeholder={placeholder}
+            className={className}
+            onFocus={() => {
+                if (value === 0) setLocalValue("");
+            }}
+            onChange={handleChange}
+            onBlur={handleBlur}
+        />
+    );
+};
 
 interface ProductInvoiceManagementProps {
     userRole: 'admin' | 'staff' | null;
@@ -56,13 +103,17 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
     // Tab view: 'summary' (Tổng kết tồn hóa đơn theo SP) | 'invoices' (Danh sách phiếu nhập hóa đơn)
     const [activeTab, setActiveTab] = useState<'summary' | 'invoices'>('summary');
 
-    // Filters for Tab 1 (Summary)
+    // Filters for Tab 1 (Summary) - Default is 'in_stock' (sản phẩm còn hóa đơn)
     const [summarySearchTerm, setSummarySearchTerm] = useState('');
-    const [invoiceStockFilter, setInvoiceStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all');
+    const [invoiceStockFilter, setInvoiceStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('in_stock');
+    const [summaryPage, setSummaryPage] = useState(1);
+    const [summaryPageSize, setSummaryPageSize] = useState(20);
 
     // Filters for Tab 2 (Invoices List)
     const [invoiceSearchTerm, setInvoiceSearchTerm] = useState('');
     const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('all');
+    const [invoicePage, setInvoicePage] = useState(1);
+    const [invoicePageSize, setInvoicePageSize] = useState(20);
 
     // Modals
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -141,6 +192,38 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
         });
     }, [products, invoiceStockFilter, summarySearchTerm, manufacturers]);
 
+    // Calculate highest invoice import price for each product from existing invoices
+    const productMaxInvoicePriceMap = useMemo(() => {
+        const map = new Map<string, number>();
+        invoices.forEach(inv => {
+            inv.items?.forEach(item => {
+                if (item.productId && item.unitPrice && Number(item.unitPrice) > 0) {
+                    const price = Number(item.unitPrice);
+                    const currentMax = map.get(item.productId) || 0;
+                    if (price > currentMax) {
+                        map.set(item.productId, price);
+                    }
+                }
+            });
+        });
+        return map;
+    }, [invoices]);
+
+    // Reset pagination when search/filter changes
+    useEffect(() => {
+        setSummaryPage(1);
+    }, [summarySearchTerm, invoiceStockFilter]);
+
+    useEffect(() => {
+        setInvoicePage(1);
+    }, [invoiceSearchTerm, selectedSupplierFilter]);
+
+    // Paginated products for fast loading
+    const paginatedProducts = useMemo(() => {
+        const start = (summaryPage - 1) * summaryPageSize;
+        return filteredProducts.slice(start, start + summaryPageSize);
+    }, [filteredProducts, summaryPage, summaryPageSize]);
+
     // Filtered invoices
     const filteredInvoices = useMemo(() => {
         return invoices.filter(inv => {
@@ -155,6 +238,12 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
             return matchNum || matchSup || matchDate || matchItems;
         });
     }, [invoices, selectedSupplierFilter, invoiceSearchTerm]);
+
+    // Paginated invoices for fast loading
+    const paginatedInvoices = useMemo(() => {
+        const start = (invoicePage - 1) * invoicePageSize;
+        return filteredInvoices.slice(start, start + invoicePageSize);
+    }, [filteredInvoices, invoicePage, invoicePageSize]);
 
     // Adjust direct invoiced stock
     const handleSaveAdjustStock = async () => {
@@ -372,6 +461,7 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                         <th className="py-3 px-4">Tên Sản Phẩm</th>
                                         <th className="py-3 px-4">Hãng SX</th>
                                         <th className="py-3 px-4 text-right">Giá Bán</th>
+                                        <th className="py-3 px-4 text-right">Giá Nhập HĐ (Cao Nhất)</th>
                                         <th className="py-3 px-4 text-center">Tồn Kho Hóa Đơn</th>
                                         <th className="py-3 px-4 text-center">Trạng Thái Hóa Đơn</th>
                                         <th className="py-3 px-4 text-center w-36">Thao Tác</th>
@@ -380,20 +470,22 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                 <tbody className="divide-y divide-slate-100 bg-white font-medium">
                                     {filteredProducts.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
+                                            <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
                                                 Không tìm thấy sản phẩm nào phù hợp
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredProducts.map((p, idx) => {
+                                        paginatedProducts.map((p, idx) => {
+                                            const globalIdx = (summaryPage - 1) * summaryPageSize + idx + 1;
                                             const invoicedQty = p.totalInvoicedStock || 0;
                                             const hasInvoicedStock = invoicedQty > 0;
                                             const isNegative = invoicedQty < 0;
                                             const mfg = manufacturers.find(m => m.id === p.manufacturerId);
+                                            const maxInvoicePrice = productMaxInvoicePriceMap.get(p.id);
 
                                             return (
                                                 <tr key={p.id} className="hover:bg-blue-50/40 transition">
-                                                    <td className="py-3 px-4 text-center text-slate-400 font-bold text-xs">{idx + 1}</td>
+                                                    <td className="py-3 px-4 text-center text-slate-400 font-bold text-xs">{globalIdx}</td>
                                                     <td className="py-3 px-4">
                                                         <div className="font-black text-slate-900 uppercase">{p.name}</div>
                                                         {p.isCombo && (
@@ -405,6 +497,18 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                                     </td>
                                                     <td className="py-3 px-4 text-right font-black text-slate-800">
                                                         {formatNumber(p.sellingPrice)} ₫
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right">
+                                                        {maxInvoicePrice ? (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-blue-700 font-black bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-xs">
+                                                                    {formatNumber(maxInvoicePrice)} ₫
+                                                                </span>
+                                                                <span className="text-[9px] text-slate-400 font-semibold">HĐ cao nhất</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-400 text-xs italic">Chưa có giá HĐ</span>
+                                                        )}
                                                     </td>
                                                     <td className="py-3 px-4 text-center">
                                                         <span className={`text-base font-black px-2.5 py-1 rounded-lg ${
@@ -464,6 +568,17 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination for Summary Table */}
+                        {filteredProducts.length > 0 && (
+                            <Pagination
+                                currentPage={summaryPage}
+                                pageSize={summaryPageSize}
+                                totalItems={filteredProducts.length}
+                                onPageChange={setSummaryPage}
+                                onPageSizeChange={setSummaryPageSize}
+                            />
+                        )}
                     </div>
                 )}
 
@@ -516,6 +631,7 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                         <th className="py-3 px-4">Nhà Cung Cấp</th>
                                         <th className="py-3 px-4">Sản Phẩm Trong HĐ</th>
                                         <th className="py-3 px-4 text-center">Tổng SL HĐ</th>
+                                        <th className="py-3 px-4 text-right">Tổng Tiền HĐ</th>
                                         <th className="py-3 px-4">Người Nhập</th>
                                         <th className="py-3 px-4 text-center w-28">Thao Tác</th>
                                     </tr>
@@ -523,73 +639,96 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                 <tbody className="divide-y divide-slate-100 bg-white font-medium">
                                     {filteredInvoices.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
+                                            <td colSpan={9} className="py-8 text-center text-slate-400 font-bold">
                                                 Chưa có phiếu nhập hóa đơn nào
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredInvoices.map((inv, idx) => (
-                                            <tr key={inv.id} className="hover:bg-slate-50 transition">
-                                                <td className="py-3 px-4 text-center text-slate-400 font-bold text-xs">{idx + 1}</td>
-                                                <td className="py-3 px-4">
-                                                    <span className="font-black text-blue-700 font-mono bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                                        {inv.invoiceNumber || 'KHD-' + inv.id.slice(0, 6)}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 px-4 font-bold text-slate-800">
-                                                    <span className="flex items-center gap-1">
-                                                        <Calendar size={13} className="text-slate-400" />
-                                                        {inv.issueDate}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 px-4 font-black uppercase text-slate-800">
-                                                    {inv.supplierName || '---'}
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="space-y-0.5 max-w-xs">
-                                                        {inv.items?.map((it, iIdx) => (
-                                                            <div key={iIdx} className="text-xs flex justify-between gap-2">
-                                                                <span className="font-bold text-slate-700 truncate">{it.productName}</span>
-                                                                <span className="font-black text-blue-600 shrink-0">x{it.quantity}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 px-4 text-center">
-                                                    <span className="font-black text-base text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                                                        {formatNumber(inv.totalQuantity)}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 px-4 text-xs text-slate-500 font-semibold">
-                                                    {inv.creatorName || 'Hệ thống'}
-                                                </td>
-                                                <td className="py-3 px-4 text-center">
-                                                    <div className="flex items-center justify-center gap-1.5">
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedInvoiceDetail(inv);
-                                                                setIsDetailModalOpen(true);
-                                                            }}
-                                                            className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition"
-                                                            title="Xem chi tiết hóa đơn"
-                                                        >
-                                                            <Eye size={15} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setInvoiceToDelete(inv)}
-                                                            className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition"
-                                                            title="Xóa hóa đơn và hoàn trả tồn"
-                                                        >
-                                                            <Trash2 size={15} />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
+                                        paginatedInvoices.map((inv, idx) => {
+                                            const globalIdx = (invoicePage - 1) * invoicePageSize + idx + 1;
+                                            return (
+                                                <tr key={inv.id} className="hover:bg-slate-50 transition">
+                                                    <td className="py-3 px-4 text-center text-slate-400 font-bold text-xs">{globalIdx}</td>
+                                                    <td className="py-3 px-4">
+                                                        <span className="font-black text-blue-700 font-mono bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                                            {inv.invoiceNumber || 'KHD-' + inv.id.slice(0, 6)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 font-bold text-slate-800">
+                                                        <span className="flex items-center gap-1">
+                                                            <Calendar size={13} className="text-slate-400" />
+                                                            {inv.issueDate}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 font-black uppercase text-slate-800">
+                                                        {inv.supplierName || '---'}
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <div className="space-y-0.5 max-w-xs">
+                                                            {inv.items?.map((it, iIdx) => (
+                                                                <div key={iIdx} className="text-xs flex justify-between gap-2">
+                                                                    <span className="font-bold text-slate-700 truncate">{it.productName}</span>
+                                                                    <span className="font-black text-blue-600 shrink-0">x{it.quantity}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center">
+                                                        <span className="font-black text-base text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                                                            {formatNumber(inv.totalQuantity)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right font-black text-slate-800">
+                                                        {inv.totalAmount ? (
+                                                            <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold text-xs">
+                                                                {formatNumber(inv.totalAmount)} ₫
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400 text-xs italic">---</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-xs text-slate-500 font-semibold">
+                                                        {inv.creatorName || 'Hệ thống'}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center">
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedInvoiceDetail(inv);
+                                                                    setIsDetailModalOpen(true);
+                                                                }}
+                                                                className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition"
+                                                                title="Xem chi tiết hóa đơn"
+                                                            >
+                                                                <Eye size={15} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setInvoiceToDelete(inv)}
+                                                                className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition"
+                                                                title="Xóa hóa đơn và hoàn trả tồn"
+                                                            >
+                                                                <Trash2 size={15} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination for Invoices Table */}
+                        {filteredInvoices.length > 0 && (
+                            <Pagination
+                                currentPage={invoicePage}
+                                pageSize={invoicePageSize}
+                                totalItems={filteredInvoices.length}
+                                onPageChange={setInvoicePage}
+                                onPageSizeChange={setInvoicePageSize}
+                            />
+                        )}
                     </div>
                 )}
             </div>
@@ -670,7 +809,7 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
             {/* MODAL 3: INVOICE DETAIL VIEW */}
             {isDetailModalOpen && selectedInvoiceDetail && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
                         <div className="bg-slate-900 p-4 text-white flex justify-between items-center shrink-0">
                             <h3 className="font-black uppercase text-sm flex items-center gap-2">
                                 <FileText size={18} /> Chi Tiết Hóa Đơn: {selectedInvoiceDetail.invoiceNumber}
@@ -680,22 +819,24 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                             </button>
                         </div>
                         <div className="p-6 space-y-4 overflow-y-auto flex-1">
-                            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
                                 <div>
                                     <span className="text-slate-400 uppercase font-bold block text-[10px]">Ngày xuất hóa đơn</span>
                                     <span className="font-black text-slate-800 text-sm">{selectedInvoiceDetail.issueDate}</span>
                                 </div>
                                 <div>
                                     <span className="text-slate-400 uppercase font-bold block text-[10px]">Nhà cung cấp</span>
-                                    <span className="font-black text-slate-800 text-sm">{selectedInvoiceDetail.supplierName || '---'}</span>
+                                    <span className="font-black text-slate-800 text-sm truncate block">{selectedInvoiceDetail.supplierName || '---'}</span>
                                 </div>
                                 <div>
-                                    <span className="text-slate-400 uppercase font-bold block text-[10px]">Người nhập phiếu</span>
-                                    <span className="font-bold text-slate-700">{selectedInvoiceDetail.creatorName || 'Hệ thống'}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-400 uppercase font-bold block text-[10px]">Tổng số lượng hóa đơn</span>
+                                    <span className="text-slate-400 uppercase font-bold block text-[10px]">Tổng số lượng HĐ</span>
                                     <span className="font-black text-emerald-600 text-sm">{formatNumber(selectedInvoiceDetail.totalQuantity)} cái/chiếc</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 uppercase font-bold block text-[10px]">Tổng tiền HĐ</span>
+                                    <span className="font-black text-blue-600 text-sm">
+                                        {selectedInvoiceDetail.totalAmount ? `${formatNumber(selectedInvoiceDetail.totalAmount)} ₫` : '---'}
+                                    </span>
                                 </div>
                             </div>
 
@@ -712,17 +853,21 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                         <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px]">
                                             <tr>
                                                 <th className="py-2.5 px-3">Sản phẩm</th>
-                                                <th className="py-2.5 px-3 text-center">Số lượng</th>
+                                                <th className="py-2.5 px-3 text-center">Số lượng HĐ</th>
                                                 <th className="py-2.5 px-3 text-right">Đơn giá HĐ</th>
+                                                <th className="py-2.5 px-3 text-right">Thành tiền</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 bg-white">
                                             {selectedInvoiceDetail.items?.map((it, idx) => (
                                                 <tr key={idx}>
                                                     <td className="py-2.5 px-3 font-bold text-slate-800">{it.productName}</td>
-                                                    <td className="py-2.5 px-3 text-center font-black text-blue-600">{it.quantity}</td>
-                                                    <td className="py-2.5 px-3 text-right font-bold text-slate-600">
+                                                    <td className="py-2.5 px-3 text-center font-black text-blue-600">{it.quantity} cái/chiếc</td>
+                                                    <td className="py-2.5 px-3 text-right font-bold text-slate-700">
                                                         {it.unitPrice ? `${formatNumber(it.unitPrice)} ₫` : '---'}
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right font-black text-emerald-600">
+                                                        {it.unitPrice ? `${formatNumber(it.quantity * it.unitPrice)} ₫` : '---'}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -790,6 +935,10 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
     const [invoiceNumber, setInvoiceNumber] = useState('');
     const [issueDate, setIssueDate] = useState(getLocalYYYYMMDD());
     const [supplierId, setSupplierId] = useState('');
+    const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
+    const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
+    const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+    const supplierDropdownRef = useRef<HTMLDivElement>(null);
     const [notes, setNotes] = useState('');
     const [items, setItems] = useState<ProductInvoiceItem[]>(() => {
         if (initialProduct) {
@@ -802,6 +951,34 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
         }
         return [];
     });
+
+    // Close supplier dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+            if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(e.target as Node)) {
+                setIsSupplierDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+        };
+    }, []);
+
+    // Quick add new supplier like in goods receipt
+    const handleQuickCreateSupplier = async (data: any) => {
+        try {
+            const docRef = await addDoc(collection(db, 'suppliers'), { ...data, createdAt: serverTimestamp() });
+            setSupplierId(docRef.id);
+            setSupplierSearchTerm(data.name);
+            setIsSupplierModalOpen(false);
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi khi tạo nhà cung cấp.");
+        }
+    };
 
     // Product search inside modal to add items
     const [productSearchTerm, setProductSearchTerm] = useState('');
@@ -834,8 +1011,9 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
     };
 
     const handleUpdateUnitPrice = (idx: number, price: number) => {
+        const val = Math.max(0, price);
         const updated = [...items];
-        updated[idx].unitPrice = price;
+        updated[idx].unitPrice = val;
         setItems(updated);
     };
 
@@ -852,7 +1030,7 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
 
         const sup = suppliers.find(s => s.id === supplierId);
         const totalQuantity = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
-        const totalAmount = items.reduce((sum, it) => sum + ((Number(it.unitPrice) || 0) * (Number(it.quantity) || 0)), 0);
+        const totalAmount = items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0);
 
         setIsSubmitting(true);
         try {
@@ -863,7 +1041,7 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                 invoiceNumber: invoiceNumber.trim() || `HD-${Date.now().toString().slice(-6)}`,
                 issueDate: issueDate || getLocalYYYYMMDD(),
                 supplierId: supplierId || '',
-                supplierName: sup?.name || 'Nhà Cung Cấp',
+                supplierName: sup?.name || supplierSearchTerm.trim() || 'Nhà Cung Cấp',
                 notes: notes.trim(),
                 items,
                 totalQuantity,
@@ -897,6 +1075,8 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
         if (!productSearchTerm.trim()) return [];
         return products.filter(p => searchVietnameseMatch(p.name, productSearchTerm)).slice(0, 15);
     }, [products, productSearchTerm]);
+
+    const selectedSupplier = suppliers.find(s => s.id === supplierId);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in">
@@ -941,22 +1121,91 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                             </div>
                         </div>
 
-                        {/* Row 2: Supplier & Notes */}
+                        {/* Row 2: Supplier with Search & Quick Add + Notes */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             <div>
                                 <label className="block text-xs font-black text-slate-700 uppercase mb-1">
                                     Nhà Cung Cấp
                                 </label>
-                                <select
-                                    value={supplierId}
-                                    onChange={e => setSupplierId(e.target.value)}
-                                    className="w-full p-2.5 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-blue-500 text-slate-800"
-                                >
-                                    <option value="">-- Chọn Nhà Cung Cấp --</option>
-                                    {suppliers.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                </select>
+                                <div className="relative flex gap-1.5" ref={supplierDropdownRef}>
+                                    <div className="relative flex-1">
+                                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input
+                                            type="text"
+                                            placeholder="Tìm hoặc chọn NCC..."
+                                            value={supplierSearchTerm}
+                                            onChange={e => {
+                                                setSupplierSearchTerm(e.target.value);
+                                                setIsSupplierDropdownOpen(true);
+                                            }}
+                                            onFocus={() => setIsSupplierDropdownOpen(true)}
+                                            className="w-full pl-9 pr-8 py-2.5 border-2 border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-blue-500 text-slate-800"
+                                        />
+                                        {supplierSearchTerm && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSupplierSearchTerm('');
+                                                    setSupplierId('');
+                                                }}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        )}
+                                        {isSupplierDropdownOpen && (
+                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                                {suppliers.filter(s => {
+                                                    const q = supplierSearchTerm.trim();
+                                                    if (!q) return true;
+                                                    return searchVietnameseMatch(s.name, q) ||
+                                                           (s.phone && s.phone.includes(q)) ||
+                                                           removeVietnameseTones(s.name).toLowerCase().includes(removeVietnameseTones(q).toLowerCase());
+                                                }).length === 0 ? (
+                                                    <div className="p-3 text-center text-xs text-slate-400 font-bold">
+                                                        Không tìm thấy NCC nào
+                                                    </div>
+                                                ) : (
+                                                    suppliers.filter(s => {
+                                                        const q = supplierSearchTerm.trim();
+                                                        if (!q) return true;
+                                                        return searchVietnameseMatch(s.name, q) ||
+                                                               (s.phone && s.phone.includes(q)) ||
+                                                               removeVietnameseTones(s.name).toLowerCase().includes(removeVietnameseTones(q).toLowerCase());
+                                                    }).map(s => (
+                                                        <button
+                                                            key={s.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSupplierId(s.id);
+                                                                setSupplierSearchTerm(s.name);
+                                                                setIsSupplierDropdownOpen(false);
+                                                            }}
+                                                            className="w-full text-left px-3 py-2.5 hover:bg-blue-50 text-xs font-bold text-slate-800 flex justify-between items-center transition"
+                                                        >
+                                                            <span className="truncate">{s.name}</span>
+                                                            {s.phone && <span className="text-[11px] text-slate-400 font-normal shrink-0 ml-2">{s.phone}</span>}
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsSupplierModalOpen(true)}
+                                        title="Tạo nhanh nhà cung cấp mới"
+                                        className="px-3 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold transition shadow-sm shrink-0 flex items-center justify-center"
+                                    >
+                                        <Plus size={18} />
+                                    </button>
+                                </div>
+                                {selectedSupplier && (
+                                    <div className="mt-1 text-[11px] text-slate-500 flex items-center gap-2">
+                                        <span>NCC đã chọn: <strong className="text-slate-700">{selectedSupplier.name}</strong></span>
+                                        {selectedSupplier.phone && <span>• SĐT: {selectedSupplier.phone}</span>}
+                                    </div>
+                                )}
                             </div>
 
                             <div>
@@ -1017,7 +1266,10 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                                                 onClick={() => handleAddItem(p)}
                                                 className="w-full text-left p-2.5 hover:bg-blue-50 text-xs flex justify-between items-center transition"
                                             >
-                                                <span className="font-bold uppercase text-slate-800">{p.name}</span>
+                                                <div>
+                                                    <span className="font-bold uppercase text-slate-800 block">{p.name}</span>
+                                                    <span className="text-[10px] text-slate-400">Giá nhập gốc: {formatNumber(p.importPrice || 0)} ₫</span>
+                                                </div>
                                                 <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                                                     Tồn HĐ hiện tại: {p.totalInvoicedStock || 0}
                                                 </span>
@@ -1030,11 +1282,16 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
 
                         {/* Selected Items List */}
                         <div className="border border-slate-200 rounded-xl overflow-hidden mt-3">
-                            <div className="bg-slate-100 px-3 py-2 text-[11px] font-black uppercase text-slate-600 flex justify-between items-center">
+                            <div className="bg-slate-100 px-3 py-2 text-[11px] font-black uppercase text-slate-600 flex flex-wrap justify-between items-center gap-2">
                                 <span>Danh Sách Sản Phẩm Trong Hóa Đơn ({items.length})</span>
-                                <span className="text-blue-600">
-                                    Tổng SL: {items.reduce((acc, it) => acc + (it.quantity || 0), 0)}
-                                </span>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-blue-600 font-bold">
+                                        Tổng SL: {items.reduce((acc, it) => acc + (it.quantity || 0), 0)} cái
+                                    </span>
+                                    <span className="text-emerald-700 font-black">
+                                        Tổng tiền: {formatNumber(items.reduce((acc, it) => acc + (it.quantity || 0) * (it.unitPrice || 0), 0))} ₫
+                                    </span>
+                                </div>
                             </div>
 
                             {items.length === 0 ? (
@@ -1042,48 +1299,71 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                                     Chưa có sản phẩm nào. Hãy tìm và thêm sản phẩm ở trên.
                                 </div>
                             ) : (
-                                <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
+                                <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
                                     {items.map((it, idx) => (
-                                        <div key={idx} className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50">
+                                        <div key={idx} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition">
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-black text-xs uppercase text-slate-900 truncate">{it.productName}</p>
-                                                <span className="text-[10px] text-slate-400">Đơn vị: chiếc/cái</span>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[10px] text-slate-400">Đơn vị: chiếc/cái</span>
+                                                    {it.unitPrice && it.unitPrice > 0 ? (
+                                                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                                            Thành tiền: {formatNumber((it.quantity || 1) * it.unitPrice)} ₫
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                             </div>
 
-                                            {/* Quantity Controls */}
-                                            <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+                                                {/* Unit Price input with NumericInput */}
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[11px] font-black text-slate-500 uppercase whitespace-nowrap">Đơn Giá:</span>
+                                                    <div className="relative w-28">
+                                                        <NumericInput
+                                                            value={it.unitPrice ?? 0}
+                                                            onChange={(val) => handleUpdateUnitPrice(idx, val)}
+                                                            placeholder="0"
+                                                            className="w-full py-1 px-2 text-right border-2 border-slate-200 rounded-lg font-black text-xs text-slate-800 outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-400">₫</span>
+                                                </div>
+
+                                                {/* Quantity Controls */}
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleUpdateQuantity(idx, it.quantity - 1)}
+                                                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
+                                                    >
+                                                        <Minus size={13} />
+                                                    </button>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={it.quantity}
+                                                        onChange={e => handleUpdateQuantity(idx, parseInt(e.target.value) || 1)}
+                                                        className="w-12 p-1 text-center border-2 border-slate-200 rounded-lg font-black text-xs text-blue-600 outline-none"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleUpdateQuantity(idx, it.quantity + 1)}
+                                                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
+                                                    >
+                                                        <Plus size={13} />
+                                                    </button>
+                                                </div>
+
+                                                {/* Remove Button */}
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleUpdateQuantity(idx, it.quantity - 1)}
-                                                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
+                                                    onClick={() => handleRemoveItem(idx)}
+                                                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition shrink-0"
+                                                    title="Xóa khỏi hóa đơn"
                                                 >
-                                                    <Minus size={13} />
-                                                </button>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    value={it.quantity}
-                                                    onChange={e => handleUpdateQuantity(idx, parseInt(e.target.value) || 1)}
-                                                    className="w-14 p-1 text-center border-2 border-slate-200 rounded-lg font-black text-xs text-blue-600 outline-none"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleUpdateQuantity(idx, it.quantity + 1)}
-                                                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
-                                                >
-                                                    <Plus size={13} />
+                                                    <Trash2 size={15} />
                                                 </button>
                                             </div>
-
-                                            {/* Remove Button */}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveItem(idx)}
-                                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition shrink-0"
-                                                title="Xóa khỏi hóa đơn"
-                                            >
-                                                <Trash2 size={15} />
-                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -1109,6 +1389,16 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
                         </button>
                     </div>
                 </form>
+
+                {/* Quick Add Supplier Modal like in Goods Receipt */}
+                {isSupplierModalOpen && (
+                    <SupplierModal
+                        supplier={null}
+                        onClose={() => setIsSupplierModalOpen(false)}
+                        onSave={handleQuickCreateSupplier}
+                        existingNames={suppliers.map(s => s.name)}
+                    />
+                )}
             </div>
         </div>
     );

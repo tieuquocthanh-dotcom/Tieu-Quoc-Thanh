@@ -1,3 +1,15 @@
+export const normalizeVietnameseTonePlacement = (str: string): string => {
+  if (!str) return '';
+  return str
+    .normalize('NFC')
+    .replace(/oá/g, 'óa').replace(/oà/g, 'òa').replace(/oả/g, 'ỏa').replace(/oã/g, 'õa').replace(/oạ/g, 'ọa')
+    .replace(/oé/g, 'óe').replace(/oè/g, 'òe').replace(/oẻ/g, 'ỏe').replace(/oẽ/g, 'õe').replace(/oẹ/g, 'ọe')
+    .replace(/uý/g, 'úy').replace(/uỳ/g, 'ùy').replace(/uỷ/g, 'ủy').replace(/uỹ/g, 'ũy').replace(/uỵ/g, 'ụy')
+    .replace(/Oá/g, 'Óa').replace(/Oà/g, 'Òa').replace(/Oả/g, 'Ỏa').replace(/Oã/g, 'Õa').replace(/Oạ/g, 'Ọa')
+    .replace(/Oé/g, 'Óe').replace(/Oè/g, 'Òe').replace(/Oẻ/g, 'Ỏe').replace(/Oẽ/g, 'Õe').replace(/Oẹ/g, 'Ọe')
+    .replace(/Uý/g, 'Úy').replace(/Uỳ/g, 'Ùy').replace(/Uỷ/g, 'Ủy').replace(/Uỹ/g, 'Ũy').replace(/Uỵ/g, 'Ụy');
+};
+
 export const removeVietnameseTones = (str: string): string => {
   if (!str) return '';
   return str
@@ -9,7 +21,7 @@ export const removeVietnameseTones = (str: string): string => {
 
 export const normalizeVietnamese = (str: string): string => {
   if (!str) return '';
-  return str.normalize('NFC').toLowerCase().trim();
+  return normalizeVietnameseTonePlacement(str).toLowerCase().trim();
 };
 
 /**

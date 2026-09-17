@@ -8,6 +8,7 @@ import {
 import { User } from 'firebase/auth';
 import { View } from '../../types';
 import { AppDefinition } from '../../types/window';
+import { searchVietnameseMatch, removeVietnameseTones, normalizeVietnamese } from '../../utils/vietnameseSearch';
 
 export interface StartMenuProps {
   isOpen: boolean;
@@ -73,11 +74,46 @@ export const StartMenu: React.FC<StartMenuProps> = ({
   ];
 
   const filteredApps = useMemo(() => {
+    const q = searchTerm.trim();
+    if (!q) {
+      return apps.filter(app => {
+        if (userRole !== 'admin' && app.adminOnly) return false;
+        return selectedCategory === 'all' || app.category === selectedCategory;
+      });
+    }
+
+    const qClean = removeVietnameseTones(q).toLowerCase();
+    const qNorm = normalizeVietnamese(q);
+
     return apps.filter(app => {
       if (userRole !== 'admin' && app.adminOnly) return false;
-      const matchesSearch = app.title.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || app.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      if (!matchesCategory) return false;
+
+      // 1. Direct or Vietnamese-aware match on app.title
+      if (searchVietnameseMatch(app.title, q)) return true;
+
+      // 2. Unaccented match (e.g. "hoa don" matches "Hóa đơn")
+      const titleClean = removeVietnameseTones(app.title).toLowerCase();
+      if (titleClean.includes(qClean)) return true;
+
+      // 3. Normalized match (harmonizing tone placements e.g. hoá vs hóa)
+      const titleNorm = normalizeVietnamese(app.title);
+      if (titleNorm.includes(qNorm)) return true;
+
+      // 4. Match category label
+      if (searchVietnameseMatch(app.categoryLabel, q)) return true;
+
+      // 5. Match custom keywords if available
+      if (app.keywords && app.keywords.some(k => 
+        searchVietnameseMatch(k, q) || 
+        removeVietnameseTones(k).toLowerCase().includes(qClean) ||
+        normalizeVietnamese(k).includes(qNorm)
+      )) {
+        return true;
+      }
+
+      return false;
     });
   }, [apps, searchTerm, selectedCategory, userRole]);
 
