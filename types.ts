@@ -251,4 +251,28 @@ export interface ProductInvoice {
   creatorName?: string;
 }
 
+export interface ProductInvoiceExportItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice?: number;
+  notes?: string;
+}
+
+export interface ProductInvoiceExport {
+  id: string;
+  exportNumber: string;
+  exportDate: string;
+  creatorName: string;
+  creatorId?: string;
+  customerName?: string;
+  items: ProductInvoiceExportItem[];
+  totalQuantity: number;
+  totalAmount?: number;
+  notes?: string;
+  createdAt: any;
+  updatedAt?: any;
+  lastEditorName?: string;
+}
+
 export type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions' | 'productInvoices';

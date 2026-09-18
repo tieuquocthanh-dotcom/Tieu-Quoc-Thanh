@@ -12,7 +12,7 @@ import {
     addDoc
 } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Product, Supplier, Manufacturer, ProductInvoice, ProductInvoiceItem } from '../types';
+import { Product, Supplier, Manufacturer, ProductInvoice, ProductInvoiceItem, ProductInvoiceExport, ProductInvoiceExportItem } from '../types';
 import { 
     FileText, 
     PlusCircle, 
@@ -37,13 +37,18 @@ import {
     RefreshCw, 
     SlidersHorizontal,
     Info,
-    Users
+    Users,
+    History,
+    FileOutput
 } from 'lucide-react';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import { searchVietnameseMatch, removeVietnameseTones } from '../utils/vietnameseSearch';
 import ConfirmationModal from './ConfirmationModal';
 import { SupplierModal } from './SupplierManagement';
 import Pagination from './Pagination';
+import CreateExportInvoiceModal from './CreateExportInvoiceModal';
+import ProductExportHistoryModal from './ProductExportHistoryModal';
+import ExportInvoiceDetailModal from './ExportInvoiceDetailModal';
 
 // Helper component for formatted numeric input
 const NumericInput: React.FC<{
@@ -100,8 +105,8 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
     const [invoices, setInvoices] = useState<ProductInvoice[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Tab view: 'summary' (Tổng kết tồn hóa đơn theo SP) | 'invoices' (Danh sách phiếu nhập hóa đơn)
-    const [activeTab, setActiveTab] = useState<'summary' | 'invoices'>('summary');
+    // Tab view: 'summary' (Tổng kết tồn hóa đơn theo SP) | 'invoices' (Danh sách phiếu nhập hóa đơn) | 'exports' (Lịch sử xuất hóa đơn)
+    const [activeTab, setActiveTab] = useState<'summary' | 'invoices' | 'exports'>('summary');
 
     // Filters for Tab 1 (Summary) - Default is 'in_stock' (sản phẩm còn hóa đơn)
     const [summarySearchTerm, setSummarySearchTerm] = useState('');
@@ -115,7 +120,12 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
     const [invoicePage, setInvoicePage] = useState(1);
     const [invoicePageSize, setInvoicePageSize] = useState(20);
 
-    // Modals
+    // Filters for Tab 3 (Exports List)
+    const [exportSearchTerm, setExportSearchTerm] = useState('');
+    const [exportPage, setExportPage] = useState(1);
+    const [exportPageSize, setExportPageSize] = useState(20);
+
+    // Modals for Import
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedProductForQuickInvoice, setSelectedProductForQuickInvoice] = useState<Product | null>(null);
     const [invoiceToEdit, setInvoiceToEdit] = useState<ProductInvoice | null>(null);
@@ -125,6 +135,18 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState<ProductInvoice | null>(null);
     const [invoiceToDelete, setInvoiceToDelete] = useState<ProductInvoice | null>(null);
+
+    // Modals for Export
+    const [invoiceExports, setInvoiceExports] = useState<ProductInvoiceExport[]>([]);
+    const [isCreateExportModalOpen, setIsCreateExportModalOpen] = useState(false);
+    const [selectedProductForExport, setSelectedProductForExport] = useState<Product | null>(null);
+    const [exportToEdit, setExportToEdit] = useState<ProductInvoiceExport | null>(null);
+    const [isExportDetailModalOpen, setIsExportDetailModalOpen] = useState(false);
+    const [selectedExportDetail, setSelectedExportDetail] = useState<ProductInvoiceExport | null>(null);
+    const [exportToDelete, setExportToDelete] = useState<ProductInvoiceExport | null>(null);
+
+    // Modal to view export history of a specific product
+    const [productForExportHistoryModal, setProductForExportHistoryModal] = useState<Product | null>(null);
 
     // Toast
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -152,11 +174,16 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
             setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() } as ProductInvoice)));
         });
 
+        const unsubExports = onSnapshot(query(collection(db, 'productInvoiceExports'), orderBy('createdAt', 'desc')), (snap) => {
+            setInvoiceExports(snap.docs.map(d => ({ id: d.id, ...d.data() } as ProductInvoiceExport)));
+        });
+
         return () => {
             unsubProducts();
             unsubSuppliers();
             unsubManufacturers();
             unsubInvoices();
+            unsubExports();
         };
     }, []);
 
@@ -167,15 +194,19 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
         const productsOutStock = products.filter(p => (p.totalInvoicedStock || 0) <= 0).length;
         const totalRemainingInvoicedQty = products.reduce((acc, p) => acc + (p.totalInvoicedStock || 0), 0);
         const totalInvoicesCount = invoices.length;
+        const totalExportsCount = invoiceExports.length;
+        const totalExportedQty = invoiceExports.reduce((acc, exp) => acc + (exp.totalQuantity || 0), 0);
 
         return {
             totalProducts,
             productsWithStock,
             productsOutStock,
             totalRemainingInvoicedQty,
-            totalInvoicesCount
+            totalInvoicesCount,
+            totalExportsCount,
+            totalExportedQty
         };
-    }, [products, invoices]);
+    }, [products, invoices, invoiceExports]);
 
     // Filtered products for summary
     const filteredProducts = useMemo(() => {
@@ -246,6 +277,32 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
         return filteredInvoices.slice(start, start + invoicePageSize);
     }, [filteredInvoices, invoicePage, invoicePageSize]);
 
+    // Reset export page when search changes
+    useEffect(() => {
+        setExportPage(1);
+    }, [exportSearchTerm]);
+
+    // Filtered exports
+    const filteredExports = useMemo(() => {
+        return invoiceExports.filter(exp => {
+            if (!exportSearchTerm.trim()) return true;
+            const term = exportSearchTerm.trim();
+            const matchNum = exp.exportNumber && searchVietnameseMatch(exp.exportNumber, term);
+            const matchCreator = exp.creatorName && searchVietnameseMatch(exp.creatorName, term);
+            const matchCustomer = exp.customerName && searchVietnameseMatch(exp.customerName, term);
+            const matchDate = exp.exportDate && exp.exportDate.includes(term);
+            const matchNotes = exp.notes && searchVietnameseMatch(exp.notes, term);
+            const matchItems = exp.items && exp.items.some(it => searchVietnameseMatch(it.productName, term));
+            return matchNum || matchCreator || matchCustomer || matchDate || matchNotes || matchItems;
+        });
+    }, [invoiceExports, exportSearchTerm]);
+
+    // Paginated exports
+    const paginatedExports = useMemo(() => {
+        const start = (exportPage - 1) * exportPageSize;
+        return filteredExports.slice(start, start + exportPageSize);
+    }, [filteredExports, exportPage, exportPageSize]);
+
     // Adjust direct invoiced stock
     const handleSaveAdjustStock = async () => {
         if (!productToAdjust) return;
@@ -287,6 +344,30 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
         }
     };
 
+    // Delete export invoice and refund totalInvoicedStock
+    const handleDeleteExport = async () => {
+        if (!exportToDelete) return;
+        try {
+            const batch = writeBatch(db);
+            // Refund the quantities that were deducted by this export
+            if (exportToDelete.items && exportToDelete.items.length > 0) {
+                exportToDelete.items.forEach(it => {
+                    if (it.productId && it.quantity) {
+                        const pRef = doc(db, 'products', it.productId);
+                        batch.update(pRef, { totalInvoicedStock: increment(it.quantity) });
+                    }
+                });
+            }
+            batch.delete(doc(db, 'productInvoiceExports', exportToDelete.id));
+            await batch.commit();
+            showToast(`Đã xóa phiếu xuất hóa đơn số ${exportToDelete.exportNumber} và hoàn trả lại ${exportToDelete.totalQuantity} tồn hóa đơn`);
+            setExportToDelete(null);
+        } catch (error) {
+            console.error("Lỗi xóa phiếu xuất hóa đơn:", error);
+            showToast("Có lỗi xảy ra khi xóa phiếu xuất hóa đơn", 'error');
+        }
+    };
+
     return (
         <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
             {/* Header Section */}
@@ -300,12 +381,23 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                             Quản Lý Hóa Đơn Sản Phẩm
                         </h1>
                         <p className="text-xs text-slate-500 font-medium">
-                            Nhập hóa đơn đầu vào từ nhà cung cấp, theo dõi tồn hóa đơn từng sản phẩm và tự động trừ khi xuất bán
+                            Nhập hóa đơn đầu vào từ NCC, xuất hóa đơn tự động trừ tồn HĐ và theo dõi lịch sử xuất nhập
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+                    <button
+                        onClick={() => {
+                            setExportToEdit(null);
+                            setSelectedProductForExport(null);
+                            setIsCreateExportModalOpen(true);
+                        }}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-sm font-black uppercase flex items-center gap-2 shadow-sm transition"
+                    >
+                        <FileOutput size={18} />
+                        <span>Xuất Hóa Đơn Mới</span>
+                    </button>
                     <button
                         onClick={() => {
                             setInvoiceToEdit(null);
@@ -321,9 +413,9 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
             </div>
 
             {/* KPI Overview Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Tổng lượng hóa đơn còn lại</span>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Tổng tồn HĐ còn lại</span>
                     <div className="flex items-baseline justify-between mt-2">
                         <span className="text-2xl font-black text-blue-600">{formatNumber(summaryStats.totalRemainingInvoicedQty)}</span>
                         <span className="text-xs font-bold text-slate-400">cái / chiếc</span>
@@ -346,7 +438,7 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                     </span>
                     <div className="flex items-baseline justify-between mt-2">
                         <span className="text-2xl font-black text-rose-600">{formatNumber(summaryStats.productsOutStock)}</span>
-                        <span className="text-xs font-bold text-slate-400">SP cần hóa đơn</span>
+                        <span className="text-xs font-bold text-slate-400">SP cần HĐ</span>
                     </div>
                 </div>
 
@@ -359,11 +451,21 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                         <span className="text-xs font-bold text-slate-400">phiếu nhập HĐ</span>
                     </div>
                 </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+                    <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-tight flex items-center gap-1">
+                        <FileOutput size={13} /> Tổng hóa đơn đã xuất
+                    </span>
+                    <div className="flex items-baseline justify-between mt-2">
+                        <span className="text-2xl font-black text-indigo-600">{formatNumber(summaryStats.totalExportsCount)}</span>
+                        <span className="text-xs font-bold text-slate-400">({formatNumber(summaryStats.totalExportedQty)} cái)</span>
+                    </div>
+                </div>
             </div>
 
             {/* Main Tabs Navigation */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-                <div className="flex border-b border-slate-200 bg-slate-50/60 p-1.5 gap-1.5">
+                <div className="flex border-b border-slate-200 bg-slate-50/60 p-1.5 gap-1.5 flex-wrap sm:flex-nowrap">
                     <button
                         onClick={() => setActiveTab('summary')}
                         className={`flex-1 py-2.5 px-4 rounded-xl text-xs md:text-sm font-black uppercase flex items-center justify-center gap-2 transition-all ${
@@ -391,6 +493,21 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                         <span>Lịch Sử Nhập Hóa Đơn NCC</span>
                         <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] bg-slate-100 text-slate-700 font-black">
                             {invoices.length}
+                        </span>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('exports')}
+                        className={`flex-1 py-2.5 px-4 rounded-xl text-xs md:text-sm font-black uppercase flex items-center justify-center gap-2 transition-all ${
+                            activeTab === 'exports'
+                                ? 'bg-white text-indigo-600 shadow-2xs border border-slate-200/80'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'
+                        }`}
+                    >
+                        <FileOutput size={16} />
+                        <span>Lịch Sử Xuất Hóa Đơn</span>
+                        <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] bg-indigo-50 text-indigo-700 font-black">
+                            {invoiceExports.length}
                         </span>
                     </button>
                 </div>
@@ -550,6 +667,26 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                                                                 title="Nhập thêm hóa đơn cho sản phẩm này"
                                                             >
                                                                 <PlusCircle size={15} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setExportToEdit(null);
+                                                                    setSelectedProductForExport(p);
+                                                                    setIsCreateExportModalOpen(true);
+                                                                }}
+                                                                className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg transition"
+                                                                title="Xuất hóa đơn cho sản phẩm này (trừ tồn HĐ)"
+                                                            >
+                                                                <FileOutput size={15} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setProductForExportHistoryModal(p);
+                                                                }}
+                                                                className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition"
+                                                                title="Xem lịch sử các lần xuất hóa đơn của sản phẩm này"
+                                                            >
+                                                                <History size={15} />
                                                             </button>
                                                             <button
                                                                 onClick={() => {
@@ -734,6 +871,160 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                         )}
                     </div>
                 )}
+
+                {/* TAB 3: EXPORT INVOICES HISTORY */}
+                {activeTab === 'exports' && (
+                    <div className="p-4 md:p-6 space-y-4">
+                        {/* Filters & Actions for Tab 3 */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <div className="relative w-full sm:w-96">
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                                <input
+                                    type="text"
+                                    placeholder="Tìm theo số HĐ, người làm, khách hàng, sản phẩm..."
+                                    value={exportSearchTerm}
+                                    onChange={e => setExportSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs md:text-sm font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                                />
+                                {exportSearchTerm && (
+                                    <button
+                                        onClick={() => setExportSearchTerm('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    >
+                                        <X size={15} />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                                <button
+                                    onClick={() => {
+                                        setExportToEdit(null);
+                                        setSelectedProductForExport(null);
+                                        setIsCreateExportModalOpen(true);
+                                    }}
+                                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition shadow-2xs"
+                                >
+                                    <FileOutput size={16} />
+                                    <span>Xuất Hóa Đơn Mới</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Export Invoices Table */}
+                        <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-900 text-white uppercase text-[11px] tracking-wider">
+                                    <tr>
+                                        <th className="py-3 px-4 w-12 text-center">STT</th>
+                                        <th className="py-3 px-4">Số HĐ / Mã Xuất</th>
+                                        <th className="py-3 px-4">Ngày Xuất</th>
+                                        <th className="py-3 px-4">Người Làm / Xuất</th>
+                                        <th className="py-3 px-4">Khách Hàng / Đơn Vị Nhận</th>
+                                        <th className="py-3 px-4 text-center">Tổng SL Xuất</th>
+                                        <th className="py-3 px-4 text-right">Tổng Tiền Xuất</th>
+                                        <th className="py-3 px-4">Ghi Chú</th>
+                                        <th className="py-3 px-4 text-center w-28">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white font-medium text-xs">
+                                    {paginatedExports.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={9} className="py-12 text-center text-slate-400 font-bold">
+                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                    <FileOutput size={32} className="text-slate-300" />
+                                                    <span>{exportSearchTerm ? 'Không tìm thấy phiếu xuất hóa đơn nào phù hợp' : 'Chưa có phiếu xuất hóa đơn nào'}</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        paginatedExports.map((exp, idx) => {
+                                            const globalIdx = (exportPage - 1) * exportPageSize + idx + 1;
+                                            return (
+                                                <tr key={exp.id} className="hover:bg-indigo-50/40 transition">
+                                                    <td className="py-3 px-4 text-center font-bold text-slate-400">
+                                                        {globalIdx}
+                                                    </td>
+                                                    <td className="py-3 px-4 font-black text-indigo-700">
+                                                        {exp.exportNumber || '---'}
+                                                    </td>
+                                                    <td className="py-3 px-4 font-bold text-slate-800 whitespace-nowrap">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Calendar size={13} className="text-indigo-500" />
+                                                            <span>{exp.exportDate || '---'}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-4 font-bold text-slate-800 whitespace-nowrap">
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-xs">
+                                                            {exp.creatorName || 'Admin'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-slate-700 max-w-xs truncate">
+                                                        {exp.customerName || '---'}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center">
+                                                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-black text-xs border border-indigo-200">
+                                                            {formatNumber(exp.totalQuantity)} cái
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right font-black text-emerald-700">
+                                                        {exp.totalAmount ? `${formatNumber(exp.totalAmount)} ₫` : '---'}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-slate-500 max-w-xs truncate">
+                                                        {exp.notes || '---'}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center">
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedExportDetail(exp);
+                                                                    setIsExportDetailModalOpen(true);
+                                                                }}
+                                                                className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition"
+                                                                title="Xem chi tiết các sản phẩm trong phiếu xuất"
+                                                            >
+                                                                <Eye size={15} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setExportToEdit(exp);
+                                                                    setSelectedProductForExport(null);
+                                                                    setIsCreateExportModalOpen(true);
+                                                                }}
+                                                                className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white rounded-lg transition"
+                                                                title="Chỉnh sửa phiếu xuất hóa đơn"
+                                                            >
+                                                                <Edit3 size={15} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setExportToDelete(exp)}
+                                                                className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition"
+                                                                title="Xóa phiếu xuất và hoàn trả tồn hóa đơn"
+                                                            >
+                                                                <Trash2 size={15} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination for Exports Table */}
+                        {filteredExports.length > 0 && (
+                            <Pagination
+                                currentPage={exportPage}
+                                pageSize={exportPageSize}
+                                totalItems={filteredExports.length}
+                                onPageChange={setExportPage}
+                                onPageSizeChange={setExportPageSize}
+                            />
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* MODAL 1: CREATE OR EDIT INVOICE ENTRY */}
@@ -907,7 +1198,7 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                 </div>
             )}
 
-            {/* CONFIRM DELETE MODAL */}
+            {/* CONFIRM DELETE INVOICE MODAL */}
             {invoiceToDelete && (
                 <ConfirmationModal
                     isOpen={!!invoiceToDelete}
@@ -915,6 +1206,73 @@ export const ProductInvoiceManagement: React.FC<ProductInvoiceManagementProps> =
                     message={`Bạn có chắc chắn muốn xóa hóa đơn "${invoiceToDelete.invoiceNumber}" không? Hệ thống sẽ tự động trừ lại số lượng ${invoiceToDelete.totalQuantity} khỏi tồn hóa đơn của các sản phẩm tương ứng.`}
                     onConfirm={handleDeleteInvoice}
                     onClose={() => setInvoiceToDelete(null)}
+                />
+            )}
+
+            {/* MODAL: CREATE OR EDIT EXPORT INVOICE */}
+            {isCreateExportModalOpen && (
+                <CreateExportInvoiceModal
+                    isOpen={isCreateExportModalOpen}
+                    onClose={() => {
+                        setIsCreateExportModalOpen(false);
+                        setSelectedProductForExport(null);
+                        setExportToEdit(null);
+                    }}
+                    initialProduct={selectedProductForExport}
+                    exportToEdit={exportToEdit}
+                    products={products}
+                    currentUser={user}
+                    onSuccess={(msg) => showToast(msg, 'success')}
+                />
+            )}
+
+            {/* MODAL: VIEW PRODUCT EXPORT HISTORY */}
+            {productForExportHistoryModal && (
+                <ProductExportHistoryModal
+                    isOpen={!!productForExportHistoryModal}
+                    product={productForExportHistoryModal}
+                    invoiceExports={invoiceExports}
+                    manufacturers={manufacturers}
+                    onClose={() => setProductForExportHistoryModal(null)}
+                    onQuickExport={(prod) => {
+                        setExportToEdit(null);
+                        setSelectedProductForExport(prod);
+                        setIsCreateExportModalOpen(true);
+                    }}
+                    onViewExportDetail={(expDoc) => {
+                        setSelectedExportDetail(expDoc);
+                        setIsExportDetailModalOpen(true);
+                    }}
+                />
+            )}
+
+            {/* MODAL: VIEW EXPORT INVOICE DETAIL */}
+            {isExportDetailModalOpen && selectedExportDetail && (
+                <ExportInvoiceDetailModal
+                    isOpen={isExportDetailModalOpen}
+                    exportDoc={selectedExportDetail}
+                    onClose={() => {
+                        setIsExportDetailModalOpen(false);
+                        setSelectedExportDetail(null);
+                    }}
+                    onEdit={(expDoc) => {
+                        setIsExportDetailModalOpen(false);
+                        setSelectedExportDetail(null);
+                        setSelectedProductForExport(null);
+                        setExportToEdit(expDoc);
+                        setIsCreateExportModalOpen(true);
+                    }}
+                />
+            )}
+
+            {/* CONFIRM DELETE EXPORT MODAL */}
+            {exportToDelete && (
+                <ConfirmationModal
+                    isOpen={!!exportToDelete}
+                    title="Xóa Phiếu Xuất Hóa Đơn"
+                    message={`Bạn có chắc chắn muốn xóa phiếu xuất hóa đơn "${exportToDelete.exportNumber}" không? Hệ thống sẽ tự động hoàn trả lại số lượng ${exportToDelete.totalQuantity} vào tồn hóa đơn của các sản phẩm tương ứng.`}
+                    onConfirm={handleDeleteExport}
+                    onClose={() => setExportToDelete(null)}
                 />
             )}
 
