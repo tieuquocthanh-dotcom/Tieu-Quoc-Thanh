@@ -129,7 +129,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
   // Quick pinned top apps
   const pinnedApps = useMemo(() => {
-    const pinnedIds: View[] = ['sales', 'goodsReceipt', 'debtManagement', 'products', 'inventoryMatrix', 'accounts'];
+    const pinnedIds: View[] = ['sales', 'goodsReceipt', 'productAnalytics', 'debtManagement', 'products', 'inventoryMatrix', 'accounts'];
     return apps.filter(a => pinnedIds.includes(a.id) && (userRole === 'admin' || !a.adminOnly));
   }, [apps, userRole]);
 

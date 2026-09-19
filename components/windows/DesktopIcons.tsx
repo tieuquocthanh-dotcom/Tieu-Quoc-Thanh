@@ -17,13 +17,15 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
   // Select priority shortcuts for the desktop workspace
   const desktopApps = apps.filter((app) => {
     if (userRole !== 'admin' && app.adminOnly) return false;
-    // Show top 12 most important apps on the desktop
+    // Show most important apps on the desktop
     const prioritized: View[] = [
       'sales',
       'goodsReceipt',
+      'productAnalytics',
       'debtManagement',
       'dashboard',
       'products',
+      'productInvoices',
       'inventoryMatrix',
       'savings',
       'accounts',
@@ -34,7 +36,14 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
       'notes',
       'chinaImport'
     ];
-    return prioritized.includes(app.id);
+    // Preserve ordering of prioritized list on desktop
+    return prioritized
+      .map(id => apps.find(a => a.id === id))
+      .filter((app): app is AppDefinition => {
+        if (!app) return false;
+        if (userRole !== 'admin' && app.adminOnly) return false;
+        return true;
+      });
   });
 
   return (

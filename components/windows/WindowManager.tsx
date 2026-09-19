@@ -246,6 +246,13 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       iconName: 'productAnalytics',
       color: 'bg-emerald-600',
       adminOnly: true,
+      keywords: [
+        'lợi nhuận', 'loi nhuan', 'bán chạy', 'ban chay',
+        'top lợi nhuận', 'top loi nhuan', 'top bán chạy', 'top ban chay',
+        'sản phẩm lợi nhuận tốt nhất', 'san pham loi nhuan tot nhat',
+        'bán nhiều nhất', 'ban nhieu nhat', 'sản phẩm bán nhiều nhất',
+        'tìm sản phẩm lợi nhuận', 'hiệu quả sản phẩm', 'hieu qua san pham'
+      ],
       defaultSize: { width: 1180, height: 720 }
     },
     {
