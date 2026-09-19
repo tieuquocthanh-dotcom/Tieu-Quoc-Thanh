@@ -240,13 +240,13 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
     },
     {
       id: 'productAnalytics',
-      title: 'Hiệu Quả Sản Phẩm',
+      title: 'Top Lợi Nhuận & Bán Chạy',
       category: 'bao_cao',
       categoryLabel: 'Báo cáo',
       iconName: 'productAnalytics',
-      color: 'bg-purple-600',
+      color: 'bg-emerald-600',
       adminOnly: true,
-      defaultSize: { width: 1080, height: 680 }
+      defaultSize: { width: 1180, height: 720 }
     },
     {
       id: 'supplierAnalytics',

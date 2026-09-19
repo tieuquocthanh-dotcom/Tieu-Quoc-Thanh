@@ -616,7 +616,7 @@ const App: React.FC = () => {
                         { targetView: "supplierPaymentHistory" as View, icon: <CheckCheck size={16}/>, label: "Truy Vết Trả Tiền NCC" },
                         { targetView: "priceComparison" as View, icon: <BarChart2 size={16}/>, label: "So Sánh Giá Nhập" },
                         { targetView: "inventoryLedger" as View, icon: <History size={16}/>, label: "Truy Vết Tồn Kho" },
-                        { targetView: "productAnalytics" as View, icon: <BarChart3 size={16}/>, label: "Hiệu Quả Sản Phẩm" },
+                        { targetView: "productAnalytics" as View, icon: <BarChart3 size={16}/>, label: "Top Lợi Nhuận & Bán Chạy" },
                         { targetView: "supplierAnalytics" as View, icon: <PieChart size={16}/>, label: "Nhập Hàng Theo NCC" },
                         { targetView: "customerAnalytics" as View, icon: <PieChart size={16}/>, label: "Bán Hàng Theo Khách Hàng" }
                     ]
