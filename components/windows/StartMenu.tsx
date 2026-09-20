@@ -3,7 +3,7 @@ import {
   Search, X, ShoppingCart, Archive, LayoutDashboard, Wallet, PiggyBank, Landmark,
   PackageSearch, ClipboardList, Plane, CheckCheck, BarChart2, History, BarChart3,
   PieChart, Package, FileText, Contact, Users, Warehouse, Truck, Send, AlertTriangle,
-  Bell, StickyNote, UserCircle, Building, CreditCard, LogOut, Grid, Sparkles, Monitor
+  Bell, StickyNote, UserCircle, Building, CreditCard, LogOut, Grid, Sparkles, Monitor, Tags
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { View } from '../../types';
@@ -326,6 +326,7 @@ export const getAppIcon = (name: string, size = 18) => {
     case 'notes': return <StickyNote size={size} />;
     case 'users': return <UserCircle size={size} />;
     case 'manufacturers': return <Building size={size} />;
+    case 'productCategories': return <Tags size={size} />;
     case 'paymentMethods': return <CreditCard size={size} />;
     default: return <Monitor size={size} />;
   }

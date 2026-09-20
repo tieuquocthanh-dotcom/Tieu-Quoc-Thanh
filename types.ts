@@ -3,6 +3,14 @@ import { Timestamp } from "firebase/firestore";
 export interface ComboItem {
   productId: string;
   quantity: number;
+  productName?: string;
+}
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt?: Timestamp;
 }
 
 export interface Product {
@@ -10,6 +18,9 @@ export interface Product {
   name: string;
   shortName?: string;
   manufacturerId: string;
+  manufacturerName?: string;
+  categoryId?: string;
+  categoryName?: string;
   importPrice: number;
   sellingPrice: number;
   warningThreshold: number;
@@ -275,4 +286,4 @@ export interface ProductInvoiceExport {
   lastEditorName?: string;
 }
 
-export type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions' | 'productInvoices';
+export type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions' | 'productInvoices' | 'productCategories';

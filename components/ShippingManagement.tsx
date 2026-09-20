@@ -148,7 +148,7 @@ const ShippingManagement: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-                <Pagination currentPage={currentPage} totalPages={Math.ceil(filteredData.length / pageSize)} onPageChange={setCurrentPage} />
+                <Pagination currentPage={currentPage} pageSize={pageSize} totalItems={filteredData.length} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
             </div>
 
             {isModalOpen && (
@@ -165,7 +165,7 @@ const ShippingManagement: React.FC = () => {
                 title="Xóa Đơn Vị Vận Chuyển"
                 message={`Bạn có chắc chắn muốn xóa "${itemToDelete?.name}"?`}
                 onConfirm={confirmDelete}
-                onCancel={() => { setIsConfirmOpen(false); setItemToDelete(null); }}
+                onClose={() => { setIsConfirmOpen(false); setItemToDelete(null); }}
             />
         </div>
     );

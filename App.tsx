@@ -36,8 +36,9 @@ import NoteManagement from './components/NoteManagement';
 import SavingsManagement from './components/SavingsManagement';
 import RestockPredictions from './components/RestockPredictions';
 import ProductInvoiceManagement from './components/ProductInvoiceManagement';
+import ProductCategoryManagement from './components/ProductCategoryManagement';
 import WindowManager from './components/windows/WindowManager';
-import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw, Monitor, AppWindow } from 'lucide-react';
+import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw, Monitor, AppWindow, Tags } from 'lucide-react';
 import { View } from './types';
 
 const App: React.FC = () => {
@@ -189,7 +190,8 @@ const App: React.FC = () => {
                       'shipmentManagement', 'inventoryAlerts', 'outsideStockAlerts', 
                       'debtManagement', 'users', 'quotations', 'chinaImport', 
                       'productAnalytics', 'supplierAnalytics', 'customerAnalytics', 'inventoryLedger', 
-                      'priceComparison', 'supplierPaymentHistory', 'plannedOrders', 'notes', 'savings'
+                      'priceComparison', 'supplierPaymentHistory', 'plannedOrders', 'notes', 'savings',
+                      'productInvoices', 'productCategories'
                   ];
                   
                   if (role === 'staff' && adminOnlyViews.includes(view)) {
@@ -365,6 +367,7 @@ const App: React.FC = () => {
       case 'sales': return <SalesTerminal userRole={userRole} user={user} unreadCount={unreadSalesCount} onMarkAsRead={markSalesAsRead} />;
       case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} onMarkAsRead={markReceiptsAsRead} />;
       case 'manufacturers': return <ManufacturerManagement />;
+      case 'productCategories': return <ProductCategoryManagement />;
       case 'suppliers': return <SupplierManagement />;
       case 'customers': return <CustomerManagement />;
       case 'warehouses': return <WarehouseManagement />;
@@ -647,6 +650,7 @@ const App: React.FC = () => {
                     items: [
                         { targetView: "users" as View, icon: <UserCircle size={16}/>, label: "Quản Lý Người Dùng" },
                         { targetView: "manufacturers" as View, icon: <Building size={16}/>, label: "Hãng Sản Xuất" },
+                        { targetView: "productCategories" as View, icon: <Tags size={16}/>, label: "Loại Sản Phẩm" },
                         { targetView: "paymentMethods" as View, icon: <CreditCard size={16}/>, label: "Phương Thức TT" }
                     ]
                 }

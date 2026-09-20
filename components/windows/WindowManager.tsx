@@ -38,6 +38,7 @@ import NoteManagement from '../NoteManagement';
 import SavingsManagement from '../SavingsManagement';
 import RestockPredictions from '../RestockPredictions';
 import ProductInvoiceManagement from '../ProductInvoiceManagement';
+import ProductCategoryManagement from '../ProductCategoryManagement';
 import MobileAppSwitcher from './MobileAppSwitcher';
 
 interface WindowManagerProps {
@@ -386,6 +387,20 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       defaultSize: { width: 940, height: 620 }
     },
     {
+      id: 'productCategories',
+      title: 'Loại Sản Phẩm',
+      category: 'he_thong',
+      categoryLabel: 'Cấu hình',
+      iconName: 'productCategories',
+      color: 'bg-indigo-600',
+      adminOnly: true,
+      keywords: [
+        'loại sản phẩm', 'loai san pham', 'danh mục', 'danh muc',
+        'mặt vợt', 'mat vot', 'vợt', 'vot', 'giày', 'giay', 'banh', 'phụ kiện', 'phu kien'
+      ],
+      defaultSize: { width: 980, height: 640 }
+    },
+    {
       id: 'paymentMethods',
       title: 'Phương Thức Thanh Toán',
       category: 'he_thong',
@@ -636,6 +651,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       case 'sales': return <SalesTerminal userRole={userRole} user={user} unreadCount={unreadSalesCount} onMarkAsRead={onMarkSalesAsRead} />;
       case 'goodsReceipt': return <GoodsReceipt userRole={userRole} user={user} onMarkAsRead={onMarkReceiptsAsRead} />;
       case 'manufacturers': return <ManufacturerManagement />;
+      case 'productCategories': return <ProductCategoryManagement />;
       case 'suppliers': return <SupplierManagement />;
       case 'customers': return <CustomerManagement />;
       case 'warehouses': return <WarehouseManagement />;

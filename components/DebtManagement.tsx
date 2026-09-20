@@ -729,7 +729,7 @@ const DebtManagement: React.FC = () => {
     const [isProcessingOffset, setIsProcessingOffset] = useState(false);
     const [showDualOnly, setShowDualOnly] = useState(false);
 
-    const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
+    const [viewMode, setViewMode] = useState<'list' | 'grouped'>('grouped');
     const [flatPage, setFlatPage] = useState(1);
     const [flatPageSize, setFlatPageSize] = useState(15);
 

@@ -12,7 +12,7 @@ import {
     addDoc
 } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Product, Supplier, Manufacturer, ProductInvoice, ProductInvoiceItem, ProductInvoiceExport, ProductInvoiceExportItem } from '../types';
+import { Product, Supplier, Manufacturer, ProductInvoice, ProductInvoiceItem, ProductInvoiceExport, ProductInvoiceExportItem, ProductCategory } from '../types';
 import { 
     FileText, 
     PlusCircle, 
@@ -39,7 +39,8 @@ import {
     Info,
     Users,
     History,
-    FileOutput
+    FileOutput,
+    Tag
 } from 'lucide-react';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import { searchVietnameseMatch, removeVietnameseTones } from '../utils/vietnameseSearch';

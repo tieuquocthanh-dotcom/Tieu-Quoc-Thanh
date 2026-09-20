@@ -2,16 +2,17 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, writeBatch, getDocs, collectionGroup, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Product, Manufacturer, ComboItem } from '../types';
-import { PlusCircle, Edit, Trash2, XCircle, Loader, Package, Search, Upload, Download, List, Activity, ArrowUp, ArrowDown, ArrowUpDown, Plus, X, Tag } from 'lucide-react';
+import { Product, Manufacturer, ComboItem, ProductCategory } from '../types';
+import { PlusCircle, Edit, Trash2, XCircle, Loader, Package, Search, Upload, Download, List, Activity, ArrowUp, ArrowDown, ArrowUpDown, Plus, X, Tag, Tags } from 'lucide-react';
 import Pagination from './Pagination';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import ConfirmationModal from './ConfirmationModal';
 import { ManufacturerModal } from './ManufacturerManagement';
+import ProductCategoryManagement, { ProductCategoryModal, INITIAL_PRODUCT_CATEGORIES } from './ProductCategoryManagement';
 // import ProductLifecycle from './ProductLifecycle';
 import * as XLSX from 'xlsx';
 
-type SortKey = 'name' | 'shortName' | 'importPrice' | 'sellingPrice' | 'profit' | 'warningThreshold';
+type SortKey = 'name' | 'shortName' | 'categoryName' | 'manufacturerName' | 'importPrice' | 'sellingPrice' | 'profit' | 'warningThreshold';
 type SortDirection = 'asc' | 'desc';
 
 
@@ -77,11 +78,25 @@ const NumericInput: React.FC<{
 export const ProductModal: React.FC<{
   product: Partial<Product> | null;
   manufacturers: Manufacturer[];
+  categories?: ProductCategory[];
   allProductsForCombo: Product[];
   onClose: () => void;
   onSave: (product: Omit<Product, 'id' | 'createdAt' | 'manufacturerName'>) => void;
   existingNames: string[];
-}> = ({ product, manufacturers, allProductsForCombo, onClose, onSave, existingNames }) => {
+}> = ({ product, manufacturers, categories: externalCategories, allProductsForCombo, onClose, onSave, existingNames }) => {
+  const [internalCategories, setInternalCategories] = useState<ProductCategory[]>([]);
+
+  useEffect(() => {
+    if (!externalCategories) {
+      const unsub = onSnapshot(collection(db, 'product_categories'), (snapshot) => {
+        setInternalCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductCategory)));
+      });
+      return () => unsub();
+    }
+  }, [externalCategories]);
+
+  const categories = externalCategories || internalCategories;
+
   const [name, setName] = useState(product?.name || '');
   const [shortName, setShortName] = useState(product?.shortName || '');
   const [importPrice, setImportPrice] = useState(product?.importPrice ?? 0);
@@ -89,6 +104,26 @@ export const ProductModal: React.FC<{
   const [warningThreshold, setWarningThreshold] = useState(product?.warningThreshold ?? 0);
   const [outsideStockWarningThreshold, setOutsideStockWarningThreshold] = useState(product?.outsideStockWarningThreshold ?? 0);
   const [manufacturerId, setManufacturerId] = useState(product?.manufacturerId || '');
+  const [categoryId, setCategoryId] = useState(() => {
+    if (product?.categoryId) return product.categoryId;
+    if (product?.categoryName && categories.length > 0) {
+      const found = categories.find(c => c.name.toLowerCase() === product.categoryName?.toLowerCase());
+      if (found) return found.id;
+    }
+    return '';
+  });
+
+  // Sync categoryId if product or categories change
+  useEffect(() => {
+    if (product) {
+      if (product.categoryId) {
+        setCategoryId(product.categoryId);
+      } else if (product.categoryName && categories.length > 0) {
+        const found = categories.find(c => c.name.toLowerCase() === product.categoryName?.toLowerCase());
+        if (found) setCategoryId(found.id);
+      }
+    }
+  }, [product, categories]);
   
   // Combo states
   const [isCombo, setIsCombo] = useState(product?.isCombo || false);
@@ -99,6 +134,7 @@ export const ProductModal: React.FC<{
 
   const [errors, setErrors] = useState<{name?: string, manufacturer?: string, combo?: string}>({});
   const [isManuModalOpen, setIsManuModalOpen] = useState(false);
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   
   const inputClasses = "w-full px-3 py-2 bg-slate-100 text-dark border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none placeholder-slate-400";
 
@@ -152,7 +188,7 @@ export const ProductModal: React.FC<{
         return;
     }
 
-    // Fixed typo: changed iSCombo to isCombo
+    const selectedCat = categories.find(c => c.id === categoryId);
     onSave({ 
       name: name.trim(), 
       shortName: shortName.trim(),
@@ -161,6 +197,8 @@ export const ProductModal: React.FC<{
       warningThreshold: Number(warningThreshold),
       outsideStockWarningThreshold: Number(outsideStockWarningThreshold),
       manufacturerId,
+      categoryId: categoryId || '',
+      categoryName: selectedCat ? selectedCat.name : '',
       isCombo,
       comboItems: isCombo ? comboItems : []
     });
@@ -173,6 +211,14 @@ export const ProductModal: React.FC<{
         setManufacturerId(docRef.id);
         setErrors(prev => ({...prev, manufacturer: undefined}));
         setIsManuModalOpen(false);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleCreateCategory = async (data: { name: string; description?: string }) => {
+    try {
+        const docRef = await addDoc(collection(db, 'product_categories'), { ...data, createdAt: serverTimestamp() });
+        setCategoryId(docRef.id);
+        setIsCatModalOpen(false);
     } catch (err) { console.error(err); }
   };
 
@@ -275,15 +321,33 @@ export const ProductModal: React.FC<{
             )}
 
             <div>
-              <label className="block text-xs font-black uppercase text-slate-500 mb-1">Hãng sản xuất</label>
+              <label className="block text-xs font-black uppercase text-slate-500 mb-1">Hãng sản xuất <span className="text-red-500">*</span></label>
               <div className="flex space-x-2">
                   <select value={manufacturerId} onChange={e => { setManufacturerId(e.target.value); setErrors(prev => ({...prev, manufacturer: undefined})); }} className={`${inputClasses} flex-1`} required >
                     <option value="" disabled>-- Chọn hãng --</option>
                     {manufacturers.map(m => ( <option key={m.id} value={m.id}>{m.name}</option> ))}
                   </select>
-                  <button type="button" onClick={() => setIsManuModalOpen(true)} className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"><Plus size={20} /></button>
+                  <button type="button" onClick={() => setIsManuModalOpen(true)} className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" title="Thêm hãng mới"><Plus size={20} /></button>
               </div>
                {errors.manufacturer && <p className="text-red-500 text-xs mt-1 font-bold">{errors.manufacturer}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase text-indigo-700 mb-1 flex items-center justify-between">
+                <span>Loại sản phẩm</span>
+                <span className="text-[10px] text-slate-400 font-normal lowercase">(mặt vợt, vợt, giày, banh...)</span>
+              </label>
+              <div className="flex space-x-2">
+                  <select 
+                    value={categoryId} 
+                    onChange={e => setCategoryId(e.target.value)} 
+                    className={`${inputClasses} flex-1 font-bold text-indigo-950 border-indigo-200 focus:border-indigo-500`}
+                  >
+                    <option value="">-- Chọn loại sản phẩm --</option>
+                    {categories.map(c => ( <option key={c.id} value={c.id}>{c.name}</option> ))}
+                  </select>
+                  <button type="button" onClick={() => setIsCatModalOpen(true)} className="p-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition" title="Thêm loại sản phẩm mới"><Plus size={20} /></button>
+              </div>
             </div>
 
             <div>
@@ -323,21 +387,33 @@ export const ProductModal: React.FC<{
             existingNames={manufacturers.map(m => m.name)}
         />
     )}
+
+    {isCatModalOpen && (
+        <ProductCategoryModal
+            category={null}
+            onClose={() => setIsCatModalOpen(false)}
+            onSave={handleCreateCategory}
+            existingNames={categories.map(c => c.name)}
+        />
+    )}
     </>
   );
 };
 
 const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRole }) => {
   const [activeTab, setActiveTab] = useState<'list' | 'lifecycle'>('list');
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [productsRaw, setProductsRaw] = useState<any[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [isCatManagerModalOpen, setIsCatManagerModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedManufacturerId, setSelectedManufacturerId] = useState('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, direction: SortDirection }>({ key: 'name', direction: 'asc' });
@@ -346,29 +422,75 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
 
   useEffect(() => {
     setLoading(true);
-    const unsubManufacturers = onSnapshot(query(collection(db, "manufacturers"), orderBy("name")), (snapshot) => {
-        const manuData: Manufacturer[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Manufacturer));
-        setManufacturers(manuData);
-
-        const unsubProducts = onSnapshot(query(collection(db, "products"), orderBy("name")), (prodSnapshot) => {
-            const productsData = prodSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<Product, 'manufacturerName'>));
-            setAllProducts(productsData.map(p => ({
-                ...p,
-                manufacturerName: manuData.find(m => m.id === p.manufacturerId)?.name || "Không rõ",
-            } as Product)));
-            setLoading(false);
-        });
-        return () => unsubProducts();
+    // Realtime categories listener with auto-seed if empty
+    const unsubCategories = onSnapshot(query(collection(db, "product_categories"), orderBy("name")), async (catSnap) => {
+      if (catSnap.empty) {
+        try {
+          for (const catName of INITIAL_PRODUCT_CATEGORIES) {
+            await addDoc(collection(db, "product_categories"), {
+              name: catName,
+              createdAt: serverTimestamp()
+            });
+          }
+        } catch (e) {
+          console.error("Error auto-seeding categories:", e);
+        }
+      } else {
+        const catData: ProductCategory[] = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductCategory));
+        setCategories(catData);
+      }
     });
-    return () => unsubManufacturers();
+
+    // Realtime manufacturers listener
+    const unsubManufacturers = onSnapshot(query(collection(db, "manufacturers"), orderBy("name")), (snapshot) => {
+      const manuData: Manufacturer[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Manufacturer));
+      setManufacturers(manuData);
+    });
+
+    // Realtime products listener
+    const unsubProducts = onSnapshot(query(collection(db, "products"), orderBy("name")), (prodSnapshot) => {
+      const productsData = prodSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProductsRaw(productsData);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubCategories();
+      unsubManufacturers();
+      unsubProducts();
+    };
   }, []);
+
+  const allProducts = useMemo(() => {
+    const manuMap = new Map(manufacturers.map(m => [m.id, m.name]));
+    const catMap = new Map(categories.map(c => [c.id, c.name]));
+    return productsRaw.map(p => {
+      const catName = (p.categoryId && catMap.get(p.categoryId)) || p.categoryName || undefined;
+      return {
+        ...p,
+        manufacturerName: manuMap.get(p.manufacturerId) || "Không rõ",
+        categoryName: catName,
+      } as Product;
+    });
+  }, [productsRaw, manufacturers, categories]);
 
   const sortedAndFilteredProducts = useMemo(() => {
       let result = allProducts;
       if (selectedManufacturerId !== 'all') result = result.filter(p => p.manufacturerId === selectedManufacturerId);
+      if (selectedCategoryId !== 'all') {
+        if (selectedCategoryId === 'uncategorized') {
+          result = result.filter(p => !p.categoryId);
+        } else {
+          result = result.filter(p => p.categoryId === selectedCategoryId);
+        }
+      }
       if (searchTerm) {
         const lower = searchTerm.toLowerCase();
-        result = result.filter(p => (p.name || '').toLowerCase().includes(lower) || (p.shortName || '').toLowerCase().includes(lower));
+        result = result.filter(p => 
+          (p.name || '').toLowerCase().includes(lower) || 
+          (p.shortName || '').toLowerCase().includes(lower) ||
+          (p.categoryName || '').toLowerCase().includes(lower)
+        );
       }
       
       const sorted = [...result].sort((a, b) => {
@@ -379,14 +501,19 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
         return 0;
       });
       return sorted;
-  }, [allProducts, searchTerm, selectedManufacturerId, sortConfig]);
+  }, [allProducts, searchTerm, selectedManufacturerId, selectedCategoryId, sortConfig]);
 
   const paginatedProducts = useMemo(() => sortedAndFilteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [sortedAndFilteredProducts, currentPage, pageSize]);
   const toggleSort = (key: SortKey) => setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
   const handleSaveProduct = async (productData: any) => {
     try {
-      if (editingProduct?.id) await updateDoc(doc(db, 'products', editingProduct.id), productData);
-      else await addDoc(collection(db, 'products'), { ...productData, createdAt: serverTimestamp() });
+      const cleanData = {
+        ...productData,
+        categoryId: productData.categoryId || '',
+        categoryName: productData.categoryName || ''
+      };
+      if (editingProduct?.id) await updateDoc(doc(db, 'products', editingProduct.id), cleanData);
+      else await addDoc(collection(db, 'products'), { ...cleanData, createdAt: serverTimestamp() });
       setIsModalOpen(false);
     } catch (err) { alert("Lỗi khi lưu sản phẩm."); }
   };
@@ -422,7 +549,7 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
                             <input 
                                 type="text" 
-                                placeholder="Tìm theo tên hoặc viết tắt..." 
+                                placeholder="Tìm theo tên, viết tắt, loại..." 
                                 value={searchTerm} 
                                 onChange={e => {
                                     setSearchTerm(e.target.value);
@@ -436,12 +563,47 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                                 className="w-full sm:w-64 pl-10 pr-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm"
                             />
                         </div>
-                        <select value={selectedManufacturerId} onChange={e => setSelectedManufacturerId(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-xl bg-black text-white text-xs font-black uppercase outline-none"><option value="all">Tất cả hãng</option>{manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+                        <select value={selectedManufacturerId} onChange={e => setSelectedManufacturerId(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-xl bg-black text-white text-xs font-black uppercase outline-none">
+                          <option value="all">Tất cả hãng</option>
+                          {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                        <select value={selectedCategoryId} onChange={e => setSelectedCategoryId(e.target.value)} className="px-3 py-2 border border-indigo-300 rounded-xl bg-indigo-900 text-white text-xs font-black uppercase outline-none">
+                          <option value="all">Tất cả loại SP</option>
+                          <option value="uncategorized">Chưa phân loại</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <button 
+                          type="button" 
+                          onClick={() => setIsCatManagerModalOpen(true)} 
+                          className="flex items-center space-x-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-xl font-black uppercase text-xs transition active:scale-95 shadow-sm"
+                          title="Quản lý danh sách loại sản phẩm (Thêm, Sửa, Xóa)"
+                        >
+                          <Tags size={15} />
+                          <span>Loại SP</span>
+                        </button>
                         <button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }} className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-xl font-black uppercase text-xs shadow-lg transform active:scale-95 transition-all"><PlusCircle size={20} /><span>Thêm Mới</span></button>
                     </div>
                 </div>
 
-                {isModalOpen && <ProductModal product={editingProduct} manufacturers={manufacturers} allProductsForCombo={allProducts} onClose={() => setIsModalOpen(false)} onSave={handleSaveProduct} existingNames={allProducts.filter(p => p.id !== editingProduct?.id).map(p => p.name)} />}
+                {isCatManagerModalOpen && (
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl border border-slate-200 overflow-hidden animate-fade-in-down max-h-[90vh] overflow-y-auto">
+                      <ProductCategoryManagement onClose={() => setIsCatManagerModalOpen(false)} />
+                    </div>
+                  </div>
+                )}
+
+                {isModalOpen && (
+                  <ProductModal 
+                    product={editingProduct} 
+                    manufacturers={manufacturers} 
+                    categories={categories}
+                    allProductsForCombo={allProducts} 
+                    onClose={() => setIsModalOpen(false)} 
+                    onSave={handleSaveProduct} 
+                    existingNames={allProducts.filter(p => p.id !== editingProduct?.id).map(p => p.name)} 
+                  />
+                )}
                 
                 <ConfirmationModal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} onConfirm={handleConfirmDelete} title="Xác nhận Xóa Sản Phẩm" message={<>Bạn có chắc muốn xóa sản phẩm <strong>"{productToDelete?.name}"</strong>?</>} />
 
@@ -456,8 +618,9 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                             <tr>
                                 <th className="p-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-700" onClick={() => toggleSort('name')}>Tên Sản Phẩm</th>
                                 <th className="p-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-700" onClick={() => toggleSort('shortName')}>Viết Tắt</th>
-                                <th className="p-4 text-[10px] font-black uppercase tracking-widest">Loại</th>
-                                <th className="p-4 text-[10px] font-black uppercase tracking-widest">Hãng</th>
+                                <th className="p-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-700" onClick={() => toggleSort('categoryName')}>Loại Sản Phẩm</th>
+                                <th className="p-4 text-[10px] font-black uppercase tracking-widest">Dạng SP</th>
+                                <th className="p-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-700" onClick={() => toggleSort('manufacturerName')}>Hãng</th>
                                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-right">Giá Vốn</th>
                                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-right">Giá Bán</th>
                                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-right">Lợi Nhuận</th>
@@ -480,6 +643,16 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                                     )}
                                 </td>
                                 <td className="p-4">
+                                    {product.categoryName ? (
+                                        <span className="inline-flex items-center px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-black border border-indigo-200">
+                                            <Tags size={12} className="mr-1 text-indigo-500" />
+                                            {product.categoryName}
+                                        </span>
+                                    ) : (
+                                        <span className="text-slate-300 text-xs italic font-medium">Chưa chọn</span>
+                                    )}
+                                </td>
+                                <td className="p-4">
                                     {product.isCombo ? (
                                         <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-black uppercase border border-blue-200">Combo</span>
                                     ) : (
@@ -492,8 +665,8 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                                 <td className={`p-4 font-black text-right text-sm ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumber(profit)} ₫</td>
                                 <td className="p-4">
                                     <div className="flex justify-center space-x-1">
-                                    <button onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition"><Edit size={18} /></button>
-                                    <button onClick={() => { setProductToDelete(product); setIsConfirmModalOpen(true); }} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"><Trash2 size={18} /></button>
+                                    <button onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="Chỉnh sửa sản phẩm"><Edit size={18} /></button>
+                                    <button onClick={() => { setProductToDelete(product); setIsConfirmModalOpen(true); }} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition" title="Xóa sản phẩm"><Trash2 size={18} /></button>
                                     </div>
                                 </td>
                                 </tr>
