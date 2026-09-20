@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query, where, Timestamp, collectionGroup } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, Timestamp, collectionGroup, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Sale, Product, Manufacturer, Supplier, GoodsReceipt } from '../types';
+import { Sale, Product, ProductCategory, Manufacturer, Supplier, GoodsReceipt } from '../types';
 import { 
     Loader, BarChart3, TrendingUp, Award, Calendar, Search, 
     ArrowUp, ArrowDown, ArrowUpDown, Package, DollarSign, Filter, 
-    Info, ShoppingCart, AlertTriangle, CheckCircle2, Zap, Tag, RefreshCw, 
+    Info, ShoppingCart, AlertTriangle, CheckCircle2, Zap, Tag, Tags, RefreshCw, 
     X, Percent, Users, Download, ChevronRight, SlidersHorizontal, Flame, Sparkles
 } from 'lucide-react';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
@@ -16,6 +16,8 @@ interface ProductStats {
     productId: string;
     productName: string;
     shortName?: string;
+    categoryId?: string;
+    categoryName?: string;
     manufacturerId: string;
     manufacturerName: string;
     supplierIds: string[];
@@ -52,6 +54,7 @@ const ProductAnalytics: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [categories, setCategories] = useState<ProductCategory[]>([]);
     const [inventoryMap, setInventoryMap] = useState<Record<string, number>>({});
     const [productSuppliersMap, setProductSuppliersMap] = useState<Record<string, { supplierIds: string[]; supplierNames: string[] }>>({});
 
@@ -65,6 +68,7 @@ const ProductAnalytics: React.FC = () => {
 
     // Search & Entity Filters
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategoryId, setSelectedCategoryId] = useState('all');
     const [selectedManufacturerId, setSelectedManufacturerId] = useState('all');
     const [selectedSupplierId, setSelectedSupplierId] = useState('all');
 
@@ -94,6 +98,10 @@ const ProductAnalytics: React.FC = () => {
 
         const unsubManufacturers = onSnapshot(collection(db, "manufacturers"), (snapshot) => {
             setManufacturers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Manufacturer)));
+        });
+
+        const unsubCategories = onSnapshot(query(collection(db, "product_categories"), orderBy("name")), (snapshot) => {
+            setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductCategory)));
         });
 
         const unsubSuppliers = onSnapshot(collection(db, "suppliers"), (snapshot) => {
@@ -143,6 +151,7 @@ const ProductAnalytics: React.FC = () => {
         return () => {
             unsubProducts();
             unsubManufacturers();
+            unsubCategories();
             unsubSuppliers();
             unsubGoodsReceipts();
             unsubInventory();
@@ -251,6 +260,7 @@ const ProductAnalytics: React.FC = () => {
     const aggregatedData = useMemo(() => {
         const statsMap = new Map<string, ProductStats>();
         const manuMap = new Map<string, string>(manufacturers.map(m => [m.id, m.name]));
+        const catMap = new Map<string, string>(categories.map(c => [c.id, c.name]));
 
         // First populate from products catalog
         products.forEach(p => {
@@ -258,12 +268,15 @@ const ProductAnalytics: React.FC = () => {
             const unitProfit = (p.sellingPrice || 0) - (p.importPrice || 0);
             const baseMargin = p.sellingPrice > 0 ? (unitProfit / p.sellingPrice) * 100 : 0;
             const manufacturerName = manuMap.get(p.manufacturerId) || 'Chưa phân hãng';
+            const categoryName = (p.categoryId && catMap.get(p.categoryId)) || p.categoryName || undefined;
             const supInfo = productSuppliersMap[p.id] || { supplierIds: [], supplierNames: [] };
 
             statsMap.set(p.id, {
                 productId: p.id,
                 productName: p.name,
                 shortName: p.shortName || '',
+                categoryId: p.categoryId || '',
+                categoryName,
                 manufacturerId: p.manufacturerId || '',
                 manufacturerName,
                 supplierIds: supInfo.supplierIds,
@@ -292,6 +305,7 @@ const ProductAnalytics: React.FC = () => {
                     const product = products.find(p => p.id === item.productId);
                     const currentStock = inventoryMap[item.productId] ?? 0;
                     const manufacturerName = product ? (manuMap.get(product.manufacturerId) || 'Chưa phân hãng') : 'Chưa phân hãng';
+                    const categoryName = product ? ((product.categoryId && catMap.get(product.categoryId)) || product.categoryName || undefined) : undefined;
                     const supInfo = productSuppliersMap[item.productId] || { supplierIds: [], supplierNames: [] };
                     const unitProfit = (item.price || 0) - (item.importPrice || 0);
 
@@ -299,6 +313,8 @@ const ProductAnalytics: React.FC = () => {
                         productId: item.productId,
                         productName: item.productName || (product?.name || 'Sản phẩm khác'),
                         shortName: product?.shortName || '',
+                        categoryId: product?.categoryId || '',
+                        categoryName,
                         manufacturerId: product?.manufacturerId || '',
                         manufacturerName,
                         supplierIds: supInfo.supplierIds,
@@ -345,7 +361,7 @@ const ProductAnalytics: React.FC = () => {
         });
 
         return list;
-    }, [sales, products, manufacturers, inventoryMap, productSuppliersMap]);
+    }, [sales, products, manufacturers, categories, inventoryMap, productSuppliersMap]);
 
     // Filter and Sort Data
     const processedData = useMemo(() => {
@@ -364,23 +380,37 @@ const ProductAnalytics: React.FC = () => {
             }
         }
 
-        // 1. Search term filter (Matches: Product Name, Short Name, Brand/Manufacturer, Supplier Name)
+        // 1. Search term filter (Matches: Product Name, Short Name, Category, Brand/Manufacturer, Supplier Name)
         if (searchTerm.trim()) {
             const term = searchTerm.trim();
             result = result.filter(item => 
                 searchVietnameseMatch(item.productName, term) ||
                 (item.shortName && searchVietnameseMatch(item.shortName, term)) ||
+                (item.categoryName && searchVietnameseMatch(item.categoryName, term)) ||
                 (item.manufacturerName && searchVietnameseMatch(item.manufacturerName, term)) ||
                 (item.supplierNames && item.supplierNames.some(s => searchVietnameseMatch(s, term)))
             );
         }
 
-        // 2. Filter by Manufacturer Dropdown
+        // 2. Filter by Product Category (Loại Sản Phẩm)
+        if (selectedCategoryId !== 'all') {
+            if (selectedCategoryId === 'uncategorized') {
+                result = result.filter(item => !item.categoryId && !item.categoryName);
+            } else {
+                const selectedCat = categories.find(c => c.id === selectedCategoryId);
+                result = result.filter(item => 
+                    item.categoryId === selectedCategoryId || 
+                    (selectedCat && item.categoryName && selectedCat.name.toLowerCase() === item.categoryName.toLowerCase())
+                );
+            }
+        }
+
+        // 3. Filter by Manufacturer Dropdown
         if (selectedManufacturerId !== 'all') {
             result = result.filter(item => item.manufacturerId === selectedManufacturerId);
         }
 
-        // 3. Filter by Supplier Dropdown
+        // 4. Filter by Supplier Dropdown
         if (selectedSupplierId !== 'all') {
             result = result.filter(item => item.supplierIds && item.supplierIds.includes(selectedSupplierId));
         }
@@ -423,7 +453,7 @@ const ProductAnalytics: React.FC = () => {
         return result;
     }, [
         aggregatedData, viewMode, showUnsoldProducts, searchTerm, 
-        selectedManufacturerId, selectedSupplierId, priceType,
+        categories, selectedCategoryId, selectedManufacturerId, selectedSupplierId, priceType,
         minPriceInput, maxPriceInput, minQuantitySoldInput, sortConfig
     ]);
 
@@ -464,6 +494,7 @@ const ProductAnalytics: React.FC = () => {
 
     const clearAllFilters = () => {
         setSearchTerm('');
+        setSelectedCategoryId('all');
         setSelectedManufacturerId('all');
         setSelectedSupplierId('all');
         setMinQuantitySoldInput('');
@@ -477,6 +508,7 @@ const ProductAnalytics: React.FC = () => {
     };
 
     const hasActiveFilters = searchTerm !== '' || 
+        selectedCategoryId !== 'all' ||
         selectedManufacturerId !== 'all' || 
         selectedSupplierId !== 'all' || 
         minQuantitySoldInput !== '' || 
@@ -493,6 +525,7 @@ const ProductAnalytics: React.FC = () => {
             'Hạng',
             'Tên Sản Phẩm',
             'Mã Viết Tắt',
+            'Loại Sản Phẩm',
             'Hãng Sản Xuất',
             'Nhà Cung Cấp',
             'Tồn Kho',
@@ -510,6 +543,7 @@ const ProductAnalytics: React.FC = () => {
             idx + 1,
             `"${(stat.productName || '').replace(/"/g, '""')}"`,
             `"${(stat.shortName || '').replace(/"/g, '""')}"`,
+            `"${(stat.categoryName || 'Chưa phân loại').replace(/"/g, '""')}"`,
             `"${(stat.manufacturerName || '').replace(/"/g, '""')}"`,
             `"${(stat.supplierNames?.join(', ') || 'Chưa có NCC').replace(/"/g, '""')}"`,
             stat.currentStock,
@@ -728,7 +762,12 @@ const ProductAnalytics: React.FC = () => {
                                             <h4 className="font-black text-xs text-white truncate" title={p.productName}>
                                                 {p.productName}
                                             </h4>
-                                            <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5 flex-wrap">
+                                                {p.categoryName && (
+                                                    <span className="px-1.5 py-0.2 rounded bg-indigo-900/70 text-indigo-300 font-bold text-[10px] border border-indigo-700/60">
+                                                        {p.categoryName}
+                                                    </span>
+                                                )}
                                                 <span>Hãng: <strong className="text-slate-200">{p.manufacturerName}</strong></span>
                                                 {p.supplierNames && p.supplierNames.length > 0 && (
                                                     <span>• NCC: <strong className="text-slate-200">{p.supplierNames[0]}</strong></span>
@@ -785,7 +824,12 @@ const ProductAnalytics: React.FC = () => {
                                             <h4 className="font-black text-xs text-white truncate" title={p.productName}>
                                                 {p.productName}
                                             </h4>
-                                            <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5 flex-wrap">
+                                                {p.categoryName && (
+                                                    <span className="px-1.5 py-0.2 rounded bg-indigo-900/70 text-indigo-300 font-bold text-[10px] border border-indigo-700/60">
+                                                        {p.categoryName}
+                                                    </span>
+                                                )}
                                                 <span>Hãng: <strong className="text-slate-200">{p.manufacturerName}</strong></span>
                                                 {p.supplierNames && p.supplierNames.length > 0 && (
                                                     <span>• NCC: <strong className="text-slate-200">{p.supplierNames[0]}</strong></span>
@@ -826,8 +870,8 @@ const ProductAnalytics: React.FC = () => {
                     )}
                 </div>
 
-                {/* Primary Search Inputs: Text, Manufacturer, Supplier */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Primary Search Inputs: Text, Category, Manufacturer, Supplier */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {/* Universal Keyword Search */}
                     <div className="relative">
                         <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1">
@@ -837,7 +881,7 @@ const ProductAnalytics: React.FC = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input 
                                 type="text" 
-                                placeholder="Tên SP, Hãng, Nhà Cung Cấp..." 
+                                placeholder="Tên SP, Hãng, NCC..." 
                                 value={searchTerm} 
                                 onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                                 className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
@@ -848,6 +892,24 @@ const ProductAnalytics: React.FC = () => {
                                 </button>
                             )}
                         </div>
+                    </div>
+
+                    {/* Filter by Category (Loại Sản Phẩm) */}
+                    <div>
+                        <label className="block text-[11px] font-black text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <Tags size={12} className="text-indigo-600"/> Lọc Theo Loại Sản Phẩm
+                        </label>
+                        <select 
+                            value={selectedCategoryId} 
+                            onChange={e => { setSelectedCategoryId(e.target.value); setCurrentPage(1); }}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                        >
+                            <option value="all">Tất cả loại sản phẩm ({categories.length})</option>
+                            <option value="uncategorized">Chưa phân loại</option>
+                            {categories.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Filter by Manufacturer (Hãng) */}
@@ -1105,7 +1167,7 @@ const ProductAnalytics: React.FC = () => {
                                         Tên Sản Phẩm {renderSortIcon('productName')}
                                     </th>
                                     <th className="py-3 px-3">
-                                        Hãng & Nhà Cung Cấp
+                                        Loại, Hãng & NCC
                                     </th>
                                     <th className="py-3 px-3 text-center cursor-pointer hover:bg-slate-800 transition" onClick={() => handleSort('currentStock')}>
                                         Tồn Kho {renderSortIcon('currentStock')}
@@ -1183,10 +1245,19 @@ const ProductAnalytics: React.FC = () => {
                                                 </div>
                                             </td>
 
-                                            {/* Manufacturer & Supplier */}
+                                            {/* Category, Manufacturer & Supplier */}
                                             <td className="py-3 px-3">
                                                 <div className="flex flex-col gap-1 text-[11px]">
-                                                    <div className="flex items-center gap-1 text-slate-700 font-bold">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        {stat.categoryName ? (
+                                                            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-black text-[10px] border border-indigo-200">
+                                                                {stat.categoryName}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 font-bold text-[10px] border border-slate-200">
+                                                                Chưa phân loại
+                                                            </span>
+                                                        )}
                                                         <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 font-black text-[10px] border border-slate-200">
                                                             {stat.manufacturerName}
                                                         </span>
