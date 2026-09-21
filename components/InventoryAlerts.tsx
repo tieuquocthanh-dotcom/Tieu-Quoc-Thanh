@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Product, Manufacturer } from '../types';
+import { Product, Manufacturer, ProductCategory } from '../types';
 import { Loader, XCircle, Package, AlertTriangle, Search } from 'lucide-react';
 
 interface AlertProduct extends Product {
@@ -13,12 +13,14 @@ const InventoryAlerts: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [inventoryData, setInventoryData] = useState<{[productId: string]: {[warehouseId: string]: number}}>({});
     const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+    const [categories, setCategories] = useState<ProductCategory[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
     // Filter States
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedManufacturerId, setSelectedManufacturerId] = useState('all');
+    const [selectedCategoryId, setSelectedCategoryId] = useState('all');
 
     useEffect(() => {
         setTimeout(() => {
@@ -40,7 +42,14 @@ const InventoryAlerts: React.FC = () => {
             console.error("Error fetching manufacturers: ", err);
         });
 
-        // 3. Fetch Inventory
+        // 3. Fetch Product Categories
+        const unsubCategories = onSnapshot(query(collection(db, "product_categories"), orderBy("name")), (snapshot) => {
+            setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductCategory)));
+        }, err => {
+            console.error("Error fetching categories: ", err);
+        });
+
+        // 4. Fetch Inventory
         const unsubInventory = onSnapshot(query(collectionGroup(db, 'inventory')), (snapshot) => {
             const newInventoryData: {[productId: string]: {[warehouseId: string]: number}} = {};
             snapshot.forEach(doc => {
@@ -63,9 +72,20 @@ const InventoryAlerts: React.FC = () => {
         return () => {
             unsubProducts();
             unsubManufacturers();
+            unsubCategories();
             unsubInventory();
         };
     }, []);
+
+    const categoryMap = useMemo(() => {
+        const map = new Map<string, string>();
+        categories.forEach(c => map.set(c.id, c.name));
+        return map;
+    }, [categories]);
+
+    const getProductCategoryName = (p: Product) => {
+        return (p.categoryId && categoryMap.get(p.categoryId)) || p.categoryName || '';
+    };
 
     const alertProducts = useMemo((): AlertProduct[] => {
         const totalInventory: Record<string, number> = {};
@@ -93,14 +113,32 @@ const InventoryAlerts: React.FC = () => {
             result = result.filter(p => p.manufacturerId === selectedManufacturerId);
         }
 
+        // Filter by Category
+        if (selectedCategoryId !== 'all') {
+            if (selectedCategoryId === 'uncategorized') {
+                result = result.filter(p => !p.categoryId && !p.categoryName);
+            } else {
+                const selectedCat = categories.find(c => c.id === selectedCategoryId);
+                result = result.filter(p => 
+                    p.categoryId === selectedCategoryId || 
+                    (selectedCat && p.categoryName && selectedCat.name.toLowerCase() === p.categoryName.toLowerCase())
+                );
+            }
+        }
+
         // Filter by Search Term
         if (searchTerm) {
             const lowerTerm = searchTerm.toLowerCase();
-            result = result.filter(p => (p.name || '').toLowerCase().includes(lowerTerm) || (p.shortName || '').toLowerCase().includes(lowerTerm));
+            result = result.filter(p => {
+                const catName = getProductCategoryName(p).toLowerCase();
+                return (p.name || '').toLowerCase().includes(lowerTerm) || 
+                       (p.shortName || '').toLowerCase().includes(lowerTerm) ||
+                       catName.includes(lowerTerm);
+            });
         }
 
         return result;
-    }, [alertProducts, searchTerm, selectedManufacturerId]);
+    }, [alertProducts, searchTerm, selectedManufacturerId, selectedCategoryId, categories, categoryMap]);
 
     const StatusBadge: React.FC<{ stock: number }> = ({ stock }) => {
         if (stock <= 0) {
@@ -116,12 +154,22 @@ const InventoryAlerts: React.FC = () => {
                     <AlertTriangle size={28} className="mr-3 text-orange-500"/>
                     Cảnh Báo Tổng Tồn Kho
                 </h1>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <select 
+                        value={selectedCategoryId} 
+                        onChange={e => setSelectedCategoryId(e.target.value)}
+                        className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none appearance-none bg-black text-white text-sm"
+                        style={{maxWidth: '180px'}}
+                    >
+                        <option value="all">Tất cả loại SP</option>
+                        <option value="uncategorized">Chưa phân loại</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
                     <select 
                         value={selectedManufacturerId} 
                         onChange={e => setSelectedManufacturerId(e.target.value)}
                         className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none appearance-none bg-black text-white text-sm"
-                        style={{maxWidth: '200px'}}
+                        style={{maxWidth: '180px'}}
                     >
                         <option value="all">Tất cả hãng</option>
                         {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -152,7 +200,7 @@ const InventoryAlerts: React.FC = () => {
                         <Package size={48} className="mx-auto mb-4 text-slate-300"/>
                         <h3 className="text-xl font-semibold">Không có cảnh báo nào</h3>
                         <p className="mt-1">
-                            {selectedManufacturerId !== 'all' || searchTerm 
+                            {selectedManufacturerId !== 'all' || selectedCategoryId !== 'all' || searchTerm 
                                 ? 'Không tìm thấy kết quả phù hợp với bộ lọc.' 
                                 : 'Tất cả sản phẩm đều có tồn kho an toàn (theo tổng kho).'}
                         </p>
@@ -163,6 +211,7 @@ const InventoryAlerts: React.FC = () => {
                             <thead className="bg-slate-50 border-b border-slate-200">
                                 <tr>
                                     <th className="p-4 text-sm font-semibold text-neutral">Tên Sản Phẩm</th>
+                                    <th className="p-4 text-sm font-semibold text-neutral">Loại Sản Phẩm</th>
                                     <th className="p-4 text-sm font-semibold text-neutral">Hãng SX</th>
                                     <th className="p-4 text-sm font-semibold text-neutral text-center">Ngưỡng Cảnh Báo (Tổng)</th>
                                     <th className="p-4 text-sm font-semibold text-neutral text-center">Tổng Tồn Kho (All)</th>
@@ -170,24 +219,36 @@ const InventoryAlerts: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredAlerts.map((product) => (
-                                    <tr key={product.id} className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50">
-                                        <td className="p-4 font-medium text-dark">
-                                            {product.name}
-                                            {product.shortName && (
-                                                <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
-                                                    {product.shortName}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="p-4 text-sm text-neutral">{product.manufacturerName}</td>
-                                        <td className="p-4 text-neutral text-center">{product.warningThreshold}</td>
-                                        <td className="p-4 text-dark font-bold text-center">{product.totalStock}</td>
-                                        <td className="p-4 text-center">
-                                            <StatusBadge stock={product.totalStock} />
-                                        </td>
-                                    </tr>
-                                ))}
+                                {filteredAlerts.map((product) => {
+                                    const categoryName = getProductCategoryName(product);
+                                    return (
+                                        <tr key={product.id} className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50">
+                                            <td className="p-4 font-medium text-dark">
+                                                {product.name}
+                                                {product.shortName && (
+                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
+                                                        {product.shortName}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-sm text-neutral">
+                                                {categoryName ? (
+                                                    <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 inline-block">
+                                                        {categoryName}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400 text-xs italic">Chưa phân loại</span>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-sm text-neutral">{product.manufacturerName}</td>
+                                            <td className="p-4 text-neutral text-center">{product.warningThreshold}</td>
+                                            <td className="p-4 text-dark font-bold text-center">{product.totalStock}</td>
+                                            <td className="p-4 text-center">
+                                                <StatusBadge stock={product.totalStock} />
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Product, Manufacturer } from '../types';
+import { Product, Manufacturer, ProductCategory } from '../types';
 import { Loader, XCircle, AlertTriangle, Package, Search, Download } from 'lucide-react';
 import Pagination from './Pagination';
 import * as XLSX from 'xlsx';
@@ -14,6 +14,7 @@ interface AlertProduct extends Product {
 const OutsideStockAlerts: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+    const [categories, setCategories] = useState<ProductCategory[]>([]);
     const [outsideWarehouseId, setOutsideWarehouseId] = useState<string | null>(null);
     const [inventoryData, setInventoryData] = useState<{[productId: string]: number}>({});
     const [loading, setLoading] = useState(true);
@@ -22,6 +23,7 @@ const OutsideStockAlerts: React.FC = () => {
     // Filter States
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedManufacturerId, setSelectedManufacturerId] = useState('all');
+    const [selectedCategoryId, setSelectedCategoryId] = useState('all');
     
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -49,12 +51,17 @@ const OutsideStockAlerts: React.FC = () => {
                     setManufacturers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Manufacturer)));
                 });
 
-                // 3. Fetch all products (to get names and thresholds)
+                // 3. Fetch Product Categories
+                const unsubCategories = onSnapshot(query(collection(db, "product_categories"), orderBy("name")), (snapshot) => {
+                    setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductCategory)));
+                });
+
+                // 4. Fetch all products (to get names and thresholds)
                 const unsubProducts = onSnapshot(query(collection(db, "products"), orderBy("name")), (snapshot) => {
                     setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
                 });
 
-                // 4. Fetch inventory specifically for this warehouse
+                // 5. Fetch inventory specifically for this warehouse
                 const unsubInventory = onSnapshot(query(collectionGroup(db, 'inventory'), where('warehouseId', '==', targetWarehouseId)), (snapshot) => {
                     const stockMap: {[productId: string]: number} = {};
                     snapshot.forEach(doc => {
@@ -74,6 +81,7 @@ const OutsideStockAlerts: React.FC = () => {
 
                 return () => {
                     unsubManufacturers();
+                    unsubCategories();
                     unsubProducts();
                     unsubInventory();
                 };
@@ -91,7 +99,17 @@ const OutsideStockAlerts: React.FC = () => {
     // Reset pagination when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, selectedManufacturerId]);
+    }, [searchTerm, selectedManufacturerId, selectedCategoryId]);
+
+    const categoryMap = useMemo(() => {
+        const map = new Map<string, string>();
+        categories.forEach(c => map.set(c.id, c.name));
+        return map;
+    }, [categories]);
+
+    const getProductCategoryName = (p: Product) => {
+        return (p.categoryId && categoryMap.get(p.categoryId)) || p.categoryName || '';
+    };
 
     const alertProducts = useMemo((): AlertProduct[] => {
         if (!outsideWarehouseId) return [];
@@ -117,14 +135,32 @@ const OutsideStockAlerts: React.FC = () => {
             result = result.filter(p => p.manufacturerId === selectedManufacturerId);
         }
 
+        // Filter by Product Category
+        if (selectedCategoryId !== 'all') {
+            if (selectedCategoryId === 'uncategorized') {
+                result = result.filter(p => !p.categoryId && !p.categoryName);
+            } else {
+                const selectedCat = categories.find(c => c.id === selectedCategoryId);
+                result = result.filter(p => 
+                    p.categoryId === selectedCategoryId || 
+                    (selectedCat && p.categoryName && selectedCat.name.toLowerCase() === p.categoryName.toLowerCase())
+                );
+            }
+        }
+
         // Filter by Search Term
         if (searchTerm) {
             const lowerTerm = searchTerm.toLowerCase();
-            result = result.filter(p => (p.name || '').toLowerCase().includes(lowerTerm) || (p.shortName || '').toLowerCase().includes(lowerTerm));
+            result = result.filter(p => {
+                const catName = getProductCategoryName(p).toLowerCase();
+                return (p.name || '').toLowerCase().includes(lowerTerm) || 
+                       (p.shortName || '').toLowerCase().includes(lowerTerm) ||
+                       catName.includes(lowerTerm);
+            });
         }
 
         return result;
-    }, [alertProducts, searchTerm, selectedManufacturerId]);
+    }, [alertProducts, searchTerm, selectedManufacturerId, selectedCategoryId, categories, categoryMap]);
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * pageSize;
@@ -140,7 +176,8 @@ const OutsideStockAlerts: React.FC = () => {
     const handleExport = () => {
         const dataToExport = filteredAlerts.map(p => ({
             'Tên Sản Phẩm': p.name,
-            'Hãng SX': p.manufacturerName,
+            'Loại Sản Phẩm': getProductCategoryName(p) || 'Chưa phân loại',
+            'Hãng SX': p.manufacturerName || '',
             'Ngưỡng Cảnh Báo (Ngoài CH)': p.outsideStockWarningThreshold,
             'Tồn Kho Hiện Tại (Ngoài CH)': p.stockInOutside,
             'Cần Bổ Sung Tối Thiểu': (p.outsideStockWarningThreshold || 0) - p.stockInOutside
@@ -159,12 +196,22 @@ const OutsideStockAlerts: React.FC = () => {
                     <AlertTriangle size={28} className="mr-3 text-red-500"/>
                     Cảnh Báo Kho Ngoài CH
                 </h1>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <select 
+                        value={selectedCategoryId} 
+                        onChange={e => setSelectedCategoryId(e.target.value)}
+                        className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none appearance-none bg-black text-white text-sm"
+                        style={{maxWidth: '180px'}}
+                    >
+                        <option value="all">Tất cả loại SP</option>
+                        <option value="uncategorized">Chưa phân loại</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
                     <select 
                         value={selectedManufacturerId} 
                         onChange={e => setSelectedManufacturerId(e.target.value)}
                         className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none appearance-none bg-black text-white text-sm"
-                        style={{maxWidth: '200px'}}
+                        style={{maxWidth: '180px'}}
                     >
                         <option value="all">Tất cả hãng</option>
                         {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -198,7 +245,7 @@ const OutsideStockAlerts: React.FC = () => {
                         <Package size={48} className="mx-auto mb-4 text-slate-300"/>
                         <h3 className="text-xl font-semibold">Kho Ngoài CH ổn định</h3>
                         <p className="mt-1">
-                            {selectedManufacturerId !== 'all' || searchTerm
+                            {selectedManufacturerId !== 'all' || selectedCategoryId !== 'all' || searchTerm
                                 ? 'Không tìm thấy kết quả phù hợp với bộ lọc.'
                                 : 'Không có sản phẩm nào có tồn kho nhỏ hơn ngưỡng cảnh báo.'}
                         </p>
@@ -210,6 +257,7 @@ const OutsideStockAlerts: React.FC = () => {
                                 <thead className="bg-red-50 border-b border-red-200">
                                     <tr>
                                         <th className="p-4 text-sm font-semibold text-red-800">Tên Sản Phẩm</th>
+                                        <th className="p-4 text-sm font-semibold text-red-800">Loại Sản Phẩm</th>
                                         <th className="p-4 text-sm font-semibold text-red-800">Hãng SX</th>
                                         <th className="p-4 text-sm font-semibold text-red-800 text-center">Ngưỡng Cảnh Báo</th>
                                         <th className="p-4 text-sm font-semibold text-red-800 text-center">Tồn Kho (Ngoài CH)</th>
@@ -217,32 +265,44 @@ const OutsideStockAlerts: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {paginatedData.map((product) => (
-                                        <tr key={product.id} className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50">
-                                            <td className="p-4 font-medium text-dark">
-                                                {product.name}
-                                                {product.shortName && (
-                                                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
-                                                        {product.shortName}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-sm text-neutral">{product.manufacturerName}</td>
-                                            <td className="p-4 text-neutral text-center">{product.outsideStockWarningThreshold}</td>
-                                            <td className="p-4 text-dark font-bold text-center text-lg">{product.stockInOutside}</td>
-                                            <td className="p-4 text-center">
-                                                {product.stockInOutside <= 0 ? (
-                                                    <span className="px-3 py-1 text-xs font-bold rounded-full bg-red-600 text-white shadow-sm">
-                                                        HẾT HÀNG
-                                                    </span>
-                                                ) : (
-                                                    <span className="px-3 py-1 text-xs font-bold rounded-full bg-orange-100 text-orange-800 border border-orange-200">
-                                                        Sắp hết
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {paginatedData.map((product) => {
+                                        const categoryName = getProductCategoryName(product);
+                                        return (
+                                            <tr key={product.id} className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50">
+                                                <td className="p-4 font-medium text-dark">
+                                                    {product.name}
+                                                    {product.shortName && (
+                                                        <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block">
+                                                            {product.shortName}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-sm text-neutral">
+                                                    {categoryName ? (
+                                                        <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 inline-block">
+                                                            {categoryName}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 text-xs italic">Chưa phân loại</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-sm text-neutral">{product.manufacturerName}</td>
+                                                <td className="p-4 text-neutral text-center">{product.outsideStockWarningThreshold}</td>
+                                                <td className="p-4 text-dark font-bold text-center text-lg">{product.stockInOutside}</td>
+                                                <td className="p-4 text-center">
+                                                    {product.stockInOutside <= 0 ? (
+                                                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-red-600 text-white shadow-sm">
+                                                            HẾT HÀNG
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                                                            Sắp hết
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
