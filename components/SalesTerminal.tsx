@@ -766,7 +766,7 @@ const ProductCardItem: React.FC<{
                     value={inputQty} 
                     onChange={(e) => setInputQty(parseInt(e.target.value) || 0)} 
                     onFocus={(e) => e.target.select()} 
-                    className={`w-12 px-1 py-2 text-xs border bg-slate-50 text-slate-900 rounded-lg text-center font-bold outline-none focus:border-primary focus:bg-white shadow-2xs transition-colors ${shippingMode === 'shipped' && inputQty > (detailedInventory[product.id]?.[warehouses.find(w => w.name === 'Ngoài CH')?.id || ''] || 0) ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200'}`} 
+                    className={`w-12 px-1 py-2 text-xs border bg-slate-50 text-slate-900 rounded-lg text-center font-bold outline-none focus:border-primary focus:bg-white shadow-2xs transition-colors ${(shippingMode === 'shipped' || shippingMode === 'pending') && inputQty > (detailedInventory[product.id]?.[warehouses.find(w => w.name === 'Ngoài CH')?.id || ''] || 0) ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200'}`} 
                 />
                 <button 
                     onClick={() => onAdd(product, inputQty, inputPrice, inputImportPrice, false)} 
@@ -1156,7 +1156,11 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     if (!selectedWarehouseId) { setToast({ message: "Vui lòng chọn kho trước để kiểm soát tồn kho!", type: 'error' }); return; }
     const stockInWh = calculateEffectiveStock(product, selectedWarehouseId);
     const existing = cart.find(i => i.productId === product.id);
-    if (shippingMode === 'shipped' && (existing?.quantity || 0) + quantity > stockInWh) { setToast({ message: `HẾT HÀNG! (Tồn: ${stockInWh})`, type: 'error' }); return; }
+    const isStockEnforced = shippingMode === 'shipped' || shippingMode === 'pending';
+    if (isStockEnforced && (existing?.quantity || 0) + quantity > stockInWh) { 
+        setToast({ message: `HẾT HÀNG! (Tồn kho: ${stockInWh}). Chuyển sang "Đặt hàng" nếu muốn lưu trước!`, type: 'error' }); 
+        return; 
+    }
     if (quantity <= 0) return;
     setCart(prev => existing ? prev.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + quantity, price, currentImportPrice: importPrice } : i) : [...prev, { productId: product.id, productName: product.name, quantity, price, importPrice: product.importPrice, stock: stockInWh, invoicedStock: product.totalInvoicedStock || 0, originalImportPrice: product.importPrice, originalSellingPrice: product.sellingPrice, currentImportPrice: importPrice, updateImportPrice: false, updateSellingPrice: false, isCombo: product.isCombo, comboItems: product.comboItems }]);
     if (!keepSearch) {
@@ -1206,6 +1210,26 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           }); 
           return; 
       }
+
+      // KIỂM TRA TỒN KHO: Khi là "Đã giao hàng" hoặc "Chờ gởi", bắt buộc phải đủ tồn kho trong kho xuất!
+      const isStockEnforced = shippingMode === 'shipped' || shippingMode === 'pending';
+      if (isStockEnforced) {
+          const insufficientList: string[] = [];
+          for (const item of cart) {
+              const product = products.find(p => p.id === item.productId);
+              if (product) {
+                  const stockInWh = calculateEffectiveStock(product, selectedWarehouseId);
+                  if (item.quantity > stockInWh) {
+                      insufficientList.push(`• ${item.productName}: Cần ${item.quantity}, Tồn kho: ${stockInWh}`);
+                  }
+              }
+          }
+          if (insufficientList.length > 0) {
+              alert(`KHÔNG ĐỦ HÀNG TRONG KHO ĐỂ LƯU ĐƠN HÀNG!\n\nChế độ "${shippingMode === 'shipped' ? 'Đã giao hàng' : 'Chờ gởi'}" bắt buộc kho phải đủ số lượng.\n\nChi tiết sản phẩm thiếu:\n` + insufficientList.join('\n') + `\n\n=> Vui lòng giảm số lượng, nhập thêm hàng hoặc đổi sang chế độ "Đặt hàng" để lưu đơn!`);
+              return;
+          }
+      }
+
       setIsProcessing(true);
       try {
           const batch = writeBatch(db);
@@ -1308,29 +1332,33 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
               });
           }
 
-          cart.forEach(i => {
-              if (i.isCombo && i.comboItems) {
-                  i.comboItems.forEach(cItem => {
-                      const totalDeduct = cItem.quantity * i.quantity;
-                      const invRef = doc(db, 'products', cItem.productId, 'inventory', selectedWarehouseId);
+          // CHỈ TRỪ TỒN KHO KHI LÀ "ĐÃ GIAO" HOẶC "CHỜ GỞI"
+          // Khi là "Đặt hàng", chưa xuất kho nên KHÔNG trừ tồn kho tại bước này
+          if (shippingMode !== 'order') {
+              cart.forEach(i => {
+                  if (i.isCombo && i.comboItems) {
+                      i.comboItems.forEach(cItem => {
+                          const totalDeduct = cItem.quantity * i.quantity;
+                          const invRef = doc(db, 'products', cItem.productId, 'inventory', selectedWarehouseId);
+                          batch.set(invRef, { 
+                              stock: increment(-totalDeduct),
+                              warehouseId: selectedWarehouseId,
+                              warehouseName: selectedWarehouseName
+                          }, { merge: true });
+                      });
+                  } else {
+                      const invRef = doc(db, 'products', i.productId, 'inventory', selectedWarehouseId);
                       batch.set(invRef, { 
-                          stock: increment(-totalDeduct),
+                          stock: increment(-i.quantity),
                           warehouseId: selectedWarehouseId,
                           warehouseName: selectedWarehouseName
                       }, { merge: true });
-                  });
-              } else {
-                  const invRef = doc(db, 'products', i.productId, 'inventory', selectedWarehouseId);
-                  batch.set(invRef, { 
-                      stock: increment(-i.quantity),
-                      warehouseId: selectedWarehouseId,
-                      warehouseName: selectedWarehouseName
-                  }, { merge: true });
-              }
-          });
+                  }
+              });
+          }
 
           const shouldDeductInvoice = issueInvoice || localStorage.getItem('invoiceDeductMode') === 'all_sales';
-          if (shouldDeductInvoice) {
+          if (shouldDeductInvoice && shippingMode !== 'order') {
               cart.forEach(i => {
                   if (i.isCombo && i.comboItems) {
                       i.comboItems.forEach(cItem => {
@@ -1382,11 +1410,15 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     setCart(prev => prev.map(item => {
       if (item.productId === productId) {
         const newItem = { ...item, ...updates };
-        if (updates.quantity !== undefined && shippingMode === 'shipped') {
+        const isStockEnforced = shippingMode === 'shipped' || shippingMode === 'pending';
+        if (updates.quantity !== undefined && isStockEnforced) {
             const product = products.find(p => p.id === productId);
             if (product) {
               const stockInWh = calculateEffectiveStock(product, selectedWarehouseId);
-              if (newItem.quantity > stockInWh) { setToast({ message: "Vượt quá tồn kho thực tế!", type: 'error' }); return item; }
+              if (newItem.quantity > stockInWh) { 
+                setToast({ message: `Vượt quá tồn kho thực tế! (Tồn kho: ${stockInWh}). Chuyển sang "Đặt hàng" nếu muốn lưu trước.`, type: 'error' }); 
+                return item; 
+              }
             }
         }
         return newItem;
@@ -1556,8 +1588,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const filteredProducts = useMemo(() => {
       return products.filter(p => {
           if (!searchTerm) {
-              // Khi chưa tìm kiếm: chỉ hiện sản phẩm có tồn kho (nếu là giao ngay)
-              return shippingMode === 'shipped' ? calculateEffectiveStock(p, selectedWarehouseId) > 0 : true;
+              // Khi chưa tìm kiếm: chỉ hiện sản phẩm có tồn kho (nếu là Đã giao hoặc Chờ gởi)
+              return (shippingMode === 'shipped' || shippingMode === 'pending') ? calculateEffectiveStock(p, selectedWarehouseId) > 0 : true;
           }
           // Khi có tìm kiếm: lọc theo tên hoặc tên viết tắt, bất kể số lượng tồn
           const lower = searchTerm.toLowerCase();

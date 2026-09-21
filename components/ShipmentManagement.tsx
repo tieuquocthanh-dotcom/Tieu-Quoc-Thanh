@@ -141,16 +141,76 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
 
       const saleRef = doc(db, 'sales', sale.id);
 
-      // QUAN TRỌNG: Tại đây KHÔNG thực hiện trừ tồn kho nữa vì đã trừ tại Terminal lúc tạo đơn.
-      // Chỉ cập nhật trạng thái để chuyển đơn sang tab Lịch sử/Đã giao.
-      await updateDoc(saleRef, {
-        shippingStatus: 'shipped', 
-        shippedAt: shippedTimestamp,
-        shipperId: newShipperId,
-        shipperName: newShipperName
-      });
-      
-      alert(`Đã cập nhật trạng thái đơn #${sale.id.substring(0,8)} thành công!`);
+      // Nếu đơn hàng ban đầu ở chế độ "Đặt hàng" (order): Lúc tạo đơn chưa trừ tồn kho.
+      // Khi xuất kho / giao hàng, BẮT BUỘC phải kiểm tra kho xem có đủ hàng không!
+      if (sale.shippingStatus === 'order') {
+        const batch = writeBatch(db);
+        const insufficientErrors: string[] = [];
+
+        // Kiểm tra tồn kho từng sản phẩm trong kho của đơn hàng
+        for (const item of (sale.items || [])) {
+          if (item.isCombo) {
+            const prodDoc = await getDoc(doc(db, 'products', item.productId));
+            const comboItems = prodDoc.data()?.comboItems || [];
+            for (const cItem of comboItems) {
+              const reqQty = (cItem.quantity || 1) * item.quantity;
+              const invSnap = await getDoc(doc(db, 'products', cItem.productId, 'inventory', sale.warehouseId));
+              const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
+              if (curStock < reqQty) {
+                insufficientErrors.push(`• ${cItem.productName || item.productName}: Cần xuất ${reqQty}, Tồn kho hiện có ${curStock}`);
+              } else {
+                batch.set(doc(db, 'products', cItem.productId, 'inventory', sale.warehouseId), {
+                  stock: increment(-reqQty),
+                  warehouseId: sale.warehouseId,
+                  warehouseName: sale.warehouseName || ''
+                }, { merge: true });
+                if (sale.issueInvoice) {
+                  batch.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-reqQty) });
+                }
+              }
+            }
+          } else {
+            const invSnap = await getDoc(doc(db, 'products', item.productId, 'inventory', sale.warehouseId));
+            const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
+            if (curStock < item.quantity) {
+              insufficientErrors.push(`• ${item.productName}: Cần xuất ${item.quantity}, Tồn kho hiện có ${curStock}`);
+            } else {
+              batch.set(doc(db, 'products', item.productId, 'inventory', sale.warehouseId), {
+                stock: increment(-item.quantity),
+                warehouseId: sale.warehouseId,
+                warehouseName: sale.warehouseName || ''
+              }, { merge: true });
+              if (sale.issueInvoice) {
+                batch.update(doc(db, 'products', item.productId), { totalInvoicedStock: increment(-item.quantity) });
+              }
+            }
+          }
+        }
+
+        if (insufficientErrors.length > 0) {
+          alert(`KHÔNG ĐỦ HÀNG TRONG KHO ĐỂ XUẤT ĐƠN HÀNG #${sale.id.substring(0,8).toUpperCase()}!\n\nKho: ${sale.warehouseName || 'Chưa rõ'}\n\nChi tiết sản phẩm thiếu:\n` + insufficientErrors.join('\n') + `\n\n=> Vui lòng nhập thêm hàng vào kho trước khi xuất kho!`);
+          return;
+        }
+
+        batch.update(saleRef, {
+          shippingStatus: 'shipped',
+          shippedAt: shippedTimestamp,
+          shipperId: newShipperId,
+          shipperName: newShipperName
+        });
+
+        await batch.commit();
+        alert(`Đã xuất kho và cập nhật đơn #${sale.id.substring(0,8).toUpperCase()} thành công!`);
+      } else {
+        // Đơn "Chờ gửi" (pending) đã trừ kho từ lúc tạo đơn, chỉ cập nhật trạng thái
+        await updateDoc(saleRef, {
+          shippingStatus: 'shipped', 
+          shippedAt: shippedTimestamp,
+          shipperId: newShipperId,
+          shipperName: newShipperName
+        });
+        alert(`Đã cập nhật trạng thái đơn #${sale.id.substring(0,8).toUpperCase()} thành công!`);
+      }
 
     } catch (err) {
       console.error("Error updating sale status: ", err);
@@ -243,7 +303,7 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
                     </td>
                     <td className="p-4 font-black text-slate-800 uppercase text-xs">{sale.customerName || 'Khách vãng lai'}</td>
                     <td className="p-4 font-black text-primary">
-                        {sale.total.toLocaleString('vi-VN')} ₫
+                        {(sale.total || 0).toLocaleString('vi-VN')} ₫
                     </td>
                     <td className="p-4">
                         {sale.shippingStatus === 'order' ? (

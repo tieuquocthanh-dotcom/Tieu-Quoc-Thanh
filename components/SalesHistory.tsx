@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, limit, updateDoc, doc, Timestamp, arrayUnion, writeBatch, increment, getDocs, runTransaction } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, updateDoc, doc, Timestamp, arrayUnion, writeBatch, increment, getDocs, getDoc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Sale, Customer, PaymentMethod, Shipper, Product, Manufacturer } from '../types';
 import { Loader, XCircle, Search, Calendar, Package, RefreshCcw, Truck, DollarSign, CheckCircle, CreditCard, X, Clock, ArrowRight, Save, FileCheck2, TrendingUp, ArrowUp, ArrowDown, ArrowUpDown, Edit, Hash, User, Tag, Wallet, Building, Eye, ChevronLeft, ChevronRight, Filter, ShoppingBag, Receipt, Trash2, Home, Printer } from 'lucide-react';
@@ -430,14 +430,72 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
   const handleConfirmShipping = async (shipperId: string, dateString: string) => {
       if (!saleToShip) return;
       try {
-          const batch = writeBatch(db); const saleRef = doc(db, 'sales', saleToShip.id);
-          const shipper = shippers.find(s => s.id === shipperId); const sName = shipper ? shipper.name : (saleToShip.shipperName || 'N/A');
-          const dObj = new Date(dateString); const now = new Date(); dObj.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+          const batch = writeBatch(db); 
+          const saleRef = doc(db, 'sales', saleToShip.id);
+          const shipper = shippers.find(s => s.id === shipperId); 
+          const sName = shipper ? shipper.name : (saleToShip.shipperName || 'N/A');
+          const dObj = new Date(dateString); 
+          const now = new Date(); 
+          dObj.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
           const ts = Timestamp.fromDate(dObj);
-          if (saleToShip.shippingStatus === 'order') { saleToShip.items.forEach(item => batch.set(doc(db, 'products', item.productId, 'inventory', saleToShip.warehouseId), { stock: increment(-item.quantity), warehouseId: saleToShip.warehouseId, warehouseName: saleToShip.warehouseName }, { merge: true })); }
+
+          if (saleToShip.shippingStatus === 'order') { 
+              const insufficientErrors: string[] = [];
+
+              for (const item of (saleToShip.items || [])) {
+                if (item.isCombo) {
+                  const prodDoc = await getDoc(doc(db, 'products', item.productId));
+                  const comboItems = prodDoc.data()?.comboItems || [];
+                  for (const cItem of comboItems) {
+                    const reqQty = (cItem.quantity || 1) * item.quantity;
+                    const invSnap = await getDoc(doc(db, 'products', cItem.productId, 'inventory', saleToShip.warehouseId));
+                    const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
+                    if (curStock < reqQty) {
+                      insufficientErrors.push(`• ${cItem.productName || item.productName}: Cần xuất ${reqQty}, Tồn kho hiện có ${curStock}`);
+                    } else {
+                      batch.set(doc(db, 'products', cItem.productId, 'inventory', saleToShip.warehouseId), {
+                        stock: increment(-reqQty),
+                        warehouseId: saleToShip.warehouseId,
+                        warehouseName: saleToShip.warehouseName || ''
+                      }, { merge: true });
+                      if (saleToShip.issueInvoice) {
+                        batch.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-reqQty) });
+                      }
+                    }
+                  }
+                } else {
+                  const invSnap = await getDoc(doc(db, 'products', item.productId, 'inventory', saleToShip.warehouseId));
+                  const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
+                  if (curStock < item.quantity) {
+                    insufficientErrors.push(`• ${item.productName}: Cần xuất ${item.quantity}, Tồn kho hiện có ${curStock}`);
+                  } else {
+                    batch.set(doc(db, 'products', item.productId, 'inventory', saleToShip.warehouseId), {
+                      stock: increment(-item.quantity),
+                      warehouseId: saleToShip.warehouseId,
+                      warehouseName: saleToShip.warehouseName || ''
+                    }, { merge: true });
+                    if (saleToShip.issueInvoice) {
+                      batch.update(doc(db, 'products', item.productId), { totalInvoicedStock: increment(-item.quantity) });
+                    }
+                  }
+                }
+              }
+
+              if (insufficientErrors.length > 0) {
+                alert(`KHÔNG ĐỦ HÀNG TRONG KHO ĐỂ XUẤT ĐƠN HÀNG #${saleToShip.id.substring(0,8).toUpperCase()}!\n\nKho: ${saleToShip.warehouseName || 'Chưa rõ'}\n\nChi tiết sản phẩm thiếu:\n` + insufficientErrors.join('\n') + `\n\n=> Vui lòng nhập thêm hàng vào kho trước khi xuất kho!`);
+                return;
+              }
+          }
+
           batch.update(saleRef, { shippingStatus: 'shipped', shipperId, shipperName: sName, shippedAt: ts });
-          await batch.commit(); setIsShippingModalOpen(false); setSaleToShip(null); alert("Thành công!");
-      } catch (err) { alert("Lỗi."); }
+          await batch.commit(); 
+          setIsShippingModalOpen(false); 
+          setSaleToShip(null); 
+          alert("Cập nhật giao hàng thành công!");
+      } catch (err: any) { 
+          console.error("Error confirming shipping: ", err);
+          alert("Lỗi khi cập nhật giao hàng: " + (err.message || '')); 
+      }
   };
 
   const openEditModal = (sale: Sale) => { setSaleToEdit(sale); setIsEditModalOpen(true); };

@@ -431,32 +431,86 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
         const inventoryDiffs: Record<string, number> = {};
         const invoiceDiffs: Record<string, number> = {};
 
-        for (const oldItem of oldData.items) {
-          const productData = productDocs[oldItem.productId];
-          if (oldItem.isCombo && productData?.comboItems) {
-            for (const cItem of productData.comboItems) {
-              const totalReturn = cItem.quantity * oldItem.quantity;
-              if (oldData.warehouseId) inventoryDiffs[cItem.productId] = (inventoryDiffs[cItem.productId] || 0) + totalReturn;
-              if (oldData.issueInvoice) invoiceDiffs[cItem.productId] = (invoiceDiffs[cItem.productId] || 0) + totalReturn;
+        const oldDeductedStock = oldData.shippingStatus !== 'order' && oldData.shippingStatus !== 'none';
+        const newDeductsStock = shippingMode !== 'order' && shippingMode !== 'none';
+        const oldDeductedInvoice = !!oldData.issueInvoice && oldData.shippingStatus !== 'order' && oldData.shippingStatus !== 'none';
+        const newDeductsInvoice = !!issueInvoice && shippingMode !== 'order' && shippingMode !== 'none';
+
+        // Hoàn kho cũ CHỈ KHI đơn cũ đã từng trừ kho (không phải 'order')
+        if (oldDeductedStock && oldData.warehouseId) {
+          for (const oldItem of oldData.items) {
+            const productData = productDocs[oldItem.productId];
+            if (oldItem.isCombo && productData?.comboItems) {
+              for (const cItem of productData.comboItems) {
+                const totalReturn = (cItem.quantity || 1) * oldItem.quantity;
+                inventoryDiffs[cItem.productId] = (inventoryDiffs[cItem.productId] || 0) + totalReturn;
+              }
+            } else {
+              inventoryDiffs[oldItem.productId] = (inventoryDiffs[oldItem.productId] || 0) + oldItem.quantity;
             }
-          } else {
-            if (oldData.warehouseId) inventoryDiffs[oldItem.productId] = (inventoryDiffs[oldItem.productId] || 0) + oldItem.quantity;
-            if (oldData.issueInvoice) invoiceDiffs[oldItem.productId] = (invoiceDiffs[oldItem.productId] || 0) + oldItem.quantity;
           }
         }
 
-        for (const newItem of editedItems) {
-          const productData = productDocs[newItem.productId];
-          if (newItem.isCombo && productData?.comboItems) {
-            for (const cItem of productData.comboItems) {
-              const totalDeduct = cItem.quantity * newItem.quantity;
-              if (oldData.warehouseId) inventoryDiffs[cItem.productId] = (inventoryDiffs[cItem.productId] || 0) - totalDeduct;
-              if (issueInvoice) invoiceDiffs[cItem.productId] = (invoiceDiffs[cItem.productId] || 0) - totalDeduct;
+        if (oldDeductedInvoice) {
+          for (const oldItem of oldData.items) {
+            const productData = productDocs[oldItem.productId];
+            if (oldItem.isCombo && productData?.comboItems) {
+              for (const cItem of productData.comboItems) {
+                const totalReturn = (cItem.quantity || 1) * oldItem.quantity;
+                invoiceDiffs[cItem.productId] = (invoiceDiffs[cItem.productId] || 0) + totalReturn;
+              }
+            } else {
+              invoiceDiffs[oldItem.productId] = (invoiceDiffs[oldItem.productId] || 0) + oldItem.quantity;
             }
-          } else {
-            if (oldData.warehouseId) inventoryDiffs[newItem.productId] = (inventoryDiffs[newItem.productId] || 0) - newItem.quantity;
-            if (issueInvoice) invoiceDiffs[newItem.productId] = (invoiceDiffs[newItem.productId] || 0) - newItem.quantity;
           }
+        }
+
+        // Trừ kho mới CHỈ KHI trạng thái mới trừ kho (không phải 'order')
+        if (newDeductsStock && oldData.warehouseId) {
+          for (const newItem of editedItems) {
+            const productData = productDocs[newItem.productId];
+            if (newItem.isCombo && productData?.comboItems) {
+              for (const cItem of productData.comboItems) {
+                const totalDeduct = (cItem.quantity || 1) * newItem.quantity;
+                inventoryDiffs[cItem.productId] = (inventoryDiffs[cItem.productId] || 0) - totalDeduct;
+              }
+            } else {
+              inventoryDiffs[newItem.productId] = (inventoryDiffs[newItem.productId] || 0) - newItem.quantity;
+            }
+          }
+        }
+
+        if (newDeductsInvoice) {
+          for (const newItem of editedItems) {
+            const productData = productDocs[newItem.productId];
+            if (newItem.isCombo && productData?.comboItems) {
+              for (const cItem of productData.comboItems) {
+                const totalDeduct = (cItem.quantity || 1) * newItem.quantity;
+                invoiceDiffs[cItem.productId] = (invoiceDiffs[cItem.productId] || 0) - totalDeduct;
+              }
+            } else {
+              invoiceDiffs[newItem.productId] = (invoiceDiffs[newItem.productId] || 0) - newItem.quantity;
+            }
+          }
+        }
+
+        // KIỂM TRA TỒN KHO: Nếu có sản phẩm cần xuất thêm (diff < 0), kiểm tra xem tồn kho thực tế có đủ không!
+        const insufficientErrors: string[] = [];
+        for (const [pid, diff] of Object.entries(inventoryDiffs)) {
+          if (diff < 0 && oldData.warehouseId) {
+            const invRef = doc(db, 'products', pid, 'inventory', oldData.warehouseId);
+            const invSnap = await transaction.get(invRef);
+            const currentStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
+            const neededDeduct = Math.abs(diff);
+            if (currentStock < neededDeduct) {
+              const pName = productDocs[pid]?.name || 'Sản phẩm';
+              insufficientErrors.push(`• ${pName}: Cần xuất ${neededDeduct}, tồn kho hiện có ${currentStock}`);
+            }
+          }
+        }
+
+        if (insufficientErrors.length > 0) {
+          throw new Error(`Kho "${oldData.warehouseName || 'đang chọn'}" không đủ hàng để giao đơn hàng #${shortId}!\n\nChi tiết sản phẩm thiếu:\n` + insufficientErrors.join('\n') + `\n\n=> Vui lòng nhập thêm hàng vào kho trước khi chuyển sang "Đã giao hàng", hoặc giữ chế độ "Đặt hàng".`);
         }
 
         const whName = oldData.warehouseName || '';
