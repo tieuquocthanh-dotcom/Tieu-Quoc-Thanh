@@ -326,9 +326,6 @@ const SalePrintPreviewModal: React.FC<SalePrintPreviewModalProps> = ({
     }
     text += `👉 TỔNG CỘNG: ${formatNumber(grandTotal)} ₫\n`;
     text += `✅ Đã thanh toán: ${formatNumber(effectiveAmountPaid)} ₫\n`;
-    if (remainingDebt > 0) {
-      text += `⚠️ CÒN GHI NỢ: ${formatNumber(remainingDebt)} ₫\n`;
-    }
     if (sale.note) {
       text += `📝 Ghi chú: ${sale.note}\n`;
     }
