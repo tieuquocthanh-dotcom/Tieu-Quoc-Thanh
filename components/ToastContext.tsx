@@ -21,7 +21,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                       msgStr.toLowerCase().includes('không') ||
                       msgStr.toLowerCase().includes('vượt quá') ||
                       msgStr.toLowerCase().includes('vui lòng');
-      setToast({ message: msgStr, type: isError ? 'error' : 'success' });
+      setToast({ message: msgStr, type: isError ? 'error' : 'success', duration: isError ? 7000 : 2500 });
     };
     return () => {
       window.alert = originalAlert;

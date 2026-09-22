@@ -2,11 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, updateDoc, doc, serverTimestamp, query, orderBy, where, Timestamp, writeBatch, getDoc, increment, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Sale, Shipper, Customer, PaymentMethod, Product } from '../types';
+import { Sale, Shipper, Customer, PaymentMethod, Product, Warehouse } from '../types';
 // Fixed: Added Info to the list of icons imported from lucide-react
-import { Send, XCircle, Loader, Truck, CheckCircle, Save, Calendar, Package, Eye, Info, Edit } from 'lucide-react';
+import { Send, XCircle, Loader, Truck, CheckCircle, Save, Calendar, Package, Eye, Info, Edit, AlertTriangle } from 'lucide-react';
 import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
+import InsufficientStockModal, { InsufficientItemInfo } from './InsufficientStockModal';
 
 const getTodayString = () => new Date().toISOString().split('T')[0];
 
@@ -33,19 +34,28 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [stockAlertModalData, setStockAlertModalData] = useState<{
+    isOpen: boolean;
+    saleId: string;
+    warehouseName: string;
+    items: InsufficientItemInfo[];
+  } | null>(null);
 
   useEffect(() => {
     // Fetch auxiliary data for edit modal
     const fetchAuxData = async () => {
         try {
-            const [custSnap, paySnap, prodSnap] = await Promise.all([
+            const [custSnap, paySnap, prodSnap, whSnap] = await Promise.all([
                 getDocs(query(collection(db, "customers"), orderBy("name"))),
                 getDocs(query(collection(db, "paymentMethods"), orderBy("name"))),
-                getDocs(query(collection(db, "products"), orderBy("name")))
+                getDocs(query(collection(db, "products"), orderBy("name"))),
+                getDocs(query(collection(db, "warehouses"), orderBy("name")))
             ]);
             setCustomers(custSnap.docs.map(d => ({id: d.id, ...d.data()} as Customer)));
             setPaymentMethods(paySnap.docs.map(d => ({id: d.id, ...d.data()} as PaymentMethod)));
             setProducts(prodSnap.docs.map(d => ({id: d.id, ...d.data()} as Product)));
+            setWarehouses(whSnap.docs.map(d => ({id: d.id, ...d.data()} as Warehouse)));
         } catch (e) { console.error(e); }
     };
     fetchAuxData();
@@ -144,8 +154,16 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
       // Nếu đơn hàng ban đầu ở chế độ "Đặt hàng" (order): Lúc tạo đơn chưa trừ tồn kho.
       // Khi xuất kho / giao hàng, BẮT BUỘC phải kiểm tra kho xem có đủ hàng không!
       if (sale.shippingStatus === 'order') {
+        const targetWhId = sale.warehouseId || (warehouses.length > 0 ? warehouses[0].id : '');
+        const targetWhName = sale.warehouseName || warehouses.find(w => w.id === targetWhId)?.name || 'Kho Mặc định';
+
+        if (!targetWhId) {
+          alert("Lỗi: Không tìm thấy thông tin kho hàng để kiểm tra tồn kho xuất!");
+          return;
+        }
+
         const batch = writeBatch(db);
-        const insufficientErrors: string[] = [];
+        const insufficientErrors: InsufficientItemInfo[] = [];
 
         // Kiểm tra tồn kho từng sản phẩm trong kho của đơn hàng
         for (const item of (sale.items || [])) {
@@ -154,15 +172,21 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
             const comboItems = prodDoc.data()?.comboItems || [];
             for (const cItem of comboItems) {
               const reqQty = (cItem.quantity || 1) * item.quantity;
-              const invSnap = await getDoc(doc(db, 'products', cItem.productId, 'inventory', sale.warehouseId));
+              const invSnap = await getDoc(doc(db, 'products', cItem.productId, 'inventory', targetWhId));
               const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
               if (curStock < reqQty) {
-                insufficientErrors.push(`• ${cItem.productName || item.productName}: Cần xuất ${reqQty}, Tồn kho hiện có ${curStock}`);
+                insufficientErrors.push({
+                  productId: cItem.productId,
+                  productName: cItem.productName || item.productName,
+                  requiredQty: reqQty,
+                  currentStock: curStock,
+                  missingQty: reqQty - curStock
+                });
               } else {
-                batch.set(doc(db, 'products', cItem.productId, 'inventory', sale.warehouseId), {
+                batch.set(doc(db, 'products', cItem.productId, 'inventory', targetWhId), {
                   stock: increment(-reqQty),
-                  warehouseId: sale.warehouseId,
-                  warehouseName: sale.warehouseName || ''
+                  warehouseId: targetWhId,
+                  warehouseName: targetWhName
                 }, { merge: true });
                 if (sale.issueInvoice) {
                   batch.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-reqQty) });
@@ -170,15 +194,21 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
               }
             }
           } else {
-            const invSnap = await getDoc(doc(db, 'products', item.productId, 'inventory', sale.warehouseId));
+            const invSnap = await getDoc(doc(db, 'products', item.productId, 'inventory', targetWhId));
             const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
             if (curStock < item.quantity) {
-              insufficientErrors.push(`• ${item.productName}: Cần xuất ${item.quantity}, Tồn kho hiện có ${curStock}`);
+              insufficientErrors.push({
+                productId: item.productId,
+                productName: item.productName,
+                requiredQty: item.quantity,
+                currentStock: curStock,
+                missingQty: item.quantity - curStock
+              });
             } else {
-              batch.set(doc(db, 'products', item.productId, 'inventory', sale.warehouseId), {
+              batch.set(doc(db, 'products', item.productId, 'inventory', targetWhId), {
                 stock: increment(-item.quantity),
-                warehouseId: sale.warehouseId,
-                warehouseName: sale.warehouseName || ''
+                warehouseId: targetWhId,
+                warehouseName: targetWhName
               }, { merge: true });
               if (sale.issueInvoice) {
                 batch.update(doc(db, 'products', item.productId), { totalInvoicedStock: increment(-item.quantity) });
@@ -188,7 +218,13 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
         }
 
         if (insufficientErrors.length > 0) {
-          alert(`KHÔNG ĐỦ HÀNG TRONG KHO ĐỂ XUẤT ĐƠN HÀNG #${sale.id.substring(0,8).toUpperCase()}!\n\nKho: ${sale.warehouseName || 'Chưa rõ'}\n\nChi tiết sản phẩm thiếu:\n` + insufficientErrors.join('\n') + `\n\n=> Vui lòng nhập thêm hàng vào kho trước khi xuất kho!`);
+          setStockAlertModalData({
+            isOpen: true,
+            saleId: sale.id,
+            warehouseName: targetWhName,
+            items: insufficientErrors
+          });
+          alert(`KHÔNG ĐỦ HÀNG TRONG KHO ĐỂ XUẤT ĐƠN HÀNG #${sale.id.substring(0,8).toUpperCase()}!\n\nKho: ${targetWhName}\n\nChi tiết sản phẩm thiếu:\n` + insufficientErrors.map(i => `• ${i.productName}: Cần ${i.requiredQty}, Tồn ${i.currentStock} (Thiếu ${i.missingQty})`).join('\n') + `\n\n=> Vui lòng nhập thêm hàng vào kho trước khi xuất kho!`);
           return;
         }
 
@@ -196,7 +232,9 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
           shippingStatus: 'shipped',
           shippedAt: shippedTimestamp,
           shipperId: newShipperId,
-          shipperName: newShipperName
+          shipperName: newShipperName,
+          warehouseId: targetWhId,
+          warehouseName: targetWhName
         });
 
         await batch.commit();
@@ -236,6 +274,13 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
         paymentMethods={paymentMethods}
         shippers={shippers}
         products={products}
+      />
+      <InsufficientStockModal 
+        isOpen={!!stockAlertModalData?.isOpen}
+        onClose={() => setStockAlertModalData(null)}
+        saleId={stockAlertModalData?.saleId || ''}
+        warehouseName={stockAlertModalData?.warehouseName || ''}
+        items={stockAlertModalData?.items || []}
       />
 
       <div className="flex justify-between items-center mb-6">

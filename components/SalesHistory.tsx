@@ -2,12 +2,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, updateDoc, doc, Timestamp, arrayUnion, writeBatch, increment, getDocs, getDoc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
-import { Sale, Customer, PaymentMethod, Shipper, Product, Manufacturer } from '../types';
-import { Loader, XCircle, Search, Calendar, Package, RefreshCcw, Truck, DollarSign, CheckCircle, CreditCard, X, Clock, ArrowRight, Save, FileCheck2, TrendingUp, ArrowUp, ArrowDown, ArrowUpDown, Edit, Hash, User, Tag, Wallet, Building, Eye, ChevronLeft, ChevronRight, Filter, ShoppingBag, Receipt, Trash2, Home, Printer } from 'lucide-react';
+import { Sale, Customer, PaymentMethod, Shipper, Product, Manufacturer, Warehouse } from '../types';
+import { Loader, XCircle, Search, Calendar, Package, RefreshCcw, Truck, DollarSign, CheckCircle, CreditCard, X, Clock, ArrowRight, Save, FileCheck2, TrendingUp, ArrowUp, ArrowDown, ArrowUpDown, Edit, Hash, User, Tag, Wallet, Building, Eye, ChevronLeft, ChevronRight, Filter, ShoppingBag, Receipt, Trash2, Home, Printer, AlertTriangle } from 'lucide-react';
 import Pagination from './Pagination';
 import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import SalePrintPreviewModal from './SalePrintPreviewModal';
+import InsufficientStockModal, { InsufficientItemInfo } from './InsufficientStockModal';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
 import * as XLSX from 'xlsx';
@@ -23,36 +24,152 @@ const getTodayString = () => new Date().toISOString().split('T')[0];
 const UpdateShippingModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (shipperId: string, date: string) => void;
+    onConfirm: (shipperId: string, date: string) => Promise<void>;
     sale: Sale | null;
     shippers: Shipper[];
-}> = ({ isOpen, onClose, onConfirm, sale, shippers }) => {
+    warehouses: Warehouse[];
+    onOpenStockAlert: (saleId: string, warehouseName: string, items: InsufficientItemInfo[]) => void;
+}> = ({ isOpen, onClose, onConfirm, sale, shippers, warehouses, onOpenStockAlert }) => {
     const [shipperId, setShipperId] = useState('');
     const [shippedDate, setShippedDate] = useState(getTodayString());
+    const [isCheckingStock, setIsCheckingStock] = useState(false);
+    const [insufficientItems, setInsufficientItems] = useState<InsufficientItemInfo[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const isOrder = sale?.shippingStatus === 'order';
+    const targetWhId = sale?.warehouseId || (warehouses.length > 0 ? warehouses[0].id : '');
+    const targetWhName = sale?.warehouseName || warehouses.find(w => w.id === targetWhId)?.name || 'Kho Mặc định';
 
     useEffect(() => {
         if (isOpen && sale) {
-            setShipperId(sale.shipperId || '');
+            setShipperId(sale.shipperId || (shippers.length > 0 ? shippers[0].id : ''));
             setShippedDate(getTodayString());
+            setInsufficientItems([]);
+
+            if (sale.shippingStatus === 'order' && targetWhId) {
+                setIsCheckingStock(true);
+                const check = async () => {
+                    try {
+                        const missing: InsufficientItemInfo[] = [];
+                        for (const item of (sale.items || [])) {
+                            if (item.isCombo) {
+                                const prodDoc = await getDoc(doc(db, 'products', item.productId));
+                                const comboItems = prodDoc.data()?.comboItems || [];
+                                for (const cItem of comboItems) {
+                                    const reqQty = (cItem.quantity || 1) * item.quantity;
+                                    const invSnap = await getDoc(doc(db, 'products', cItem.productId, 'inventory', targetWhId));
+                                    const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
+                                    if (curStock < reqQty) {
+                                        missing.push({
+                                            productId: cItem.productId,
+                                            productName: cItem.productName || item.productName,
+                                            requiredQty: reqQty,
+                                            currentStock: curStock,
+                                            missingQty: reqQty - curStock
+                                        });
+                                    }
+                                }
+                            } else {
+                                const invSnap = await getDoc(doc(db, 'products', item.productId, 'inventory', targetWhId));
+                                const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
+                                if (curStock < item.quantity) {
+                                    missing.push({
+                                        productId: item.productId,
+                                        productName: item.productName,
+                                        requiredQty: item.quantity,
+                                        currentStock: curStock,
+                                        missingQty: item.quantity - curStock
+                                    });
+                                }
+                            }
+                        }
+                        setInsufficientItems(missing);
+                    } catch (e) {
+                        console.error("Error pre-checking stock in shipping modal:", e);
+                    } finally {
+                        setIsCheckingStock(false);
+                    }
+                };
+                check();
+            }
         }
-    }, [isOpen, sale]);
+    }, [isOpen, sale, targetWhId]);
 
     if (!isOpen || !sale) return null;
 
+    const handleSubmit = async () => {
+        if (insufficientItems.length > 0) {
+            onOpenStockAlert(sale.id, targetWhName, insufficientItems);
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            await onConfirm(shipperId, shippedDate);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in backdrop-blur-xs">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
-                <div className="bg-blue-100 p-4 flex justify-between items-center border-b border-slate-200">
+                <div className={`p-4 flex justify-between items-center border-b border-slate-200 ${isOrder ? 'bg-purple-100' : 'bg-blue-100'}`}>
                     <h3 className="font-black text-black uppercase text-sm flex items-center">
-                        <Truck size={18} className="mr-2 text-blue-600"/> {sale.shippingStatus === 'order' ? 'Xuất Kho' : 'Giao Hàng'}
+                        <Truck size={18} className={`mr-2 ${isOrder ? 'text-purple-600' : 'text-blue-600'}`}/> {isOrder ? 'Xuất Kho Đơn Hàng' : 'Giao Hàng'}
                     </h3>
-                    <button onClick={onClose} className="text-black hover:text-red-500"><X size={24}/></button>
+                    <button onClick={onClose} className="text-black hover:text-red-500 transition"><X size={24}/></button>
                 </div>
                 <div className="p-5 space-y-4">
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <p className="text-[10px] font-black text-slate-500 uppercase">Khách hàng</p>
-                        <p className="text-sm font-black text-black truncate">{sale.customerName}</p>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black text-slate-500 uppercase">Khách hàng</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase">#{sale.id.substring(0, 8)}</span>
+                        </div>
+                        <p className="text-sm font-black text-black truncate">{sale.customerName || 'Khách vãng lai'}</p>
+                        {isOrder && (
+                            <p className="text-[11px] font-bold text-slate-600 pt-1 border-t border-slate-200">
+                                Kho xuất: <span className="font-black text-slate-900">{targetWhName}</span>
+                            </p>
+                        )}
                     </div>
+
+                    {/* TÌNH TRẠNG TỒN KHO CHO ĐƠN ĐẶT HÀNG */}
+                    {isOrder && (
+                        <div>
+                            {isCheckingStock ? (
+                                <div className="p-3 bg-slate-100 text-slate-600 text-xs rounded-xl flex items-center justify-center font-bold">
+                                    <Loader size={14} className="animate-spin mr-2 text-primary"/> Đang kiểm tra tồn kho thực tế...
+                                </div>
+                            ) : insufficientItems.length > 0 ? (
+                                <div className="bg-red-50 border-2 border-red-500 rounded-xl p-3 space-y-2 animate-shake">
+                                    <div className="flex items-center text-xs font-black text-red-700 uppercase">
+                                        <AlertTriangle size={18} className="mr-1.5 text-red-600 shrink-0"/>
+                                        Kho không đủ hàng để xuất kho!
+                                    </div>
+                                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                                        {insufficientItems.map((it, idx) => (
+                                            <div key={idx} className="bg-white border border-red-300 p-2 rounded-lg text-xs flex justify-between items-center shadow-xs">
+                                                <span className="truncate flex-1 font-bold text-slate-800 mr-2">{it.productName}</span>
+                                                <div className="text-right shrink-0">
+                                                    <span className="text-[11px] text-slate-500">Cần: <strong className="text-slate-800">{it.requiredQty}</strong> | Có: <strong className="text-slate-800">{it.currentStock}</strong></span>
+                                                    <span className="block text-[10px] text-red-600 font-black">Thiếu {it.missingQty}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-red-700 font-bold italic bg-white/70 p-1.5 rounded border border-red-200">
+                                        ⚠️ Vui lòng nhập thêm hàng vào kho trước khi xuất kho!
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 flex items-center text-emerald-800 text-xs font-bold">
+                                    <CheckCircle size={16} className="mr-1.5 text-emerald-600 shrink-0"/>
+                                    Tồn kho đủ để xuất đơn hàng.
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Đơn vị vận chuyển</label>
                         <select 
@@ -74,13 +191,28 @@ const UpdateShippingModal: React.FC<{
                             style={{ colorScheme: 'light' }}
                         />
                     </div>
-                    <button 
-                        onClick={() => onConfirm(shipperId, shippedDate)} 
-                        disabled={!shipperId}
-                        className="w-full py-3 bg-slate-800 text-white font-black rounded-xl text-xs uppercase disabled:bg-slate-300 shadow-lg active:scale-95 transition-all"
-                    >
-                        Xác nhận cập nhật
-                    </button>
+
+                    {isOrder && insufficientItems.length > 0 ? (
+                        <button 
+                            onClick={() => onOpenStockAlert(sale.id, targetWhName, insufficientItems)}
+                            className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl text-xs uppercase shadow-lg transition-all flex items-center justify-center cursor-pointer"
+                        >
+                            <AlertTriangle size={16} className="mr-1.5 text-yellow-300"/>
+                            Kho không đủ hàng - Xem chi tiết
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={handleSubmit} 
+                            disabled={isSubmitting || isCheckingStock}
+                            className={`w-full py-3 text-white font-black rounded-xl text-xs uppercase disabled:bg-slate-300 shadow-lg active:scale-95 transition-all flex items-center justify-center cursor-pointer ${isOrder ? 'bg-purple-600 hover:bg-purple-700' : 'bg-slate-800 hover:bg-slate-900'}`}
+                        >
+                            {isSubmitting ? (
+                                <><Loader size={16} className="animate-spin mr-2"/> Đang xử lý xuất kho...</>
+                            ) : (
+                                <><Truck size={16} className="mr-1.5"/> {isOrder ? 'Xác nhận xuất kho' : 'Xác nhận giao hàng'}</>
+                            )}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -271,24 +403,33 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
   const [saleToShip, setSaleToShip] = useState<Sale | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [saleToEdit, setSaleToEdit] = useState<Sale | null>(null);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [stockAlertModalData, setStockAlertModalData] = useState<{
+    isOpen: boolean;
+    saleId: string;
+    warehouseName: string;
+    items: InsufficientItemInfo[];
+  } | null>(null);
 
   const isAdmin = userRole === 'admin';
 
   useEffect(() => {
     const fetchAuxData = async () => {
         try {
-            const [custSnap, paySnap, shipSnap, prodSnap, manuSnap] = await Promise.all([
+            const [custSnap, paySnap, shipSnap, prodSnap, manuSnap, whSnap] = await Promise.all([
                 getDocs(query(collection(db, "customers"), orderBy("name"))),
                 getDocs(query(collection(db, "paymentMethods"), orderBy("name"))),
                 getDocs(query(collection(db, "shippers"), orderBy("name"))),
                 getDocs(query(collection(db, "products"), orderBy("name"))),
-                getDocs(query(collection(db, "manufacturers"), orderBy("name")))
+                getDocs(query(collection(db, "manufacturers"), orderBy("name"))),
+                getDocs(query(collection(db, "warehouses"), orderBy("name")))
             ]);
             setCustomers(custSnap.docs.map(d => ({id: d.id, ...d.data()} as Customer)));
             setPaymentMethods(paySnap.docs.map(d => ({id: d.id, ...d.data()} as PaymentMethod)));
             setShippers(shipSnap.docs.map(d => ({id: d.id, ...d.data()} as Shipper)));
             setProducts(prodSnap.docs.map(d => ({id: d.id, ...d.data()} as Product)));
             setManufacturers(manuSnap.docs.map(d => ({id: d.id, ...d.data()} as Manufacturer)));
+            setWarehouses(whSnap.docs.map(d => ({id: d.id, ...d.data()} as Warehouse)));
         } catch (e) { console.error(e); }
     };
     fetchAuxData();
@@ -439,8 +580,16 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
           dObj.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
           const ts = Timestamp.fromDate(dObj);
 
+          const effectiveWarehouseId = saleToShip.warehouseId || (warehouses.length > 0 ? warehouses[0].id : '');
+          const effectiveWarehouseName = saleToShip.warehouseName || warehouses.find(w => w.id === effectiveWarehouseId)?.name || 'Kho Mặc định';
+
           if (saleToShip.shippingStatus === 'order') { 
-              const insufficientErrors: string[] = [];
+              if (!effectiveWarehouseId) {
+                  alert("Lỗi: Không tìm thấy thông tin kho hàng để kiểm tra tồn kho xuất!");
+                  return;
+              }
+
+              const insufficientErrors: InsufficientItemInfo[] = [];
 
               for (const item of (saleToShip.items || [])) {
                 if (item.isCombo) {
@@ -448,15 +597,21 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                   const comboItems = prodDoc.data()?.comboItems || [];
                   for (const cItem of comboItems) {
                     const reqQty = (cItem.quantity || 1) * item.quantity;
-                    const invSnap = await getDoc(doc(db, 'products', cItem.productId, 'inventory', saleToShip.warehouseId));
+                    const invSnap = await getDoc(doc(db, 'products', cItem.productId, 'inventory', effectiveWarehouseId));
                     const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
                     if (curStock < reqQty) {
-                      insufficientErrors.push(`• ${cItem.productName || item.productName}: Cần xuất ${reqQty}, Tồn kho hiện có ${curStock}`);
+                      insufficientErrors.push({
+                        productId: cItem.productId,
+                        productName: cItem.productName || item.productName,
+                        requiredQty: reqQty,
+                        currentStock: curStock,
+                        missingQty: reqQty - curStock
+                      });
                     } else {
-                      batch.set(doc(db, 'products', cItem.productId, 'inventory', saleToShip.warehouseId), {
+                      batch.set(doc(db, 'products', cItem.productId, 'inventory', effectiveWarehouseId), {
                         stock: increment(-reqQty),
-                        warehouseId: saleToShip.warehouseId,
-                        warehouseName: saleToShip.warehouseName || ''
+                        warehouseId: effectiveWarehouseId,
+                        warehouseName: effectiveWarehouseName
                       }, { merge: true });
                       if (saleToShip.issueInvoice) {
                         batch.update(doc(db, 'products', cItem.productId), { totalInvoicedStock: increment(-reqQty) });
@@ -464,15 +619,21 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                     }
                   }
                 } else {
-                  const invSnap = await getDoc(doc(db, 'products', item.productId, 'inventory', saleToShip.warehouseId));
+                  const invSnap = await getDoc(doc(db, 'products', item.productId, 'inventory', effectiveWarehouseId));
                   const curStock = invSnap.exists() ? (invSnap.data()?.stock || 0) : 0;
                   if (curStock < item.quantity) {
-                    insufficientErrors.push(`• ${item.productName}: Cần xuất ${item.quantity}, Tồn kho hiện có ${curStock}`);
+                    insufficientErrors.push({
+                      productId: item.productId,
+                      productName: item.productName,
+                      requiredQty: item.quantity,
+                      currentStock: curStock,
+                      missingQty: item.quantity - curStock
+                    });
                   } else {
-                    batch.set(doc(db, 'products', item.productId, 'inventory', saleToShip.warehouseId), {
+                    batch.set(doc(db, 'products', item.productId, 'inventory', effectiveWarehouseId), {
                       stock: increment(-item.quantity),
-                      warehouseId: saleToShip.warehouseId,
-                      warehouseName: saleToShip.warehouseName || ''
+                      warehouseId: effectiveWarehouseId,
+                      warehouseName: effectiveWarehouseName
                     }, { merge: true });
                     if (saleToShip.issueInvoice) {
                       batch.update(doc(db, 'products', item.productId), { totalInvoicedStock: increment(-item.quantity) });
@@ -482,16 +643,29 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
               }
 
               if (insufficientErrors.length > 0) {
-                alert(`KHÔNG ĐỦ HÀNG TRONG KHO ĐỂ XUẤT ĐƠN HÀNG #${saleToShip.id.substring(0,8).toUpperCase()}!\n\nKho: ${saleToShip.warehouseName || 'Chưa rõ'}\n\nChi tiết sản phẩm thiếu:\n` + insufficientErrors.join('\n') + `\n\n=> Vui lòng nhập thêm hàng vào kho trước khi xuất kho!`);
+                setStockAlertModalData({
+                  isOpen: true,
+                  saleId: saleToShip.id,
+                  warehouseName: effectiveWarehouseName,
+                  items: insufficientErrors
+                });
+                alert(`KHÔNG ĐỦ HÀNG TRONG KHO ĐỂ XUẤT ĐƠN HÀNG #${saleToShip.id.substring(0,8).toUpperCase()}!\n\nKho: ${effectiveWarehouseName}\n\nChi tiết sản phẩm thiếu:\n` + insufficientErrors.map(i => `• ${i.productName}: Cần ${i.requiredQty}, Tồn ${i.currentStock} (Thiếu ${i.missingQty})`).join('\n') + `\n\n=> Vui lòng nhập thêm hàng vào kho trước khi xuất kho!`);
                 return;
               }
           }
 
-          batch.update(saleRef, { shippingStatus: 'shipped', shipperId, shipperName: sName, shippedAt: ts });
+          batch.update(saleRef, { 
+            shippingStatus: 'shipped', 
+            shipperId: shipperId || null, 
+            shipperName: sName, 
+            shippedAt: ts,
+            warehouseId: effectiveWarehouseId,
+            warehouseName: effectiveWarehouseName
+          });
           await batch.commit(); 
           setIsShippingModalOpen(false); 
           setSaleToShip(null); 
-          alert("Cập nhật giao hàng thành công!");
+          alert("Xuất kho và cập nhật giao hàng thành công!");
       } catch (err: any) { 
           console.error("Error confirming shipping: ", err);
           alert("Lỗi khi cập nhật giao hàng: " + (err.message || '')); 
@@ -533,7 +707,22 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
       <SaleDetailModal sale={selectedSale} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
       <SalePrintPreviewModal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} sale={selectedSaleForPrint} customer={customers.find(c => c.id === selectedSaleForPrint?.customerId) || null} />
       <DebtPaymentModal isOpen={isDebtModalOpen} onClose={() => setIsDebtModalOpen(false)} onConfirm={handleConfirmDebtPayment} sale={saleToPay} paymentMethods={paymentMethods} />
-      <UpdateShippingModal isOpen={isShippingModalOpen} onClose={() => setIsShippingModalOpen(false)} onConfirm={handleConfirmShipping} sale={saleToShip} shippers={shippers} />
+      <UpdateShippingModal 
+        isOpen={isShippingModalOpen} 
+        onClose={() => setIsShippingModalOpen(false)} 
+        onConfirm={handleConfirmShipping} 
+        sale={saleToShip} 
+        shippers={shippers}
+        warehouses={warehouses}
+        onOpenStockAlert={(saleId, whName, items) => setStockAlertModalData({ isOpen: true, saleId, warehouseName: whName, items })}
+      />
+      <InsufficientStockModal 
+        isOpen={!!stockAlertModalData?.isOpen}
+        onClose={() => setStockAlertModalData(null)}
+        saleId={stockAlertModalData?.saleId || ''}
+        warehouseName={stockAlertModalData?.warehouseName || ''}
+        items={stockAlertModalData?.items || []}
+      />
       <SaleEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} sale={saleToEdit} customers={customers} paymentMethods={paymentMethods} shippers={shippers} products={products} />
 
       {/* FILTER PANEL - POS STYLE */}
