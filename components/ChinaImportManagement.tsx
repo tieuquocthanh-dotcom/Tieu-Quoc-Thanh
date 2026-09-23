@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, ChinaImport, ChinaImportItem, ChinaImportStatus } from '../types';
-import { Plus, Trash2, Save, Search, Calculator, DollarSign, Plane, History, Loader, PlusCircle, Edit, X, Eye, Printer, FileText, Coins, RotateCcw, Check, AlertTriangle, ExternalLink, Truck, PackageCheck, AlertCircle, ShoppingCart, ListFilter, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Save, Search, Calculator, DollarSign, Plane, History, Loader, PlusCircle, Edit, X, Eye, Printer, FileText, Coins, RotateCcw, Check, AlertTriangle, ExternalLink, Truck, PackageCheck, AlertCircle, ShoppingCart, ListFilter, ChevronUp, ChevronDown, TrendingUp } from 'lucide-react';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import Pagination from './Pagination';
 import { ProductModal } from './ProductManagement';
@@ -77,100 +77,289 @@ const DecimalInput: React.FC<{
 // --- DETAIL MODAL COMPONENT ---
 const ChinaImportDetailModal: React.FC<{
     importData: ChinaImport | null;
+    products: Product[];
     onClose: () => void;
-}> = ({ importData, onClose }) => {
+}> = ({ importData, products, onClose }) => {
     if (!importData) return null;
 
     const items = Array.isArray(importData.items) ? importData.items : [];
     const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-    const totalShippingCN_VND = importData.shippingFeeCN * importData.exchangeRate;
+    const totalShippingCN_VND = (importData.shippingFeeCN || 0) * (importData.exchangeRate || 0);
     const currencyExchangeFee = importData.currencyExchangeFee || 0;
-    const totalExtraFeesVND = totalShippingCN_VND + importData.shippingFeeVN + importData.shippingFeeExtra + currencyExchangeFee;
+    const totalExtraFeesVND = totalShippingCN_VND + (importData.shippingFeeVN || 0) + (importData.shippingFeeExtra || 0) + currencyExchangeFee;
     const feePerItem = totalQuantity > 0 ? totalExtraFeesVND / totalQuantity : 0;
+    const totalProductCNY = items.reduce((sum, item) => sum + (item.totalCNY || (item.quantity * item.priceCNY)), 0);
+
+    const productMap = useMemo(() => {
+        const map = new Map<string, Product>();
+        (products || []).forEach(p => {
+            if (p.id) map.set(p.id, p);
+        });
+        return map;
+    }, [products]);
+
+    // Calculate profit metrics when sold out
+    let totalProjectedRevenue = 0;
+    let totalProjectedProfit = 0;
+    let totalCostOfPricedItems = 0;
+    let pricedItemsCount = 0;
+
+    items.forEach(item => {
+        const prod = productMap.get(item.productId) || (products || []).find(p => p.name?.trim().toLowerCase() === item.productName?.trim().toLowerCase());
+        const sp = prod?.sellingPrice || 0;
+        const actualCost = Math.round((item.priceCNY * (importData.exchangeRate || 0)) + feePerItem);
+        if (sp > 0) {
+            const rev = sp * item.quantity;
+            const cost = actualCost * item.quantity;
+            totalProjectedRevenue += rev;
+            totalProjectedProfit += (rev - cost);
+            totalCostOfPricedItems += cost;
+            pricedItemsCount++;
+        }
+    });
+
+    const overallMarginPercent = totalCostOfPricedItems > 0 ? ((totalProjectedProfit / totalCostOfPricedItems) * 100) : 0;
 
     const handlePrint = () => { window.print(); };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in-down overflow-hidden">
-                <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center print:hidden">
-                    <h2 className="text-xl font-bold text-dark flex items-center">
-                        <FileText className="mr-2 text-primary" /> Chi Tiết Đơn Nhập TQ
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col animate-fade-in-down overflow-hidden border border-slate-200">
+                <div className="p-4 bg-slate-900 text-white border-b border-slate-800 flex justify-between items-center print:hidden">
+                    <h2 className="text-lg font-black uppercase flex items-center tracking-tight">
+                        <FileText className="mr-2 text-red-500" /> Chi Tiết Đơn Nhập Hàng Trung Quốc
                     </h2>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-neutral"><X size={24} /></button>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition cursor-pointer"><X size={20} /></button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-6 print:p-0">
-                    <div className="mb-6 p-4 bg-slate-50 border-l-4 border-slate-800 rounded-r-lg flex justify-between items-start">
+                <div className="flex-1 overflow-y-auto p-6 print:p-0 space-y-5">
+                    {/* Header Info */}
+                    <div className="p-4 bg-slate-50 border-l-4 border-red-600 rounded-r-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border border-slate-200">
                         <div>
-                            <h3 className="text-lg font-black text-slate-800 uppercase">{importData.orderName || 'Đơn hàng không tên'}</h3>
-                            <p className="text-xs text-slate-500 font-bold opacity-70 mt-1">ID: #{importData.id.substring(0,8)}</p>
+                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{importData.orderName || 'Đơn hàng không tên'}</h3>
+                            <p className="text-xs text-slate-500 font-bold mt-1">Mã đơn: <span className="text-slate-800 font-black font-mono">#{importData.id.substring(0,8).toUpperCase()}</span></p>
                         </div>
-                        <StatusBadge status={importData.status} />
+                        <div className="flex items-center space-x-2">
+                            <StatusBadge status={importData.status} />
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <p className="text-xs text-slate-800 uppercase font-bold mb-2">Thông tin chung</p>
-                            <p className="text-sm mb-1 text-slate-700"><span className="font-bold text-black">Ngày nhập:</span> {(importData.importDate || importData.createdAt)?.toDate() ? getLocalYYYYMMDD((importData.importDate || importData.createdAt)?.toDate()) : 'N/A'}</p>
-                            <p className="text-sm mb-1 text-slate-700"><span className="font-bold text-black">Tỷ giá:</span> <span className="font-bold text-blue-700">{formatNumber(importData.exchangeRate)} ₫</span></p>
-                            <p className="text-sm italic text-slate-800 mt-2 font-medium">Note: {importData.note || 'Không có'}</p>
+
+                    {/* Stats Grid: 4 Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* Card 1: General Info */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-xs">
+                            <p className="text-[11px] text-slate-500 uppercase font-black mb-2 flex items-center">
+                                <FileText size={14} className="mr-1 text-slate-400"/> Thông tin chung
+                            </p>
+                            <p className="text-xs mb-1.5 text-slate-600">
+                                <span className="font-bold text-slate-800">Ngày nhập:</span> {(importData.importDate || importData.createdAt)?.toDate() ? getLocalYYYYMMDD((importData.importDate || importData.createdAt)?.toDate()) : 'N/A'}
+                            </p>
+                            <p className="text-xs mb-1.5 text-slate-600">
+                                <span className="font-bold text-slate-800">Tỷ giá:</span> <span className="font-black text-blue-700">{formatNumber(importData.exchangeRate)} ₫</span>
+                            </p>
+                            <p className="text-xs text-slate-600 line-clamp-2">
+                                <span className="font-bold text-slate-800">Ghi chú:</span> {importData.note || 'Không có'}
+                            </p>
                         </div>
-                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <p className="text-xs text-slate-800 uppercase font-bold mb-2">Chi phí vận chuyển & Khác</p>
-                            <div className="flex justify-between text-sm mb-1 text-slate-700"><span className="font-medium">Ship Nội địa:</span><span className="font-bold text-black">{formatNumber(importData.shippingFeeCN)} ¥ <span className="text-xs text-slate-500 font-normal">({formatNumber(totalShippingCN_VND)} ₫)</span></span></div>
-                            <div className="flex justify-between text-sm mb-1 text-slate-700"><span className="font-medium">Ship VN:</span><span className="font-bold text-black">{formatNumber(importData.shippingFeeVN)} ₫</span></div>
-                            <div className="flex justify-between text-sm mb-1 text-slate-700"><span className="font-medium">Phí khác:</span><span className="font-bold text-black">{formatNumber(importData.shippingFeeExtra)} ₫</span></div>
-                            <div className="flex justify-between text-sm mb-1 text-slate-700"><span className="font-medium">Phí đổi tiền:</span><span className="font-bold text-black">{formatNumber(currencyExchangeFee)} ₫</span></div>
-                            <div className="border-t border-slate-300 mt-2 pt-2 flex justify-between text-sm font-bold text-orange-700"><span>Tổng phí phụ:</span><span>{formatNumber(totalExtraFeesVND)} ₫</span></div>
-                        </div>
-                        <div className="bg-slate-900 p-4 rounded-lg border-2 border-slate-800 shadow-lg text-white">
-                            <p className="text-xs text-slate-400 uppercase font-bold mb-2 tracking-widest border-b border-slate-700 pb-1">Tổng cộng thanh toán</p>
-                            <div className="flex justify-between text-sm mb-1"><span className="text-slate-400">Tiền hàng (¥):</span><span className="font-bold">{formatNumber((importData.totalCostCNY || 0) - importData.shippingFeeCN)} ¥</span></div>
-                            <div className="flex justify-between text-sm mb-2 border-b border-slate-700 pb-1 font-black text-red-400"><span className="text-slate-400">TỔNG TỆ (HÀNG+SHIP NĐ):</span><span>{formatNumber(importData.totalCostCNY)} ¥</span></div>
-                            <div className="my-2 p-2 bg-slate-800 rounded-lg border border-slate-700 flex justify-between items-center">
-                                <div>
-                                    <span className="text-xs font-black text-blue-400 uppercase block">TIỀN CHUYỂN (TỆ + SHIP NĐ × TỶ GIÁ):</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">(Chưa có phí vận chuyển VN)</span>
-                                </div>
-                                <span className="text-base font-black text-blue-300">{formatNumber((importData.totalCostCNY || 0) * importData.exchangeRate)} ₫</span>
+
+                        {/* Card 2: Shipping & Extra Fees */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-xs">
+                            <p className="text-[11px] text-slate-500 uppercase font-black mb-2 flex items-center">
+                                <Truck size={14} className="mr-1 text-slate-400"/> Chi phí phụ & Vận chuyển
+                            </p>
+                            <div className="flex justify-between text-xs mb-1 text-slate-600">
+                                <span>Ship Nội địa:</span>
+                                <span className="font-black text-slate-900">{formatNumber(importData.shippingFeeCN)} ¥ <span className="text-[10px] text-slate-500 font-normal">({formatNumber(totalShippingCN_VND)} ₫)</span></span>
                             </div>
-                            <div className="pt-1"><div className="flex justify-between text-lg font-extrabold text-green-400 uppercase"><span>TỔNG VỀ TAY:</span><span>{formatNumber(importData.totalCostVND)} ₫</span></div></div>
+                            <div className="flex justify-between text-xs mb-1 text-slate-600">
+                                <span>Ship VN:</span>
+                                <span className="font-black text-slate-900">{formatNumber(importData.shippingFeeVN)} ₫</span>
+                            </div>
+                            <div className="flex justify-between text-xs mb-1 text-slate-600">
+                                <span>Phí khác + Đổi tiền:</span>
+                                <span className="font-black text-slate-900">{formatNumber((importData.shippingFeeExtra || 0) + currencyExchangeFee)} ₫</span>
+                            </div>
+                            <div className="border-t border-slate-200 mt-1.5 pt-1.5 flex justify-between text-xs font-black text-orange-700">
+                                <span>Tổng phí phụ:</span>
+                                <span>{formatNumber(totalExtraFeesVND)} ₫</span>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Total Cost */}
+                        <div className="bg-slate-900 p-4 rounded-xl shadow-md text-white border border-slate-800">
+                            <p className="text-[11px] text-slate-400 uppercase font-black mb-2 tracking-wider flex items-center border-b border-slate-800 pb-1.5">
+                                <Coins size={14} className="mr-1 text-amber-400"/> Tổng chi phí vốn
+                            </p>
+                            <div className="flex justify-between text-xs mb-1">
+                                <span className="text-slate-400">Tiền hàng (¥):</span>
+                                <span className="font-black text-white">{formatNumber((importData.totalCostCNY || 0) - (importData.shippingFeeCN || 0))} ¥</span>
+                            </div>
+                            <div className="flex justify-between text-xs mb-1 text-red-400 font-bold">
+                                <span className="text-slate-400">Tổng Tệ (+Ship NĐ):</span>
+                                <span className="font-black">{formatNumber(importData.totalCostCNY)} ¥</span>
+                            </div>
+                            <div className="flex justify-between text-xs mb-2 text-blue-300 font-bold">
+                                <span className="text-slate-400">Tiền chuyển (VND):</span>
+                                <span className="font-black">{formatNumber((importData.totalCostCNY || 0) * (importData.exchangeRate || 0))} ₫</span>
+                            </div>
+                            <div className="border-t border-slate-700 pt-1.5 flex justify-between items-baseline">
+                                <span className="text-[11px] font-black uppercase text-slate-300">TỔNG VỐN VỀ TAY:</span>
+                                <span className="text-base font-black text-emerald-400">{formatNumber(importData.totalCostVND)} ₫</span>
+                            </div>
+                        </div>
+
+                        {/* Card 4: Projected Profit When Sold Out */}
+                        <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 p-4 rounded-xl shadow-md text-white border-2 border-emerald-500/50">
+                            <p className="text-[11px] text-emerald-300 uppercase font-black mb-2 tracking-wider flex items-center border-b border-emerald-800/80 pb-1.5">
+                                <TrendingUp size={14} className="mr-1 text-emerald-400"/> Lời dự kiến khi bán hết
+                            </p>
+                            <div className="flex justify-between text-xs mb-1">
+                                <span className="text-slate-300">Doanh thu dự kiến:</span>
+                                <span className="font-black text-white">{formatNumber(totalProjectedRevenue)} ₫</span>
+                            </div>
+                            <div className="flex justify-between text-xs mb-1.5">
+                                <span className="text-slate-300">Vốn các mặt hàng:</span>
+                                <span className="font-black text-slate-300">{formatNumber(totalCostOfPricedItems)} ₫</span>
+                            </div>
+                            <div className="border-t border-emerald-800/80 pt-1.5 flex justify-between items-baseline">
+                                <span className="text-[11px] font-black uppercase text-emerald-300">LỜI BÁN HẾT ĐƠN:</span>
+                                <span className={`text-lg font-black tracking-tight ${totalProjectedProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    {totalProjectedProfit >= 0 ? '+' : ''}{formatNumber(totalProjectedProfit)} ₫
+                                </span>
+                            </div>
+                            <div className="mt-1 flex justify-between items-center text-[10px] text-emerald-200/90 font-bold">
+                                <span>Tỷ suất lợi nhuận:</span>
+                                <span className="bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-400/30">
+                                    {overallMarginPercent >= 0 ? '+' : ''}{overallMarginPercent.toFixed(1)}%
+                                </span>
+                            </div>
+                            {pricedItemsCount < items.length && (
+                                <p className="text-[10px] text-amber-300 italic mt-1 font-medium">
+                                    *Tính trên {pricedItemsCount}/{items.length} SP đã có giá bán
+                                </p>
+                            )}
                         </div>
                     </div>
-                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center text-sm text-blue-900">
-                        <Coins size={18} className="mr-2 text-blue-700"/>
-                        <span>Phí phân bổ: <strong>{formatNumber(Math.round(feePerItem))} ₫ / SP</strong></span>
+
+                    {/* Fee Allocation Banner */}
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-blue-900">
+                        <div className="flex items-center">
+                            <Coins size={18} className="mr-2 text-blue-700 shrink-0"/>
+                            <span>Phí phân bổ: <strong>{formatNumber(Math.round(feePerItem))} ₫ / SP</strong> <span className="text-slate-500">(Gồm ship TQ + ship VN + phí phụ chia đều {totalQuantity} SP)</span></span>
+                        </div>
+                        <span className="text-slate-600 font-bold shrink-0">Đơn gồm <strong className="text-slate-900">{items.length}</strong> sản phẩm ({totalQuantity} cái)</span>
                     </div>
-                    <div className="overflow-x-auto border border-slate-300 rounded-lg">
+
+                    {/* Table with NEW Column: "Lời Khi Bán Hết (₫)" */}
+                    <div className="overflow-x-auto border border-slate-300 rounded-xl shadow-xs">
                         <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-100 text-slate-800 font-bold uppercase text-xs">
+                            <thead className="bg-slate-100 text-slate-700 font-black uppercase text-[11px] tracking-wider border-b border-slate-300">
                                 <tr>
-                                    <th className="p-3 border-b border-slate-300">Sản phẩm</th>
-                                    <th className="p-3 text-center border-b border-slate-300">SL</th>
-                                    <th className="p-3 text-right border-b border-slate-300">Giá Tệ (¥)</th>
-                                    <th className="p-3 text-right border-b border-slate-300">Thành tiền (¥)</th>
-                                    <th className="p-3 text-right bg-green-50 text-green-900 border-b border-slate-300">Giá Vốn Thực Tế (₫)</th>
+                                    <th className="p-3">Sản phẩm</th>
+                                    <th className="p-3 text-center">SL</th>
+                                    <th className="p-3 text-right">Giá Tệ (¥)</th>
+                                    <th className="p-3 text-right">Thành tiền (¥)</th>
+                                    <th className="p-3 text-right bg-slate-50 text-slate-800">Giá Vốn Thực Tế (₫)</th>
+                                    <th className="p-3 text-right bg-blue-50/50 text-blue-900">Giá Bán (₫)</th>
+                                    <th className="p-3 text-right bg-emerald-100 text-emerald-950 font-black border-l border-emerald-200">Lời Khi Bán Hết (₫)</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
                                 {items.map((item, index) => {
-                                    const actualPriceVND = (item.priceCNY * importData.exchangeRate) + feePerItem;
+                                    const product = productMap.get(item.productId) || (products || []).find(p => p.name?.trim().toLowerCase() === item.productName?.trim().toLowerCase());
+                                    const sellingPrice = product?.sellingPrice || 0;
+                                    const actualPriceVND = Math.round((item.priceCNY * (importData.exchangeRate || 0)) + feePerItem);
+                                    const totalCostLine = actualPriceVND * item.quantity;
+                                    const totalRevenueLine = sellingPrice * item.quantity;
+                                    const profitLine = sellingPrice > 0 ? (totalRevenueLine - totalCostLine) : 0;
+                                    const profitPerUnit = sellingPrice > 0 ? (sellingPrice - actualPriceVND) : 0;
+                                    const itemMargin = totalCostLine > 0 && sellingPrice > 0 ? ((profitLine / totalCostLine) * 100) : 0;
+
                                     return (
-                                        <tr key={index} className="hover:bg-slate-50">
-                                            <td className="p-3 font-bold text-slate-800">{item.productName}</td>
-                                            <td className="p-3 text-center text-blue-600 font-black">{item.quantity}</td>
-                                            <td className="p-3 text-right text-black">{formatNumber(item.priceCNY)}</td>
-                                            <td className="p-3 text-right font-bold text-red-600">{formatNumber(item.totalCNY)}</td>
-                                            <td className="p-3 text-right bg-green-50 font-extrabold text-green-800 text-base">{formatNumber(Math.round(actualPriceVND))}</td>
+                                        <tr key={index} className="hover:bg-slate-50/80 transition-colors">
+                                            <td className="p-3 font-bold text-slate-800">
+                                                <div>{item.productName}</div>
+                                                {product?.shortName && <div className="text-[10px] text-slate-400 font-normal">{product.shortName}</div>}
+                                            </td>
+                                            <td className="p-3 text-center text-blue-600 font-black text-sm">{item.quantity}</td>
+                                            <td className="p-3 text-right text-slate-700 font-medium">{formatNumber(item.priceCNY)}</td>
+                                            <td className="p-3 text-right font-bold text-red-600">{formatNumber(item.totalCNY || (item.quantity * item.priceCNY))}</td>
+                                            <td className="p-3 text-right bg-slate-50 font-black text-slate-800">
+                                                <div>{formatNumber(actualPriceVND)} ₫</div>
+                                                <div className="text-[10px] text-slate-400 font-normal">Tổng: {formatNumber(totalCostLine)} ₫</div>
+                                            </td>
+                                            <td className="p-3 text-right bg-blue-50/30 font-bold text-slate-900">
+                                                {sellingPrice > 0 ? (
+                                                    <div>
+                                                        <div>{formatNumber(sellingPrice)} ₫</div>
+                                                        <div className="text-[10px] text-slate-400 font-normal">Tổng: {formatNumber(totalRevenueLine)} ₫</div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded font-bold border border-amber-300">
+                                                        Chưa đặt giá
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-right bg-emerald-50/60 border-l border-emerald-200">
+                                                {sellingPrice > 0 ? (
+                                                    <div>
+                                                        <div className={`font-black text-base ${profitLine >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                                            {profitLine >= 0 ? '+' : ''}{formatNumber(profitLine)} ₫
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-500 font-medium flex items-center justify-end space-x-1">
+                                                            <span className={profitPerUnit >= 0 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
+                                                                {profitPerUnit >= 0 ? '+' : ''}{formatNumber(profitPerUnit)} ₫/cái
+                                                            </span>
+                                                            <span className="text-slate-400">•</span>
+                                                            <span className="font-bold text-slate-600">{itemMargin.toFixed(0)}%</span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400 italic font-medium">---</span>
+                                                )}
+                                            </td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
+                            <tfoot className="bg-slate-100 font-black border-t-2 border-slate-300 text-xs text-slate-800 uppercase">
+                                <tr>
+                                    <td className="p-3 font-black">TỔNG CỘNG ({items.length} MẶT HÀNG)</td>
+                                    <td className="p-3 text-center text-blue-600 font-black text-sm">{totalQuantity}</td>
+                                    <td className="p-3 text-right text-slate-400">-</td>
+                                    <td className="p-3 text-right font-black text-red-600">{formatNumber(totalProductCNY)} ¥</td>
+                                    <td className="p-3 text-right bg-slate-200/80 font-black text-slate-900 text-sm">
+                                        {formatNumber(importData.totalCostVND || 0)} ₫
+                                    </td>
+                                    <td className="p-3 text-right bg-blue-100/70 font-black text-blue-900 text-sm">
+                                        {formatNumber(totalProjectedRevenue)} ₫
+                                    </td>
+                                    <td className="p-3 text-right bg-emerald-200/80 border-l border-emerald-300">
+                                        <div className={`font-black text-base ${totalProjectedProfit >= 0 ? 'text-emerald-900' : 'text-rose-700'}`}>
+                                            {totalProjectedProfit >= 0 ? '+' : ''}{formatNumber(totalProjectedProfit)} ₫
+                                        </div>
+                                        {totalCostOfPricedItems > 0 && (
+                                            <div className="text-[10px] text-emerald-800 font-bold lowercase">
+                                                (lời {overallMarginPercent.toFixed(1)}% vốn)
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>
-                <div className="p-4 border-t border-slate-200 bg-white flex justify-end print:hidden">
-                    <button onClick={handlePrint} className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-dark rounded-lg font-medium mr-2 transition"><Printer size={18} className="mr-2" /> In Phiếu</button>
-                    <button onClick={onClose} className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition shadow">Đóng</button>
+                <div className="p-4 border-t border-slate-200 bg-white flex flex-col sm:flex-row justify-between items-center gap-3 print:hidden">
+                    <div className="text-xs text-slate-500 font-bold">
+                        * Lời dự kiến = (Giá bán - Giá vốn thực tế gồm phí phân bổ) × Số lượng
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <button onClick={handlePrint} className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs uppercase transition cursor-pointer">
+                            <Printer size={16} className="mr-2" /> In Phiếu
+                        </button>
+                        <button onClick={onClose} className="px-6 py-2 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-xs uppercase transition shadow cursor-pointer">
+                            Đóng
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -930,7 +1119,7 @@ const ChinaImportManagement: React.FC = () => {
                     }}
                 />
             )}
-            {viewingImport && <ChinaImportDetailModal importData={viewingImport} onClose={() => setViewingImport(null)}/>}
+            {viewingImport && <ChinaImportDetailModal importData={viewingImport} products={products} onClose={() => setViewingImport(null)}/>}
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 flex-shrink-0">
                 <h1 className="text-2xl font-bold text-dark flex items-center uppercase tracking-tighter"><Plane className="mr-2 text-red-600" /> Nhập Hàng Trung Quốc</h1>
@@ -1121,17 +1310,39 @@ const ChinaImportManagement: React.FC = () => {
                             <tbody className="divide-y divide-slate-100">
                                 {paginatedHistory.map(item => {
                                     const items = Array.isArray(item.items) ? item.items : [];
+                                    const totalExtraFeesVND = ((item.shippingFeeCN || 0) * (item.exchangeRate || 0)) + (item.shippingFeeVN || 0) + (item.shippingFeeExtra || 0) + (item.currencyExchangeFee || 0);
+                                    const totalQty = items.reduce((a, b) => a + b.quantity, 0);
+                                    const feePerItem = totalQty > 0 ? totalExtraFeesVND / totalQty : 0;
+                                    let estimatedProfit = 0;
+                                    let hasPricedItems = false;
+                                    items.forEach(it => {
+                                        const prod = products.find(p => p.id === it.productId) || products.find(p => p.name?.trim().toLowerCase() === it.productName?.trim().toLowerCase());
+                                        const sp = prod?.sellingPrice || 0;
+                                        if (sp > 0) {
+                                            hasPricedItems = true;
+                                            const actualCost = Math.round((it.priceCNY * (item.exchangeRate || 0)) + feePerItem);
+                                            estimatedProfit += (sp - actualCost) * it.quantity;
+                                        }
+                                    });
+
                                     return (
                                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{(item.importDate || item.createdAt)?.toDate() ? getLocalYYYYMMDD((item.importDate || item.createdAt)?.toDate()) : '...'}</td>
                                         <td className="p-4"><div className="font-black text-black uppercase mb-0.5 tracking-tight">{item.orderName || 'Đơn không tên'}</div><div className="text-[10px] text-slate-500 italic font-medium">Gồm {items.length} SP...</div></td>
                                         <td className="p-4 text-center text-blue-600 font-black">{items.reduce((a, b) => a + b.quantity, 0)}</td>
                                         <td className="p-4 text-right font-black text-red-600 text-base">{formatNumber(item.totalCostCNY)} ¥</td>
-                                        <td className="p-4 text-right font-black text-green-700 text-base">{formatNumber(item.totalCostVND)} ₫</td>
+                                        <td className="p-4 text-right">
+                                            <div className="font-black text-green-700 text-base">{formatNumber(item.totalCostVND)} ₫</div>
+                                            {hasPricedItems && (
+                                                <div className={`text-[10px] font-bold ${estimatedProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    Lời bán hết: {estimatedProfit >= 0 ? '+' : ''}{formatNumber(estimatedProfit)} ₫
+                                                </div>
+                                            )}
+                                        </td>
                                         <td className="p-4 text-center">
                                             <StatusBadge status={item.status} />
                                         </td>
-                                        <td className="p-4 text-center"><div className="flex justify-center space-x-2"><button onClick={() => setViewingImport(item)} className="p-2 text-green-600 bg-green-50 hover:bg-green-600 hover:text-white rounded-full transition shadow-sm border border-green-100"><Eye size={18}/></button><button onClick={() => setEditingImport(item)} className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-full transition shadow-sm border border-blue-100"><Edit size={18}/></button></div></td>
+                                        <td className="p-4 text-center"><div className="flex justify-center space-x-2"><button onClick={() => setViewingImport(item)} className="p-2 text-green-600 bg-green-50 hover:bg-green-600 hover:text-white rounded-full transition shadow-sm border border-green-100 cursor-pointer" title="Xem chi tiết & lợi nhuận bán hết"><Eye size={18}/></button><button onClick={() => setEditingImport(item)} className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-full transition shadow-sm border border-blue-100 cursor-pointer"><Edit size={18}/></button></div></td>
                                     </tr>
                                 )})}
                             </tbody>
