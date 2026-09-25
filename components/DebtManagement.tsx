@@ -11,6 +11,7 @@ import SaleDetailModal from './SaleDetailModal';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import SaleEditModal from './SaleEditModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
+import RefreshButton from './RefreshButton';
 
 type DebtTab = 'receivables' | 'payables';
 
@@ -1438,9 +1439,12 @@ const DebtManagement: React.FC = () => {
             />
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-                <h1 className="text-3xl font-black text-dark flex items-center uppercase tracking-tighter">
-                    <Wallet className="mr-3 text-primary" size={32}/> Quản Lý Công Nợ
-                </h1>
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <h1 className="text-3xl font-black text-dark flex items-center uppercase tracking-tighter">
+                        <Wallet className="mr-3 text-primary" size={32}/> Quản Lý Công Nợ
+                    </h1>
+                    <RefreshButton targetView="debtManagement" label="Công Nợ" size="sm" />
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                     {dualDebtorsMap.size > 0 && (
                         <button

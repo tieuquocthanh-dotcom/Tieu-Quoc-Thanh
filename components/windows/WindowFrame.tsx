@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Minus, Square, Copy, X, Maximize2, Layers } from 'lucide-react';
 import { WindowState } from '../../types/window';
+import RefreshButton from '../RefreshButton';
 
 interface WindowFrameProps {
   windowState: WindowState;
@@ -211,13 +212,23 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
         }`}
       >
         {/* Title & Icon */}
-        <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+        <div className="flex items-center space-x-2 min-w-0 pr-2">
           <div className="shrink-0 text-primary flex items-center justify-center p-1 bg-white/10 rounded-md">
             {icon}
           </div>
           <span className="text-xs font-bold truncate tracking-wide">
             {windowState.title}
           </span>
+          <RefreshButton
+            targetView={windowState.view}
+            label={windowState.title}
+            size="xs"
+            className={`${
+              isActive
+                ? 'text-slate-300 hover:text-white hover:bg-white/20 border-white/20'
+                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-300 border-slate-400/40'
+            } shrink-0`}
+          />
         </div>
 
         {/* Window Control Buttons (Switch Apps, Minimize, Maximize/Restore, Close) */}

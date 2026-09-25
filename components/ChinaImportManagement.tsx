@@ -8,6 +8,7 @@ import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting
 import Pagination from './Pagination';
 import { ProductModal } from './ProductManagement';
 import ConfirmationModal from './ConfirmationModal';
+import RefreshButton from './RefreshButton';
 
 const STATUS_CONFIG: Record<ChinaImportStatus, { label: string, color: string, icon: React.FC<any> }> = {
     ordered: { label: 'Lên đơn', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: FileText },
@@ -1122,7 +1123,10 @@ const ChinaImportManagement: React.FC = () => {
             {viewingImport && <ChinaImportDetailModal importData={viewingImport} products={products} onClose={() => setViewingImport(null)}/>}
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 flex-shrink-0">
-                <h1 className="text-2xl font-bold text-dark flex items-center uppercase tracking-tighter"><Plane className="mr-2 text-red-600" /> Nhập Hàng Trung Quốc</h1>
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <h1 className="text-2xl font-bold text-dark flex items-center uppercase tracking-tighter"><Plane className="mr-2 text-red-600" /> Nhập Hàng Trung Quốc</h1>
+                    <RefreshButton targetView="chinaImport" label="Nhập Hàng TQ" size="sm" />
+                </div>
                 <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg overflow-x-auto">
                     <button onClick={() => setActiveTab('create')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'create' ? 'bg-white text-red-600 shadow' : 'text-neutral'}`}><Calculator size={16} className="inline-block mr-2" /> Tạo Đơn</button>
                     <button onClick={() => setActiveTab('history')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-white text-red-600 shadow' : 'text-neutral'}`}><History size={16} className="inline-block mr-2" /> Lịch Sử</button>

@@ -42,8 +42,17 @@ import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Ware
 import { View } from './types';
 
 const App: React.FC = () => {
-  // Mặc định luôn mở tab Bán Hàng khi khởi động chương trình
-  const [view, setView] = useState<View>('sales');
+  // Mặc định luôn mở tab Bán Hàng khi khởi động chương trình, trừ khi vừa bấm refresh từ màn hình cụ thể
+  const [view, setView] = useState<View>(() => {
+    try {
+      const preferred = sessionStorage.getItem('preferredViewAfterRefresh');
+      if (preferred) {
+        sessionStorage.removeItem('preferredViewAfterRefresh');
+        return preferred as View;
+      }
+    } catch (e) {}
+    return 'sales';
+  });
 
   const [viewMode, setViewMode] = useState<'windows' | 'classic'>(() => {
     try {
@@ -64,7 +73,7 @@ const App: React.FC = () => {
   const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Xóa cache view cũ nếu có để đảm bảo luôn mở tab bán hàng
+  // Xóa cache view cũ nếu có để đảm bảo luôn mở tab bán hàng khi mở tab mới
   useEffect(() => {
     try {
       localStorage.removeItem('currentView');
@@ -80,8 +89,11 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = (targetView?: View) => {
     setIsRefreshing(true);
+    try {
+      sessionStorage.setItem('preferredViewAfterRefresh', (targetView || view) as string);
+    } catch (e) {}
     setTimeout(() => {
       window.location.reload();
     }, 250);
@@ -404,7 +416,8 @@ const App: React.FC = () => {
     disabled?: boolean;
     onClick?: () => void;
     badgeCount?: number;
-  }> = ({ targetView, icon, label, disabled = false, onClick, badgeCount = 0 }) => {
+    showRefresh?: boolean;
+  }> = ({ targetView, icon, label, disabled = false, onClick, badgeCount = 0, showRefresh = false }) => {
     const isActive = view === targetView;
     const baseClasses = 'group relative flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium';
     const activeClasses = 'bg-primary text-white shadow';
@@ -421,26 +434,42 @@ const App: React.FC = () => {
     }
 
     return (
-      <button
-        onClick={handleClick}
-        title={`Chức năng: ${label}`}
-        aria-label={label}
-        className={`${baseClasses} ${disabled ? disabledClasses : (isActive ? activeClasses : inactiveClasses)}`}
-        disabled={disabled}
-      >
-        {/* Floating tooltip on hover (especially helpful when label text is hidden on small screens) */}
-        <div className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 px-2 py-0.5 bg-slate-900 text-white text-[11px] font-bold rounded shadow-lg whitespace-nowrap md:hidden">
-          {label}
-        </div>
+      <div className="relative inline-flex items-center">
+        <button
+          onClick={handleClick}
+          title={`Chức năng: ${label}`}
+          aria-label={label}
+          className={`${baseClasses} ${disabled ? disabledClasses : (isActive ? activeClasses : inactiveClasses)}`}
+          disabled={disabled}
+        >
+          {/* Floating tooltip on hover (especially helpful when label text is hidden on small screens) */}
+          <div className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 px-2 py-0.5 bg-slate-900 text-white text-[11px] font-bold rounded shadow-lg whitespace-nowrap md:hidden">
+            {label}
+          </div>
 
-        {icon}
-        <span className="hidden md:inline">{label}</span>
-        {badgeCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white shadow-sm flex items-center justify-center">
-            {badgeCount > 99 ? '99+' : badgeCount}
-          </span>
+          {icon}
+          <span className="hidden md:inline">{label}</span>
+          {badgeCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white shadow-sm flex items-center justify-center">
+              {badgeCount > 99 ? '99+' : badgeCount}
+            </span>
+          )}
+        </button>
+
+        {showRefresh && isActive && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRefresh(targetView);
+            }}
+            title={`Làm mới dữ liệu ${label} (Ctrl + F5)`}
+            className="ml-1 p-1.5 text-slate-500 hover:text-primary hover:bg-slate-200 active:scale-95 rounded-lg border border-slate-300 transition-all shadow-xs flex items-center justify-center cursor-pointer group"
+          >
+            <RotateCw size={13} className={isRefreshing ? 'animate-spin text-primary' : 'group-hover:rotate-180 transition-transform duration-500'} />
+          </button>
         )}
-      </button>
+      </div>
     );
   };
   
@@ -562,9 +591,9 @@ const App: React.FC = () => {
                 </button>
             )}
 
-            {isAdmin && <NavItem targetView="dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" />}
-            <NavItem targetView="sales" icon={<ShoppingCart size={18} />} label="Bán Hàng" badgeCount={unreadSalesCount} />
-            <NavItem targetView="goodsReceipt" icon={<Archive size={18} />} label="Nhập Hàng" badgeCount={unreadReceiptsCount} />
+            {isAdmin && <NavItem targetView="dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" showRefresh />}
+            <NavItem targetView="sales" icon={<ShoppingCart size={18} />} label="Bán Hàng" badgeCount={unreadSalesCount} showRefresh />
+            <NavItem targetView="goodsReceipt" icon={<Archive size={18} />} label="Nhập Hàng" badgeCount={unreadReceiptsCount} showRefresh />
 
             {isAdmin && (
                 <>

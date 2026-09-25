@@ -21,6 +21,7 @@ import { ShipperModal } from './ShippingManagement';
 import { User as FirebaseAuthUser } from 'firebase/auth';
 import { StockStatusBadge } from './StockStatusBadge';
 import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
+import RefreshButton from './RefreshButton';
 
 const NumericInput: React.FC<{
     value: number;
@@ -2516,7 +2517,10 @@ const SalesTerminal: React.FC<{
         <div className="flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2 flex-shrink-0">
                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                     <h1 className="text-2xl sm:text-3xl font-black text-dark uppercase tracking-tighter">Bán hàng</h1>
+                     <div className="flex items-center gap-2">
+                         <h1 className="text-2xl sm:text-3xl font-black text-dark uppercase tracking-tighter">Bán hàng</h1>
+                         <RefreshButton targetView="sales" label="Bán hàng" size="sm" />
+                     </div>
                      {unreadCount > 0 && (
                          <button
                              type="button"

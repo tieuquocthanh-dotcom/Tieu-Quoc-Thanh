@@ -6,6 +6,7 @@ import { Product, Manufacturer, ProductCategory } from '../types';
 import { Loader, XCircle, AlertTriangle, Package, Search, Download } from 'lucide-react';
 import Pagination from './Pagination';
 import * as XLSX from 'xlsx';
+import RefreshButton from './RefreshButton';
 
 interface AlertProduct extends Product {
     stockInOutside: number;
@@ -192,10 +193,13 @@ const OutsideStockAlerts: React.FC = () => {
     return (
         <div>
             <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
-                <h1 className="text-3xl font-bold text-dark flex items-center">
-                    <AlertTriangle size={28} className="mr-3 text-red-500"/>
-                    Cảnh Báo Kho Ngoài CH
-                </h1>
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <h1 className="text-3xl font-bold text-dark flex items-center">
+                        <AlertTriangle size={28} className="mr-3 text-red-500"/>
+                        Cảnh Báo Kho Ngoài CH
+                    </h1>
+                    <RefreshButton targetView="outsideStockAlerts" label="Cảnh Báo Ngoài CH" size="sm" />
+                </div>
                 <div className="flex items-center gap-3 flex-wrap">
                     <select 
                         value={selectedCategoryId} 

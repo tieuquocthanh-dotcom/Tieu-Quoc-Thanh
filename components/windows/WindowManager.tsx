@@ -470,9 +470,57 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
     });
   }, [appDefinitions, maxZIndex]);
 
-  // Open initial app window on first load
+  // Save open windows state to sessionStorage so refresh restores them
   useEffect(() => {
-    if (windows.length === 0 && initialView && initialView !== 'home' && initialView !== 'login') {
+    try {
+      if (windows.length > 0) {
+        const state = {
+          openViews: windows.map(w => w.view),
+          activeView: windows.find(w => w.id === activeWindowId)?.view || null
+        };
+        sessionStorage.setItem('windows_session_state', JSON.stringify(state));
+      }
+    } catch (e) {
+      console.warn('Failed saving windows session:', e);
+    }
+  }, [windows, activeWindowId]);
+
+  // Open initial app window on first load or restore previous windows after refresh
+  useEffect(() => {
+    let restored = false;
+    try {
+      const savedRaw = sessionStorage.getItem('windows_session_state');
+      const preferred = sessionStorage.getItem('preferredViewAfterRefresh');
+
+      if (savedRaw) {
+        sessionStorage.removeItem('windows_session_state');
+        const saved = JSON.parse(savedRaw);
+        if (Array.isArray(saved.openViews) && saved.openViews.length > 0) {
+          saved.openViews.forEach((v: View) => {
+            openApp(v);
+          });
+          const targetToFocus = preferred || saved.activeView;
+          if (targetToFocus) {
+            setTimeout(() => {
+              setWindows(prev => {
+                const target = prev.find(w => w.view === targetToFocus);
+                if (target) {
+                  setActiveWindowId(target.id);
+                  return prev.map(w => w.id === target.id ? { ...w, isMinimized: false, zIndex: 100 } : w);
+                }
+                return prev;
+              });
+            }, 80);
+          }
+          if (preferred) sessionStorage.removeItem('preferredViewAfterRefresh');
+          restored = true;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed restoring windows session:', e);
+    }
+
+    if (!restored && windows.length === 0 && initialView && initialView !== 'home' && initialView !== 'login') {
       openApp(initialView);
     }
   }, [initialView, openApp]);

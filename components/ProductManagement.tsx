@@ -11,6 +11,7 @@ import { ManufacturerModal } from './ManufacturerManagement';
 import ProductCategoryManagement, { ProductCategoryModal, INITIAL_PRODUCT_CATEGORIES } from './ProductCategoryManagement';
 // import ProductLifecycle from './ProductLifecycle';
 import * as XLSX from 'xlsx';
+import RefreshButton from './RefreshButton';
 
 type SortKey = 'name' | 'shortName' | 'categoryName' | 'manufacturerName' | 'importPrice' | 'sellingPrice' | 'profit' | 'warningThreshold';
 type SortDirection = 'asc' | 'desc';
@@ -533,7 +534,10 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
   return (
     <div className="flex flex-col h-full">
       <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 flex-shrink-0">
-        <h1 className="text-3xl font-black text-dark uppercase tracking-tighter">Quản Lý Sản Phẩm</h1>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <h1 className="text-3xl font-black text-dark uppercase tracking-tighter">Quản Lý Sản Phẩm</h1>
+          <RefreshButton targetView="products" label="Sản Phẩm" size="sm" />
+        </div>
         <div className="bg-slate-100 p-1 rounded-xl flex space-x-1 border border-slate-200 shadow-inner">
             <button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center ${activeTab === 'list' ? 'bg-white text-primary shadow' : 'text-neutral'}`}><List size={16} className="mr-2"/> Danh Sách</button>
             <button onClick={() => setActiveTab('lifecycle')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center ${activeTab === 'lifecycle' ? 'bg-white text-primary shadow' : 'text-neutral'}`}><Activity size={16} className="mr-2"/> Tiến Trình</button>

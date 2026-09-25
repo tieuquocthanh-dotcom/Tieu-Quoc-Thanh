@@ -5,6 +5,7 @@ import CreateGoodsReceipt from './CreateGoodsReceipt';
 import InventoryMatrix from './InventoryMatrix';
 import GoodsReceiptHistory from './GoodsReceiptHistory';
 import TransferHistory from './TransferHistory';
+import RefreshButton from './RefreshButton';
 import { User } from 'firebase/auth';
 
 type GoodsReceiptView = 'create' | 'inventory' | 'history' | 'transfers';
@@ -29,24 +30,29 @@ const GoodsReceiptPage: React.FC<{
     }> = ({ label, view, icon }) => {
         const isActive = activeTab === view;
         return (
-            <button
-                onClick={() => setActiveTab(view)}
-                className={`flex items-center space-x-2 px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
-                    isActive
-                        ? 'text-primary border-primary'
-                        : 'text-neutral border-transparent hover:text-dark'
-                }`}
-            >
-                {icon}
-                <span className="hidden md:inline">{label}</span>
-            </button>
+            <div className="inline-flex items-center">
+                <button
+                    onClick={() => setActiveTab(view)}
+                    className={`flex items-center space-x-2 px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
+                        isActive
+                            ? 'text-primary border-primary'
+                            : 'text-neutral border-transparent hover:text-dark'
+                    }`}
+                >
+                    {icon}
+                    <span className="hidden md:inline">{label}</span>
+                </button>
+            </div>
         );
     };
 
     return (
         <div className="flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
-                 <h1 className="text-3xl font-bold text-dark">Quản lý nhập kho</h1>
+                 <div className="flex items-center gap-2 sm:gap-3">
+                     <h1 className="text-2xl sm:text-3xl font-black text-dark uppercase tracking-tighter">Nhập Hàng & Kho</h1>
+                     <RefreshButton targetView="goodsReceipt" label="Nhập Hàng" size="sm" />
+                 </div>
                  <div className="border-b border-slate-200 w-full md:w-auto overflow-x-auto">
                     <nav className="flex -mb-px space-x-1 md:space-x-2">
                         <TabButton label="Nhập Hàng" view="create" icon={<Archive size={18} />} />
