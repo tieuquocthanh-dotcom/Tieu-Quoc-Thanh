@@ -2508,10 +2508,10 @@ const SalesTerminal: React.FC<{
 }> = ({ userRole, user, unreadCount = 0, onMarkAsRead }) => {
     const [activeTab, setActiveTab] = useState<'pos' | 'history' | 'items'>('pos');
 
-    // Automatically mark sales as read whenever the terminal is opened or tab changed
+    // Automatically mark sales as read once when the terminal is opened
     useEffect(() => {
         onMarkAsRead?.();
-    }, [activeTab, onMarkAsRead]);
+    }, []);
 
     return (
         <div className="flex flex-col">

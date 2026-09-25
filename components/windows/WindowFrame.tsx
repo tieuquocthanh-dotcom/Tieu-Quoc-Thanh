@@ -223,7 +223,7 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
             targetView={windowState.view}
             label={windowState.title}
             size="xs"
-            className={`${
+            className={`window-control-btn ${
               isActive
                 ? 'text-slate-300 hover:text-white hover:bg-white/20 border-white/20'
                 : 'text-slate-600 hover:text-slate-950 hover:bg-slate-300 border-slate-400/40'

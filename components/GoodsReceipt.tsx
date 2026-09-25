@@ -19,7 +19,7 @@ const GoodsReceiptPage: React.FC<{
 
     useEffect(() => {
         onMarkAsRead?.();
-    }, [activeTab, onMarkAsRead]);
+    }, []);
 
     const isAdmin = userRole === 'admin';
 

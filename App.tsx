@@ -275,8 +275,11 @@ const App: React.FC = () => {
   const [lastViewedSales, setLastViewedSales] = useState<number>(() => getInitialTimestamp('lastViewedSales'));
   const [lastViewedReceipts, setLastViewedReceipts] = useState<number>(() => getInitialTimestamp('lastViewedReceipts'));
 
+  const lastSalesMarkTimeRef = useRef(0);
   const markSalesAsRead = useCallback(() => {
     const now = Date.now();
+    if (now - lastSalesMarkTimeRef.current < 2000) return;
+    lastSalesMarkTimeRef.current = now;
     setLastViewedSales(now);
     setUnreadSalesCount(0);
     try {
@@ -286,8 +289,11 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const lastReceiptsMarkTimeRef = useRef(0);
   const markReceiptsAsRead = useCallback(() => {
     const now = Date.now();
+    if (now - lastReceiptsMarkTimeRef.current < 2000) return;
+    lastReceiptsMarkTimeRef.current = now;
     setLastViewedReceipts(now);
     setUnreadReceiptsCount(0);
     try {
@@ -416,8 +422,7 @@ const App: React.FC = () => {
     disabled?: boolean;
     onClick?: () => void;
     badgeCount?: number;
-    showRefresh?: boolean;
-  }> = ({ targetView, icon, label, disabled = false, onClick, badgeCount = 0, showRefresh = false }) => {
+  }> = ({ targetView, icon, label, disabled = false, onClick, badgeCount = 0 }) => {
     const isActive = view === targetView;
     const baseClasses = 'group relative flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium';
     const activeClasses = 'bg-primary text-white shadow';
@@ -431,45 +436,29 @@ const App: React.FC = () => {
             if (targetView === 'goodsReceipt') markReceiptsAsRead();
             setView(targetView);
         }
-    }
+    };
 
     return (
-      <div className="relative inline-flex items-center">
-        <button
-          onClick={handleClick}
-          title={`Chức năng: ${label}`}
-          aria-label={label}
-          className={`${baseClasses} ${disabled ? disabledClasses : (isActive ? activeClasses : inactiveClasses)}`}
-          disabled={disabled}
-        >
-          {/* Floating tooltip on hover (especially helpful when label text is hidden on small screens) */}
-          <div className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 px-2 py-0.5 bg-slate-900 text-white text-[11px] font-bold rounded shadow-lg whitespace-nowrap md:hidden">
-            {label}
-          </div>
+      <button
+        onClick={handleClick}
+        title={`Chức năng: ${label}`}
+        aria-label={label}
+        className={`${baseClasses} ${disabled ? disabledClasses : (isActive ? activeClasses : inactiveClasses)}`}
+        disabled={disabled}
+      >
+        {/* Floating tooltip on hover (especially helpful when label text is hidden on small screens) */}
+        <div className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 px-2 py-0.5 bg-slate-900 text-white text-[11px] font-bold rounded shadow-lg whitespace-nowrap md:hidden">
+          {label}
+        </div>
 
-          {icon}
-          <span className="hidden md:inline">{label}</span>
-          {badgeCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white shadow-sm flex items-center justify-center">
-              {badgeCount > 99 ? '99+' : badgeCount}
-            </span>
-          )}
-        </button>
-
-        {showRefresh && isActive && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRefresh(targetView);
-            }}
-            title={`Làm mới dữ liệu ${label} (Ctrl + F5)`}
-            className="ml-1 p-1.5 text-slate-500 hover:text-primary hover:bg-slate-200 active:scale-95 rounded-lg border border-slate-300 transition-all shadow-xs flex items-center justify-center cursor-pointer group"
-          >
-            <RotateCw size={13} className={isRefreshing ? 'animate-spin text-primary' : 'group-hover:rotate-180 transition-transform duration-500'} />
-          </button>
+        {icon}
+        <span className="hidden md:inline">{label}</span>
+        {badgeCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white shadow-sm flex items-center justify-center">
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </span>
         )}
-      </div>
+      </button>
     );
   };
   
@@ -591,9 +580,9 @@ const App: React.FC = () => {
                 </button>
             )}
 
-            {isAdmin && <NavItem targetView="dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" showRefresh />}
-            <NavItem targetView="sales" icon={<ShoppingCart size={18} />} label="Bán Hàng" badgeCount={unreadSalesCount} showRefresh />
-            <NavItem targetView="goodsReceipt" icon={<Archive size={18} />} label="Nhập Hàng" badgeCount={unreadReceiptsCount} showRefresh />
+            {isAdmin && <NavItem targetView="dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" />}
+            <NavItem targetView="sales" icon={<ShoppingCart size={18} />} label="Bán Hàng" badgeCount={unreadSalesCount} />
+            <NavItem targetView="goodsReceipt" icon={<Archive size={18} />} label="Nhập Hàng" badgeCount={unreadReceiptsCount} />
 
             {isAdmin && (
                 <>

@@ -24,6 +24,7 @@ export const RefreshButton: React.FC<RefreshButtonProps> = ({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isRefreshing) return;
     setIsRefreshing(true);
 
     try {
@@ -45,7 +46,15 @@ export const RefreshButton: React.FC<RefreshButtonProps> = ({
     // Delay slightly to show the spinning feedback
     setTimeout(() => {
       window.location.reload();
-    }, 250);
+    }, 200);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
   };
 
   const defaultIconSize = iconSize || (size === 'xs' ? 12 : size === 'sm' ? 14 : size === 'lg' ? 18 : 16);
@@ -63,6 +72,8 @@ export const RefreshButton: React.FC<RefreshButtonProps> = ({
     <button
       type="button"
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
       title={tooltipTitle}
       aria-label={tooltipTitle}
       disabled={isRefreshing}

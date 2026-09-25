@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { View } from '../../types';
 import { AppDefinition, WindowState } from '../../types/window';
@@ -41,6 +41,97 @@ import ProductInvoiceManagement from '../ProductInvoiceManagement';
 import ProductCategoryManagement from '../ProductCategoryManagement';
 import MobileAppSwitcher from './MobileAppSwitcher';
 
+const APP_TITLES: Partial<Record<View, string>> = {
+  sales: 'Bán Hàng & Đơn Hàng',
+  goodsReceipt: 'Nhập Hàng & Lịch Sử',
+  debtManagement: 'Quản Lý Công Nợ',
+  dashboard: 'Báo Cáo Dashboard',
+  products: 'Quản Lý Sản Phẩm',
+  productInvoices: 'Quản Lý Hóa Đơn SP',
+  inventoryMatrix: 'Tồn Kho & Chuyển Kho',
+  savings: 'Sổ Tiết Kiệm',
+  accounts: 'Quản Lý Tài Khoản / Sổ Quỹ',
+  restockPredictions: 'Gợi Ý Nhập Hàng Tự Động',
+  chinaImport: 'Nhập Hàng Trung Quốc',
+  plannedOrders: 'Đơn Đặt Hàng Dự Kiến',
+  quotations: 'Báo Giá Khách Hàng',
+  inventoryLedger: 'Sổ Kho Chi Tiết',
+  priceComparison: 'So Sánh Giá Nhập',
+  supplierPaymentHistory: 'Lịch Sử Trả Nợ NCC',
+  inventoryAlerts: 'Cảnh Báo Tồn Kho',
+  outsideStockAlerts: 'Cảnh Báo Ngoài CH',
+  customers: 'Khách Hàng',
+  suppliers: 'Nhà Cung Cấp',
+  manufacturers: 'Hãng Sản Xuất',
+  productCategories: 'Danh Mục Sản Phẩm',
+  warehouses: 'Danh Sách Kho Hàng',
+  shippers: 'Đối Tác Vận Chuyển',
+  productAnalytics: 'Phân Tích Bán Chạy',
+  supplierAnalytics: 'Phân Tích Nhà Cung Cấp',
+  customerAnalytics: 'Phân Tích Khách Hàng',
+  users: 'Quản Lý Nhân Viên',
+  notes: 'Ghi Chú Công Việc',
+  paymentMethods: 'Phương Thức Thanh Toán',
+};
+
+const getInitialWindowState = (initialView?: View): { windows: WindowState[]; activeId: string | null } => {
+  let openViews: View[] = [];
+  let activeTarget: View | null = null;
+
+  try {
+    const preferred = sessionStorage.getItem('preferredViewAfterRefresh');
+    const savedRaw = sessionStorage.getItem('windows_session_state');
+
+    if (preferred) {
+      sessionStorage.removeItem('preferredViewAfterRefresh');
+      openViews = [preferred as View];
+      activeTarget = preferred as View;
+    } else if (savedRaw) {
+      sessionStorage.removeItem('windows_session_state');
+      const saved = JSON.parse(savedRaw);
+      if (Array.isArray(saved.openViews) && saved.openViews.length > 0) {
+        openViews = saved.openViews;
+        activeTarget = saved.activeView || openViews[0];
+      }
+    }
+  } catch (e) {}
+
+  if (openViews.length === 0 && initialView && initialView !== 'home' && initialView !== 'login') {
+    openViews = [initialView];
+    activeTarget = initialView;
+  }
+
+  if (openViews.length === 0) {
+    openViews = ['sales'];
+    activeTarget = 'sales';
+  }
+
+  const initialWindows: WindowState[] = openViews.map((v, idx) => {
+    const title = APP_TITLES[v] || v;
+    const isActive = v === activeTarget;
+    return {
+      id: `${v}_${Date.now()}_${idx}`,
+      view: v,
+      title,
+      isMinimized: false,
+      isMaximized: true,
+      zIndex: isActive ? 20 : 10 + idx,
+      x: 0,
+      y: 0,
+      width: 1200,
+      height: 750,
+      prevPosition: { x: 0, y: 0, width: 1200, height: 750 }
+    };
+  });
+
+  const activeWin = initialWindows.find(w => w.view === activeTarget) || initialWindows[0];
+
+  return {
+    windows: initialWindows,
+    activeId: activeWin ? activeWin.id : null,
+  };
+};
+
 interface WindowManagerProps {
   user: User | null;
   userRole: 'admin' | 'staff' | null;
@@ -72,11 +163,12 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
   onMarkReceiptsAsRead,
   initialView = 'sales',
 }) => {
-  const [windows, setWindows] = useState<WindowState[]>([]);
-  const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
+  const [initialState] = useState(() => getInitialWindowState(initialView));
+  const [windows, setWindows] = useState<WindowState[]>(initialState.windows);
+  const [activeWindowId, setActiveWindowId] = useState<string | null>(initialState.activeId);
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
-  const [maxZIndex, setMaxZIndex] = useState(10);
+  const [maxZIndex, setMaxZIndex] = useState(30);
 
   // Master App Definitions
   const appDefinitions: AppDefinition[] = useMemo(() => [
@@ -412,6 +504,9 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
     }
   ], [unreadSalesCount, unreadReceiptsCount]);
 
+  const appDefinitionsRef = useRef(appDefinitions);
+  appDefinitionsRef.current = appDefinitions;
+
   // Open App as a Window
   const openApp = useCallback((view: View) => {
     if (view === 'sales') {
@@ -420,21 +515,19 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       onMarkReceiptsAsRead?.();
     }
 
-    const appDef = appDefinitions.find(a => a.id === view);
-    if (!appDef) return;
+    const appDef = appDefinitionsRef.current.find(a => a.id === view);
+    const title = appDef?.title || APP_TITLES[view] || view;
 
     setWindows(prev => {
       const existing = prev.find(w => w.view === view);
-      const nextZ = maxZIndex >= 500 ? 10 : maxZIndex + 1;
-      setMaxZIndex(nextZ);
 
       if (existing) {
-        // Unminimize, bring to front, focus
+        // Bring to front, unminimize, focus
         setActiveWindowId(existing.id);
         return prev.map(w =>
           w.id === existing.id
-            ? { ...w, isMinimized: false, zIndex: nextZ }
-            : w
+            ? { ...w, isMinimized: false, zIndex: 50 }
+            : { ...w, zIndex: Math.min(w.zIndex, 40) }
         );
       }
 
@@ -443,8 +536,8 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       const screenH = window.innerHeight - 48; // Sub taskbar
 
       const isMobile = screenW < 768;
-      const defaultW = Math.min(appDef.defaultSize?.width || 1200, Math.max(800, screenW - 60));
-      const defaultH = Math.min(appDef.defaultSize?.height || 750, Math.max(550, screenH - 60));
+      const defaultW = Math.min(appDef?.defaultSize?.width || 1200, Math.max(800, screenW - 60));
+      const defaultH = Math.min(appDef?.defaultSize?.height || 750, Math.max(550, screenH - 60));
 
       // Position when restored
       const count = prev.length;
@@ -454,10 +547,10 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       const newWindow: WindowState = {
         id: `${view}_${Date.now()}`,
         view,
-        title: appDef.title,
+        title,
         isMinimized: false,
-        isMaximized: true, // Always open MAXIMIZED (full screen) by default for easiest operation
-        zIndex: nextZ,
+        isMaximized: true, // Always open MAXIMIZED by default for easiest operation
+        zIndex: 50,
         x: posX,
         y: posY,
         width: defaultW,
@@ -466,17 +559,18 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       };
 
       setActiveWindowId(newWindow.id);
-      return [...prev, newWindow];
+      return [...prev.map(w => ({ ...w, zIndex: Math.min(w.zIndex, 40) })), newWindow];
     });
-  }, [appDefinitions, maxZIndex]);
+  }, [onMarkSalesAsRead, onMarkReceiptsAsRead]);
 
-  // Save open windows state to sessionStorage so refresh restores them
+  // Save open windows state to sessionStorage so refresh restores them cleanly
   useEffect(() => {
     try {
       if (windows.length > 0) {
+        const activeWin = windows.find(w => w.id === activeWindowId);
         const state = {
           openViews: windows.map(w => w.view),
-          activeView: windows.find(w => w.id === activeWindowId)?.view || null
+          activeView: activeWin?.view || null
         };
         sessionStorage.setItem('windows_session_state', JSON.stringify(state));
       }
@@ -485,79 +579,33 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
     }
   }, [windows, activeWindowId]);
 
-  // Open initial app window on first load or restore previous windows after refresh
-  useEffect(() => {
-    let restored = false;
-    try {
-      const savedRaw = sessionStorage.getItem('windows_session_state');
-      const preferred = sessionStorage.getItem('preferredViewAfterRefresh');
-
-      if (savedRaw) {
-        sessionStorage.removeItem('windows_session_state');
-        const saved = JSON.parse(savedRaw);
-        if (Array.isArray(saved.openViews) && saved.openViews.length > 0) {
-          saved.openViews.forEach((v: View) => {
-            openApp(v);
-          });
-          const targetToFocus = preferred || saved.activeView;
-          if (targetToFocus) {
-            setTimeout(() => {
-              setWindows(prev => {
-                const target = prev.find(w => w.view === targetToFocus);
-                if (target) {
-                  setActiveWindowId(target.id);
-                  return prev.map(w => w.id === target.id ? { ...w, isMinimized: false, zIndex: 100 } : w);
-                }
-                return prev;
-              });
-            }, 80);
-          }
-          if (preferred) sessionStorage.removeItem('preferredViewAfterRefresh');
-          restored = true;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed restoring windows session:', e);
-    }
-
-    if (!restored && windows.length === 0 && initialView && initialView !== 'home' && initialView !== 'login') {
-      openApp(initialView);
-    }
-  }, [initialView, openApp]);
-
   // Focus a window
   const focusWindow = useCallback((id: string) => {
     setActiveWindowId(id);
     setWindows(curr => {
       const target = curr.find(w => w.id === id);
-      if (target?.view === 'sales') {
-        onMarkSalesAsRead?.();
-      } else if (target?.view === 'goodsReceipt') {
-        onMarkReceiptsAsRead?.();
-      }
-      return curr;
-    });
-    setMaxZIndex(prev => {
-      const nextZ = prev >= 500 ? 10 : prev + 1;
-      setWindows(curr =>
-        curr.map(w =>
-          w.id === id
-            ? { ...w, isMinimized: false, zIndex: nextZ }
-            : w
-        )
+      if (!target) return curr;
+      return curr.map(w =>
+        w.id === id
+          ? { ...w, isMinimized: false, zIndex: 50 }
+          : { ...w, zIndex: Math.min(w.zIndex, 40) }
       );
-      return nextZ;
     });
-  }, [onMarkSalesAsRead, onMarkReceiptsAsRead]);
+  }, []);
 
-  // Sync mark as read when active window is sales or goods receipt
+  // Sync mark as read only when switching active window view
+  const lastMarkedViewRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeWindowId) return;
     const activeWin = windows.find(w => w.id === activeWindowId && !w.isMinimized);
-    if (activeWin?.view === 'sales') {
-      onMarkSalesAsRead?.();
-    } else if (activeWin?.view === 'goodsReceipt') {
-      onMarkReceiptsAsRead?.();
+    const currentView = activeWin?.view;
+    if (currentView && currentView !== lastMarkedViewRef.current) {
+      lastMarkedViewRef.current = currentView;
+      if (currentView === 'sales') {
+        onMarkSalesAsRead?.();
+      } else if (currentView === 'goodsReceipt') {
+        onMarkReceiptsAsRead?.();
+      }
     }
   }, [activeWindowId, windows, onMarkSalesAsRead, onMarkReceiptsAsRead]);
 
