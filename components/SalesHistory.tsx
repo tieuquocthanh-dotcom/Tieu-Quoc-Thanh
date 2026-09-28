@@ -9,7 +9,7 @@ import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import SalePrintPreviewModal from './SalePrintPreviewModal';
 import InsufficientStockModal, { InsufficientItemInfo } from './InsufficientStockModal';
-import { DeliveryImageViewerModal, DeliveryImageUploadSection } from './DeliveryImageViewerModal';
+import { DeliveryImageViewerModal, DeliveryImageUploadSection, OrderCardDeliveryImageBar } from './DeliveryImageViewerModal';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
 import * as XLSX from 'xlsx';
@@ -202,6 +202,7 @@ const UpdateShippingModal: React.FC<{
                         title="Ảnh chụp giao hàng"
                         orderId={sale.id.substring(0, 8).toUpperCase()}
                         customerName={sale.customerName}
+                        saleId={sale.id}
                     />
 
                     {isOrder && insufficientItems.length > 0 ? (
@@ -747,7 +748,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
         warehouseName={stockAlertModalData?.warehouseName || ''}
         items={stockAlertModalData?.items || []}
       />
-      <SaleEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} sale={saleToEdit} customers={customers} paymentMethods={paymentMethods} shippers={shippers} products={products} />
+      <SaleEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} sale={sales.find(s => s.id === saleToEdit?.id) || saleToEdit} customers={customers} paymentMethods={paymentMethods} shippers={shippers} products={products} />
 
       {/* FILTER PANEL - POS STYLE */}
       <div className="bg-white p-4 rounded-2xl shadow-md border-2 border-slate-200 space-y-3 shrink-0">
@@ -899,7 +900,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                             setViewingImageInitialIdx(0);
                                             setViewingImageSaleId(sale.id);
                                         }}
-                                        className={`px-1.5 py-1 rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer ${
+                                        className={`px-2 py-1 rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer ${
                                             sale.deliveryImages && sale.deliveryImages.length > 0
                                                 ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xs'
                                                 : 'bg-white/10 hover:bg-emerald-500 text-emerald-300 hover:text-white'
@@ -911,9 +912,11 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                         }
                                     >
                                         <Camera size={13} />
-                                        {sale.deliveryImages && sale.deliveryImages.length > 0 && (
-                                            <span>{sale.deliveryImages.length}</span>
-                                        )}
+                                        <span>
+                                            {sale.deliveryImages && sale.deliveryImages.length > 0
+                                                ? `Xem ảnh (${sale.deliveryImages.length})`
+                                                : '+Ảnh'}
+                                        </span>
                                     </button>
                                     {isAdmin && <button onClick={() => openEditModal(sale)} className="p-1 bg-white/10 hover:bg-blue-500 rounded text-blue-400 hover:text-white transition" title="Sửa đơn"><Edit size={14}/></button>}
                                     <button onClick={() => { setSelectedSale(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/10 hover:bg-primary rounded transition" title="Xem chi tiết"><Eye size={14}/></button>
@@ -978,37 +981,13 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                     {/* CÔNG NỢ PHỤ */}
                                     {sale.status === 'debt' && <div className="text-[8px] font-black bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-200 uppercase">Còn nợ: {formatNumber(sale.total - (sale.amountPaid || 0))}</div>}
                                 </div>
-                                {sale.deliveryImages && sale.deliveryImages.length > 0 && (
-                                    <div className="pt-2 border-t border-dashed border-emerald-200 flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-                                            {sale.deliveryImages.map((imgUrl, imgIdx) => (
-                                                <button
-                                                    key={imgIdx}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setViewingImageInitialIdx(imgIdx);
-                                                        setViewingImageSaleId(sale.id);
-                                                    }}
-                                                    className="relative w-10 h-10 rounded-lg overflow-hidden border border-emerald-400 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs"
-                                                    title={`Xem ảnh giao hàng #${imgIdx + 1}`}
-                                                >
-                                                    <img src={imgUrl} alt={`Giao hàng ${imgIdx + 1}`} className="w-full h-full object-cover" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setViewingImageInitialIdx(0);
-                                                setViewingImageSaleId(sale.id);
-                                            }}
-                                            className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black uppercase flex items-center gap-1 shrink-0 transition cursor-pointer"
-                                        >
-                                            <Camera size={11} className="text-emerald-600" />
-                                            <span>Xem ảnh ({sale.deliveryImages.length})</span>
-                                        </button>
-                                    </div>
-                                )}
+                                <OrderCardDeliveryImageBar
+                                    sale={sale}
+                                    onOpenViewer={(idx) => {
+                                        setViewingImageInitialIdx(idx);
+                                        setViewingImageSaleId(sale.id);
+                                    }}
+                                />
                                 <div className="flex gap-2 mt-2">
                                     {sale.status === 'debt' && (
                                         <button onClick={() => openDebtModal(sale)} className="flex-1 py-1.5 bg-orange-600 text-white rounded-lg font-black text-[10px] uppercase shadow-md flex items-center justify-center hover:bg-orange-700"><Wallet size={12} className="mr-1"/> Thu nợ</button>

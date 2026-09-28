@@ -40,6 +40,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   const [imageViewerIdx, setImageViewerIdx] = useState(0);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [imageUploadFeedback, setImageUploadFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     if (sale) {
@@ -234,6 +235,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
   const handleQuickUploadDeliveryImages = async (files: FileList | null) => {
     if (!files || files.length === 0 || !sale) return;
     setIsUploadingImages(true);
+    setImageUploadFeedback(null);
     try {
       const compressed = await compressMultipleImages(files);
       if (compressed.length > 0) {
@@ -243,10 +245,22 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
           deliveryImages: updated,
           updatedAt: serverTimestamp()
         });
+        setImageUploadFeedback({
+          type: 'success',
+          message: `Tải ảnh thành công! Đã lưu ${compressed.length} ảnh mới vào đơn hàng (Tổng: ${updated.length} ảnh).`
+        });
+      } else {
+        setImageUploadFeedback({
+          type: 'error',
+          message: 'Không đọc được file ảnh đã chọn. Vui lòng thử lại!'
+        });
       }
     } catch (err: any) {
       console.error("Lỗi tải ảnh giao hàng:", err);
-      alert("Không thể tải ảnh giao hàng: " + (err.message || err));
+      setImageUploadFeedback({
+        type: 'error',
+        message: "Không thể tải ảnh giao hàng: " + (err.message || err)
+      });
     } finally {
       setIsUploadingImages(false);
     }
@@ -263,9 +277,16 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
         deliveryImages: updated,
         updatedAt: serverTimestamp()
       });
+      setImageUploadFeedback({
+        type: 'success',
+        message: 'Đã xóa ảnh giao hàng thành công!'
+      });
     } catch (err: any) {
       console.error("Lỗi xóa ảnh:", err);
-      alert("Không thể xóa ảnh: " + (err.message || err));
+      setImageUploadFeedback({
+        type: 'error',
+        message: "Không thể xóa ảnh: " + (err.message || err)
+      });
     }
   };
   
@@ -523,7 +544,23 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                             </label>
                         </div>
                     </div>
-                    <div className="p-4">
+                    <div className="p-4 space-y-3">
+                        {isUploadingImages && (
+                            <div className="p-3 rounded-xl bg-blue-600 text-white text-xs font-black flex items-center gap-2 animate-pulse shadow-sm">
+                                <Loader size={16} className="animate-spin shrink-0" />
+                                <span>Đang xử lý và lưu ảnh giao hàng lên hệ thống... Vui lòng chờ giây lát!</span>
+                            </div>
+                        )}
+                        {!isUploadingImages && imageUploadFeedback && (
+                            <div className={`p-3 rounded-xl text-xs font-black flex items-center justify-between gap-2 animate-fade-in ${
+                                imageUploadFeedback.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+                            }`}>
+                                <span>{imageUploadFeedback.message}</span>
+                                <button type="button" onClick={() => setImageUploadFeedback(null)} className="text-white/80 hover:text-white p-0.5">
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )}
                         {localDeliveryImages.length === 0 ? (
                             <div className="py-6 text-center text-slate-400 text-xs font-bold flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                                 <Camera size={28} className="text-slate-300" />

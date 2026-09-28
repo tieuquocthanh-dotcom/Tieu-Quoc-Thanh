@@ -22,7 +22,7 @@ import { User as FirebaseAuthUser } from 'firebase/auth';
 import { StockStatusBadge } from './StockStatusBadge';
 import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
 import RefreshButton from './RefreshButton';
-import { DeliveryImageViewerModal, DeliveryImageUploadSection } from './DeliveryImageViewerModal';
+import { DeliveryImageViewerModal, DeliveryImageUploadSection, OrderCardDeliveryImageBar } from './DeliveryImageViewerModal';
 
 const NumericInput: React.FC<{
     value: number;
@@ -1680,7 +1680,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
         <SaleEditModal 
           isOpen={isEditModalOpen} 
           onClose={() => setIsEditModalOpen(false)} 
-          sale={selectedSaleEdit} 
+          sale={todaySales.find(s => s.id === selectedSaleEdit?.id) || selectedSaleEdit} 
           customers={customers} 
           paymentMethods={paymentMethods} 
           shippers={shippers} 
@@ -2071,6 +2071,46 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 title="Ảnh chụp giao hàng (Đơn tạo mới)"
                                 customerName={isSellingToSupplier ? (supplierSearchTerm || 'Nhà cung cấp') : (customerSearchTerm || 'Khách vãng lai')}
                             />
+                            {deliveryImages.length > 0 && todaySales.length > 0 && (
+                                <div className="p-2.5 rounded-xl bg-amber-50 border-2 border-amber-400 space-y-2 animate-fade-in">
+                                    <p className="text-[11px] font-black text-amber-950">
+                                        💡 Bạn vừa tải lên {deliveryImages.length} ảnh. Nếu bạn muốn gắn ảnh này vào <span className="underline text-red-600">Đơn hàng hôm nay đã tạo</span> (thay vì đơn mới), hãy bấm vào tên khách hàng bên dưới để lưu ngay:
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                        {todaySales.slice(0, 12).map((s) => (
+                                            <button
+                                                key={s.id}
+                                                type="button"
+                                                onClick={async () => {
+                                                    try {
+                                                        const existing = s.deliveryImages || [];
+                                                        const merged = [...existing, ...deliveryImages];
+                                                        await updateDoc(doc(db, 'sales', s.id), {
+                                                            deliveryImages: merged,
+                                                            updatedAt: serverTimestamp()
+                                                        });
+                                                        setDeliveryImages([]);
+                                                        setToast({
+                                                            message: `Đã lưu ${merged.length} ảnh giao hàng vào đơn của khách "${s.customerName || 'Khách vãng lai'}" thành công!`,
+                                                            type: 'success',
+                                                            duration: 5000
+                                                        });
+                                                    } catch (err: any) {
+                                                        setToast({
+                                                            message: 'Lỗi lưu ảnh vào đơn: ' + (err.message || err),
+                                                            type: 'error'
+                                                        });
+                                                    }
+                                                }}
+                                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+                                            >
+                                                <Camera size={12} />
+                                                <span>Lưu vào đơn: {s.customerName || 'Khách vãng lai'} ({formatNumber(s.total)}₫)</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-2 shrink-0">
                             <div className="relative flex-1">
@@ -2471,7 +2511,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                         setViewingImageInitialIdx(0);
                                                         setViewingImageSaleId(sale.id);
                                                     }}
-                                                    className={`px-1.5 py-1 rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer ${
+                                                    className={`px-2 py-1 rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer ${
                                                         sale.deliveryImages && sale.deliveryImages.length > 0
                                                             ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xs'
                                                             : 'bg-white/20 hover:bg-emerald-500 hover:text-white text-white'
@@ -2483,9 +2523,11 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                     }
                                                 >
                                                     <Camera size={12} />
-                                                    {sale.deliveryImages && sale.deliveryImages.length > 0 && (
-                                                        <span>{sale.deliveryImages.length}</span>
-                                                    )}
+                                                    <span>
+                                                        {sale.deliveryImages && sale.deliveryImages.length > 0
+                                                            ? `Xem ảnh (${sale.deliveryImages.length})`
+                                                            : '+Ảnh'}
+                                                    </span>
                                                 </button>
                                                 <button onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>
                                                 <button onClick={() => { setSelectedSaleDetail(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
@@ -2538,37 +2580,13 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                 <span className="text-[10px] font-black text-black">{formatNumber(sale.shippingFee || 0)} ₫</span>
                                             </div>
                                         )}
-                                        {sale.deliveryImages && sale.deliveryImages.length > 0 && (
-                                            <div className="pt-2 border-t border-dashed border-emerald-200 flex items-center justify-between gap-2">
-                                                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-                                                    {sale.deliveryImages.map((imgUrl, imgIdx) => (
-                                                        <button
-                                                            key={imgIdx}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setViewingImageInitialIdx(imgIdx);
-                                                                setViewingImageSaleId(sale.id);
-                                                            }}
-                                                            className="relative w-10 h-10 rounded-lg overflow-hidden border border-emerald-400 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs"
-                                                            title={`Xem ảnh giao hàng #${imgIdx + 1}`}
-                                                        >
-                                                            <img src={imgUrl} alt={`Giao hàng ${imgIdx + 1}`} className="w-full h-full object-cover" />
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setViewingImageInitialIdx(0);
-                                                        setViewingImageSaleId(sale.id);
-                                                    }}
-                                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black uppercase flex items-center gap-1 shrink-0 transition cursor-pointer"
-                                                >
-                                                    <Camera size={12} className="text-emerald-600" />
-                                                    <span>Xem ảnh ({sale.deliveryImages.length})</span>
-                                                </button>
-                                            </div>
-                                        )}
+                                        <OrderCardDeliveryImageBar
+                                            sale={sale}
+                                            onOpenViewer={(idx) => {
+                                                setViewingImageInitialIdx(idx);
+                                                setViewingImageSaleId(sale.id);
+                                            }}
+                                        />
                                     </div>
                                 </div>
                               );

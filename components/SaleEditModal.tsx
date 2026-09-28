@@ -948,6 +948,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
               title="Ảnh chụp giao hàng của đơn hàng"
               orderId={sale.id.substring(0, 8).toUpperCase()}
               customerName={custSearch || sale.customerName}
+              saleId={sale.id}
             />
           </div>
 
