@@ -7,7 +7,7 @@ import { doc, writeBatch, increment, updateDoc, getDoc, serverTimestamp } from '
 import { db } from '../services/firebase';
 import ConfirmationModal from './ConfirmationModal';
 import { DeliveryImageViewerModal } from './DeliveryImageViewerModal';
-import { compressMultipleImages } from '../utils/imageCompression';
+import { compressMultipleImagesWithStats, getDataUrlKB, getImagesTotalKB } from '../utils/imageCompression';
 import * as XLSX from 'xlsx';
 
 const toMillis = (val: any): number => {
@@ -136,9 +136,9 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
     setIsUploadingImages(true);
     setImageUploadFeedback(null);
     try {
-      const compressed = await compressMultipleImages(files);
-      if (compressed.length > 0) {
-        const updated = [...localReceiptImages, ...compressed];
+      const batch = await compressMultipleImagesWithStats(files);
+      if (batch.images.length > 0) {
+        const updated = [...localReceiptImages, ...batch.images];
         setLocalReceiptImages(updated);
         await updateDoc(doc(db, 'goodsReceipts', receipt.id), {
           receiptImages: updated,
@@ -147,7 +147,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
         });
         setImageUploadFeedback({
           type: 'success',
-          message: `Tải ảnh thành công! Đã lưu ${compressed.length} ảnh mới vào phiếu nhập (Tổng: ${updated.length} ảnh).`
+          message: `Tải ảnh thành công! ${batch.summaryText}. Đã lưu ${batch.images.length} ảnh mới vào phiếu nhập (Tổng: ${updated.length} ảnh · ~${getImagesTotalKB(updated)} KB).`
         });
       } else {
         setImageUploadFeedback({
@@ -481,7 +481,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                     <div className="flex items-center gap-2">
                         <Camera className="text-emerald-600" size={18} />
                         <h4 className="text-xs font-black uppercase tracking-tight text-emerald-950">
-                            Hình ảnh chụp nhập hàng / Hóa đơn ({localReceiptImages.length} ảnh)
+                            Hình ảnh chụp nhập hàng / Hóa đơn ({localReceiptImages.length} ảnh{localReceiptImages.length > 0 ? ` · ~${getImagesTotalKB(localReceiptImages)} KB` : ''})
                         </h4>
                     </div>
                     <div className="flex items-center gap-2">
@@ -571,7 +571,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                                         <Eye size={22} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
                                     </div>
                                     <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-black">
-                                        Ảnh #{idx + 1}
+                                        Ảnh #{idx + 1} · {getDataUrlKB(imgUrl)}KB
                                     </span>
                                     <button
                                         type="button"

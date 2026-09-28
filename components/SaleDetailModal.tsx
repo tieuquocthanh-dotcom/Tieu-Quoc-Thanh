@@ -9,7 +9,7 @@ import ConfirmationModal from './ConfirmationModal';
 import SalePrintPreviewModal from './SalePrintPreviewModal';
 import QuickDebtPayModal from './QuickDebtPayModal';
 import { DeliveryImageViewerModal } from './DeliveryImageViewerModal';
-import { compressMultipleImages } from '../utils/imageCompression';
+import { compressMultipleImagesWithStats, getDataUrlKB, getImagesTotalKB } from '../utils/imageCompression';
 import * as XLSX from 'xlsx';
 
 interface SaleDetailModalProps {
@@ -237,9 +237,9 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
     setIsUploadingImages(true);
     setImageUploadFeedback(null);
     try {
-      const compressed = await compressMultipleImages(files);
-      if (compressed.length > 0) {
-        const updated = [...localDeliveryImages, ...compressed];
+      const batch = await compressMultipleImagesWithStats(files);
+      if (batch.images.length > 0) {
+        const updated = [...localDeliveryImages, ...batch.images];
         setLocalDeliveryImages(updated);
         await updateDoc(doc(db, 'sales', sale.id), {
           deliveryImages: updated,
@@ -247,7 +247,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
         });
         setImageUploadFeedback({
           type: 'success',
-          message: `Tải ảnh thành công! Đã lưu ${compressed.length} ảnh mới vào đơn hàng (Tổng: ${updated.length} ảnh).`
+          message: `Tải ảnh thành công! ${batch.summaryText}. Đã lưu ${batch.images.length} ảnh mới vào đơn hàng (Tổng: ${updated.length} ảnh · ~${getImagesTotalKB(updated)} KB).`
         });
       } else {
         setImageUploadFeedback({
@@ -497,7 +497,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                         <div className="flex items-center gap-2">
                             <Camera className="text-emerald-600" size={18} />
                             <h4 className="text-xs font-black uppercase tracking-tight text-emerald-950">
-                                Hình ảnh chụp giao hàng ({localDeliveryImages.length} ảnh)
+                                Hình ảnh chụp giao hàng ({localDeliveryImages.length} ảnh{localDeliveryImages.length > 0 ? ` · ~${getImagesTotalKB(localDeliveryImages)} KB` : ''})
                             </h4>
                         </div>
                         <div className="flex items-center gap-2">
@@ -587,7 +587,7 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                                             <Eye size={22} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
                                         </div>
                                         <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-black">
-                                            Ảnh #{idx + 1}
+                                            Ảnh #{idx + 1} · {getDataUrlKB(imgUrl)}KB
                                         </span>
                                         <button
                                             type="button"

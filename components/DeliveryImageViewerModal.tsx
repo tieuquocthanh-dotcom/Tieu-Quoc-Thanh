@@ -20,7 +20,12 @@ import {
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Sale, GoodsReceipt } from '../types';
-import { compressMultipleImages } from '../utils/imageCompression';
+import {
+  compressMultipleImagesWithStats,
+  getDataUrlKB,
+  getImagesTotalKB,
+  recompressExistingDataUrls
+} from '../utils/imageCompression';
 
 interface DeliveryImageViewerModalProps {
   isOpen: boolean;
@@ -152,15 +157,15 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
     setIsUploading(true);
     setUploadStatus(null);
     try {
-      const compressed = await compressMultipleImages(files);
-      if (compressed.length > 0) {
-        const updated = [...localImages, ...compressed];
-        setCurrentIndex(updated.length - compressed.length);
+      const batch = await compressMultipleImagesWithStats(files);
+      if (batch.images.length > 0) {
+        const updated = [...localImages, ...batch.images];
+        setCurrentIndex(updated.length - batch.images.length);
         setZoom(1);
         setRotation(0);
         await persistImages(
           updated,
-          `Tải ảnh thành công! ${docLabel} hiện có ${updated.length} ${imageLabel}.`
+          `Tải ảnh thành công! ${batch.summaryText}. ${docLabel} hiện có ${updated.length} ${imageLabel} (Tổng: ~${getImagesTotalKB(updated)} KB).`
         );
       } else {
         setUploadStatus({
@@ -177,6 +182,26 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
     } finally {
       setIsUploading(false);
       e.target.value = '';
+    }
+  };
+
+  const handleOptimizeExistingInViewer = async () => {
+    if (localImages.length === 0) return;
+    setIsUploading(true);
+    setUploadStatus(null);
+    try {
+      const result = await recompressExistingDataUrls(localImages, 'ultra_light');
+      await persistImages(
+        result.images,
+        `${result.summaryText} (Tổng còn ~${getImagesTotalKB(result.images)} KB)`
+      );
+    } catch (err: any) {
+      setUploadStatus({
+        type: 'error',
+        message: 'Không thể tối ưu lại ảnh: ' + (err.message || 'Vui lòng thử lại')
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -242,6 +267,11 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
                   Ảnh {currentIndex + 1} / {localImages.length}
                 </span>
               )}
+              {currentImage && (
+                <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-emerald-500/40 text-emerald-300 text-[10px] font-black shrink-0">
+                  ~{getDataUrlKB(currentImage)} KB (Tổng: {getImagesTotalKB(localImages)} KB)
+                </span>
+              )}
             </div>
             {customerName && (
               <p className="text-xs text-slate-400 font-bold truncate">
@@ -253,6 +283,17 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
 
         {/* ACTION TOOLBAR */}
         <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+          {canModify && localImages.some((img) => getDataUrlKB(img) > 65) && (
+            <button
+              type="button"
+              onClick={handleOptimizeExistingInViewer}
+              disabled={isUploading}
+              className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
+              title="Nén nhẹ lại các ảnh cũ của đơn này để giảm dung lượng trên Server"
+            >
+              <span>⚡ Nén nhẹ lại</span>
+            </button>
+          )}
           {canModify && (
             <>
               <button
@@ -587,10 +628,13 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
     setIsCompressing(true);
     setFeedback(null);
     try {
-      const compressed = await compressMultipleImages(files);
-      if (compressed.length > 0) {
-        const updated = [...images, ...compressed];
-        await syncToFirestoreIfNeeded(updated, `Tải lên thành công +${compressed.length} ảnh!`);
+      const batch = await compressMultipleImagesWithStats(files);
+      if (batch.images.length > 0) {
+        const updated = [...images, ...batch.images];
+        await syncToFirestoreIfNeeded(
+          updated,
+          `Tải lên thành công +${batch.images.length} ảnh (${batch.summaryText})!`
+        );
       } else {
         setFeedback({
           type: 'error',
@@ -602,6 +646,23 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
       setFeedback({
         type: 'error',
         message: 'Tải ảnh thất bại: ' + (err.message || 'Định dạng ảnh không được hỗ trợ.')
+      });
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
+  const handleOptimizeExistingSection = async () => {
+    if (images.length === 0) return;
+    setIsCompressing(true);
+    setFeedback(null);
+    try {
+      const res = await recompressExistingDataUrls(images, 'ultra_light');
+      await syncToFirestoreIfNeeded(res.images, `${res.summaryText}!`);
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: 'Không thể tối ưu ảnh: ' + (err.message || 'Vui lòng thử lại')
       });
     } finally {
       setIsCompressing(false);
@@ -693,23 +754,34 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
               {images.length > 0 ? (
                 <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center gap-1">
                   <CheckCircle2 size={11} />
-                  Đã có {images.length} ảnh
+                  Đã có {images.length} ảnh (~{getImagesTotalKB(images)} KB)
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
-                  Chưa có ảnh
+                  Tự động nén siêu nhẹ (~30KB/ảnh)
                 </span>
               )}
             </div>
             {!compact && (
               <p className="text-[10px] text-slate-500 font-semibold">
-                Bấm "Chụp ảnh" (mở Camera điện thoại) hoặc "Tải ảnh" (chọn từ Thư viện ảnh)
+                Ảnh chụp từ điện thoại (3MB-8MB) được tự động nén WebP/JPEG siêu nhẹ (~25-45KB) trước khi gửi lên Server
               </p>
             )}
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          {images.some((img) => getDataUrlKB(img) > 65) && (
+            <button
+              type="button"
+              onClick={handleOptimizeExistingSection}
+              disabled={isCompressing}
+              className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] uppercase flex items-center gap-1 transition cursor-pointer shadow-xs"
+              title="Nén nhẹ lại các ảnh cũ đang nặng >65KB xuống ~30KB"
+            >
+              <span>⚡ Giảm nhẹ ảnh</span>
+            </button>
+          )}
           {images.length > 0 && (
             <button
               type="button"
@@ -807,8 +879,8 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
                   className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow"
                 />
               </div>
-              <span className="absolute bottom-0.5 left-1 px-1 rounded bg-black/70 text-white text-[9px] font-black">
-                #{idx + 1}
+              <span className="absolute bottom-0.5 left-1 px-1 rounded bg-black/75 text-white text-[8px] font-black">
+                #{idx + 1} · {getDataUrlKB(imgUrl)}KB
               </span>
               <button
                 type="button"
@@ -862,18 +934,18 @@ export const OrderCardDeliveryImageBar: React.FC<{
     setIsUploading(true);
     setStatusBanner(null);
     try {
-      const compressed = await compressMultipleImages(files);
-      if (compressed.length > 0) {
-        const updated = [...images, ...compressed];
+      const batch = await compressMultipleImagesWithStats(files);
+      if (batch.images.length > 0) {
+        const updated = [...images, ...batch.images];
         await updateDoc(doc(db, 'sales', sale.id), {
           deliveryImages: updated,
           updatedAt: serverTimestamp()
         });
         setStatusBanner({
           type: 'success',
-          text: `Đã lưu ${compressed.length} ảnh giao hàng cho đơn ${sale.customerName || ''}!`
+          text: `Đã lưu ${batch.images.length} ảnh cho đơn ${sale.customerName || ''} (${batch.summaryText})!`
         });
-        setTimeout(() => setStatusBanner(null), 5000);
+        setTimeout(() => setStatusBanner(null), 6000);
       } else {
         setStatusBanner({
           type: 'error',
@@ -960,7 +1032,7 @@ export const OrderCardDeliveryImageBar: React.FC<{
               >
                 <img src={imgUrl} alt={`Ảnh giao ${idx + 1}`} className="w-full h-full object-cover" />
                 <span className="absolute bottom-0 right-0 px-1 bg-black/70 text-white text-[8px] font-black">
-                  #{idx + 1}
+                  {getDataUrlKB(imgUrl)}KB
                 </span>
               </button>
             ))}
@@ -973,7 +1045,7 @@ export const OrderCardDeliveryImageBar: React.FC<{
               className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
             >
               <Eye size={13} />
-              <span>Xem ảnh ({images.length})</span>
+              <span>Xem ảnh ({images.length}) · {getImagesTotalKB(images)}KB</span>
             </button>
             <button
               type="button"
@@ -1054,9 +1126,9 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
     setIsUploading(true);
     setStatusBanner(null);
     try {
-      const compressed = await compressMultipleImages(files);
-      if (compressed.length > 0) {
-        const updated = [...images, ...compressed];
+      const batch = await compressMultipleImagesWithStats(files);
+      if (batch.images.length > 0) {
+        const updated = [...images, ...batch.images];
         await updateDoc(doc(db, 'goodsReceipts', receipt.id), {
           receiptImages: updated,
           deliveryImages: updated,
@@ -1064,9 +1136,9 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
         });
         setStatusBanner({
           type: 'success',
-          text: `Đã lưu ${compressed.length} ảnh nhập hàng cho phiếu ${receipt.supplierName || ''}!`
+          text: `Đã lưu ${batch.images.length} ảnh cho phiếu ${receipt.supplierName || ''} (${batch.summaryText})!`
         });
-        setTimeout(() => setStatusBanner(null), 5000);
+        setTimeout(() => setStatusBanner(null), 6000);
       } else {
         setStatusBanner({
           type: 'error',
@@ -1153,7 +1225,7 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
               >
                 <img src={imgUrl} alt={`Ảnh nhập ${idx + 1}`} className="w-full h-full object-cover" />
                 <span className="absolute bottom-0 right-0 px-1 bg-black/70 text-white text-[8px] font-black">
-                  #{idx + 1}
+                  {getDataUrlKB(imgUrl)}KB
                 </span>
               </button>
             ))}
@@ -1166,7 +1238,7 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
               className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
             >
               <Eye size={13} />
-              <span>Xem ảnh ({images.length})</span>
+              <span>Xem ảnh ({images.length}) · {getImagesTotalKB(images)}KB</span>
             </button>
             <button
               type="button"
