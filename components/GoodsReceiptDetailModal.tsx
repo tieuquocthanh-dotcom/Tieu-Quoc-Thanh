@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { GoodsReceipt, GoodsReceiptItem, PaymentHistoryEntry } from '../types';
-import { X, Users, Warehouse, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, CreditCard, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, StickyNote, Landmark, Clock, Building2 } from 'lucide-react';
+import { X, Users, Warehouse, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, CreditCard, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, StickyNote, Landmark, Clock, Building2, Camera, Image as ImageIcon, Eye } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
-import { doc, writeBatch, increment, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, writeBatch, increment, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import ConfirmationModal from './ConfirmationModal';
+import { DeliveryImageViewerModal } from './DeliveryImageViewerModal';
+import { compressMultipleImages } from '../utils/imageCompression';
 import * as XLSX from 'xlsx';
 
 const toMillis = (val: any): number => {
@@ -74,8 +76,20 @@ const DetailRow: React.FC<{ icon: React.ReactNode; label: string; value: React.R
 const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpen, onClose, receipt, userRole }) => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [localReceiptImages, setLocalReceiptImages] = useState<string[]>([]);
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  const [imageViewerIdx, setImageViewerIdx] = useState(0);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [imageUploadFeedback, setImageUploadFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const isAdmin = userRole === 'admin';
+
+  useEffect(() => {
+    if (receipt) {
+      setLocalReceiptImages(receipt.receiptImages || receipt.deliveryImages || []);
+      setImageUploadFeedback(null);
+    }
+  }, [receipt]);
 
   // Calculate effective amount paid taking into account legacy receipts or receipts with missing amountPaid
   const effectiveAmountPaid = useMemo(() => {
@@ -116,6 +130,66 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
   }, [receipt, effectiveAmountPaid]);
 
   if (!isOpen || !receipt) return null;
+
+  const handleQuickUploadReceiptImages = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !receipt) return;
+    setIsUploadingImages(true);
+    setImageUploadFeedback(null);
+    try {
+      const compressed = await compressMultipleImages(files);
+      if (compressed.length > 0) {
+        const updated = [...localReceiptImages, ...compressed];
+        setLocalReceiptImages(updated);
+        await updateDoc(doc(db, 'goodsReceipts', receipt.id), {
+          receiptImages: updated,
+          deliveryImages: updated,
+          updatedAt: serverTimestamp()
+        });
+        setImageUploadFeedback({
+          type: 'success',
+          message: `Tải ảnh thành công! Đã lưu ${compressed.length} ảnh mới vào phiếu nhập (Tổng: ${updated.length} ảnh).`
+        });
+      } else {
+        setImageUploadFeedback({
+          type: 'error',
+          message: 'Không đọc được file ảnh đã chọn. Vui lòng thử lại!'
+        });
+      }
+    } catch (err: any) {
+      console.error("Lỗi tải ảnh nhập hàng:", err);
+      setImageUploadFeedback({
+        type: 'error',
+        message: "Không thể tải ảnh nhập hàng: " + (err.message || err)
+      });
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const handleRemoveReceiptImage = async (idx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!receipt) return;
+    if (!window.confirm("Bạn có chắc muốn xóa ảnh nhập hàng này?")) return;
+    try {
+      const updated = localReceiptImages.filter((_, i) => i !== idx);
+      setLocalReceiptImages(updated);
+      await updateDoc(doc(db, 'goodsReceipts', receipt.id), {
+        receiptImages: updated,
+        deliveryImages: updated,
+        updatedAt: serverTimestamp()
+      });
+      setImageUploadFeedback({
+        type: 'success',
+        message: 'Đã xóa ảnh nhập hàng thành công!'
+      });
+    } catch (err: any) {
+      console.error("Lỗi xóa ảnh:", err);
+      setImageUploadFeedback({
+        type: 'error',
+        message: "Không thể xóa ảnh: " + (err.message || err)
+      });
+    }
+  };
 
   const handlePrint = () => {
     if (!receipt) return;
@@ -285,6 +359,17 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
 
   return (
     <>
+    <DeliveryImageViewerModal
+      isOpen={isImageViewerOpen}
+      onClose={() => setIsImageViewerOpen(false)}
+      images={localReceiptImages}
+      initialIndex={imageViewerIdx}
+      orderId={receipt.id.substring(0, 8).toUpperCase()}
+      customerName={receipt.supplierName || 'Nhà cung cấp'}
+      receiptId={receipt.id}
+      partnerLabel="Nhà cung cấp"
+      onImagesChange={(newImgs) => setLocalReceiptImages(newImgs)}
+    />
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
       <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-fade-in-down overflow-hidden border border-slate-200">
         <div className="flex justify-between items-center mb-4 pb-4 border-b">
@@ -292,6 +377,21 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
             <FileText className="mr-3 text-primary" /> Chi Tiết Phiếu Nhập
           </h2>
           <div className="flex items-center space-x-2">
+              <button
+                  type="button"
+                  onClick={() => {
+                      setImageViewerIdx(0);
+                      setIsImageViewerOpen(true);
+                  }}
+                  className={`px-3 py-1.5 rounded text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer ${
+                      localReceiptImages.length > 0
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : 'bg-slate-100 hover:bg-emerald-600 text-slate-700 hover:text-white border border-slate-300'
+                  }`}
+              >
+                  <Camera size={14} />
+                  <span>{localReceiptImages.length > 0 ? `Ảnh nhập (${localReceiptImages.length})` : '+ Chụp / Up ảnh'}</span>
+              </button>
               <button onClick={handlePrint} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded text-xs font-bold transition shadow-sm flex items-center">
                   <Printer size={14} className="mr-1" />
                   In đơn hàng
@@ -372,6 +472,119 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* PHẦN HÌNH ẢNH CHỤP NHẬP HÀNG / HÓA ĐƠN */}
+            <div className="bg-white rounded-2xl border-2 border-emerald-200 shadow-sm overflow-hidden">
+                <div className="bg-emerald-50/80 p-3.5 text-slate-800 flex flex-wrap justify-between items-center gap-2 border-b-2 border-emerald-200">
+                    <div className="flex items-center gap-2">
+                        <Camera className="text-emerald-600" size={18} />
+                        <h4 className="text-xs font-black uppercase tracking-tight text-emerald-950">
+                            Hình ảnh chụp nhập hàng / Hóa đơn ({localReceiptImages.length} ảnh)
+                        </h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {localReceiptImages.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setImageViewerIdx(0);
+                                    setIsImageViewerOpen(true);
+                                }}
+                                className="px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                            >
+                                <Eye size={14} />
+                                <span>Xem phóng to</span>
+                            </button>
+                        )}
+                        <label className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-xs">
+                            {isUploadingImages ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
+                            <span>Chụp ảnh</span>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={(e) => {
+                                    handleQuickUploadReceiptImages(e.target.files);
+                                    e.target.value = '';
+                                }}
+                                className="hidden"
+                            />
+                        </label>
+                        <label className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-xs">
+                            {isUploadingImages ? <Loader size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+                            <span>Tải ảnh lên</span>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={(e) => {
+                                    handleQuickUploadReceiptImages(e.target.files);
+                                    e.target.value = '';
+                                }}
+                                className="hidden"
+                            />
+                        </label>
+                    </div>
+                </div>
+                <div className="p-4 space-y-3">
+                    {isUploadingImages && (
+                        <div className="p-3 rounded-xl bg-blue-600 text-white text-xs font-black flex items-center gap-2 animate-pulse shadow-sm">
+                            <Loader size={16} className="animate-spin shrink-0" />
+                            <span>Đang xử lý và lưu ảnh nhập hàng lên hệ thống... Vui lòng chờ giây lát!</span>
+                        </div>
+                    )}
+                    {!isUploadingImages && imageUploadFeedback && (
+                        <div className={`p-3 rounded-xl text-xs font-black flex items-center justify-between gap-2 animate-fade-in ${
+                            imageUploadFeedback.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+                        }`}>
+                            <span>{imageUploadFeedback.message}</span>
+                            <button type="button" onClick={() => setImageUploadFeedback(null)} className="text-white/80 hover:text-white p-0.5">
+                                <X size={14} />
+                            </button>
+                        </div>
+                    )}
+                    {localReceiptImages.length === 0 ? (
+                        <div className="py-6 text-center text-slate-400 text-xs font-bold flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                            <Camera size={28} className="text-slate-300" />
+                            <span>Phiếu nhập này chưa có ảnh chụp hàng hóa / hóa đơn. Bấm "Chụp ảnh" hoặc "Tải ảnh lên" để thêm.</span>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                            {localReceiptImages.map((imgUrl, idx) => (
+                                <div
+                                    key={idx}
+                                    onClick={() => {
+                                        setImageViewerIdx(idx);
+                                        setIsImageViewerOpen(true);
+                                    }}
+                                    className="relative group aspect-square rounded-xl overflow-hidden border-2 border-emerald-400 shadow-xs cursor-pointer bg-slate-100"
+                                    title="Nhấp để xem ảnh lớn"
+                                >
+                                    <img
+                                        src={imgUrl}
+                                        alt={`Ảnh nhập hàng ${idx + 1}`}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                        <Eye size={22} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                                    </div>
+                                    <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-black">
+                                        Ảnh #{idx + 1}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => handleRemoveReceiptImage(idx, e)}
+                                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-md cursor-pointer"
+                                        title="Xóa ảnh này"
+                                    >
+                                        <X size={13} strokeWidth={3} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 

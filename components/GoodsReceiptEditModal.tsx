@@ -5,6 +5,7 @@ import { X, Save, Edit3, CreditCard, FileCheck2, Wallet, AlertCircle, Loader, Us
 import { doc, serverTimestamp, runTransaction, collection, Timestamp, increment, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
+import { DeliveryImageUploadSection } from './DeliveryImageViewerModal';
 
 interface GoodsReceiptEditModalProps {
   isOpen: boolean;
@@ -82,6 +83,7 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
   const [hasInvoice, setHasInvoice] = useState(false);
   const [receiptDate, setReceiptDate] = useState('');
   const [editedItems, setEditedItems] = useState<GoodsReceiptItem[]>([]);
+  const [receiptImages, setReceiptImages] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Supplier Search State
@@ -116,6 +118,7 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
         }
       }
       setEditedItems(receipt.items ? JSON.parse(JSON.stringify(receipt.items)) : []);
+      setReceiptImages(receipt.receiptImages || receipt.deliveryImages || []);
     }
   }, [isOpen, receipt]);
 
@@ -376,6 +379,8 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
           paymentMethodName: selectedPaymentMethod ? selectedPaymentMethod.name : null,
           paymentStatus: paymentStatus,
           hasInvoice: hasInvoice,
+          receiptImages: receiptImages,
+          deliveryImages: receiptImages,
           createdAt: finalCreatedAt,
           amountPaid: paymentStatus === 'paid' ? newTotal : 0,
           paidAt: paymentStatus === 'paid' ? serverTimestamp() : (oldData.paymentStatus === 'paid' ? null : (oldData.paidAt || null)),
@@ -510,6 +515,16 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                     <AlertCircle size={16} className="text-yellow-600 mr-2 shrink-0 mt-0.5" />
                     <p className="text-[9px] font-bold text-yellow-800 uppercase leading-tight">Khi thay đổi số lượng hoặc đơn giá, tồn kho thực tế tại kho "{receipt.warehouseName}" sẽ được tự động điều chỉnh cân bằng.</p>
                 </div>
+
+                <DeliveryImageUploadSection
+                    images={receiptImages}
+                    onChange={setReceiptImages}
+                    title="Ảnh chụp nhập hàng / Hóa đơn của phiếu nhập"
+                    orderId={receipt.id.substring(0, 8).toUpperCase()}
+                    customerName={supplierSearchTerm || receipt.supplierName}
+                    receiptId={receipt.id}
+                    partnerLabel="Nhà cung cấp"
+                />
               </div>
             </div>
 

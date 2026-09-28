@@ -3,10 +3,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, increment, setDoc, Timestamp, where, addDoc, limit, getDocs, updateDoc, deleteDoc, runTransaction, collectionGroup, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, Supplier, GoodsReceiptItem, Warehouse, PaymentMethod, Manufacturer, GoodsReceipt, PlannedOrder, ChinaImport } from '../types';
-import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck , Sparkles } from 'lucide-react';
+import { Archive, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, Users, Package, CreditCard, History, Calendar, ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, FileCheck2, PlusCircle, Wallet, Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Info, ExternalLink, Tag, ClipboardList, Maximize2, Minimize2, Banknote, FileText, Eye, Trash2, Save, Edit, Plane, Truck , Sparkles, Camera } from 'lucide-react';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
+import { DeliveryImageViewerModal, DeliveryImageUploadSection, ReceiptCardDeliveryImageBar } from './DeliveryImageViewerModal';
 import PriceComparisonModal from './PriceComparisonModal';
 import HighPriceWarningModal, { HighPriceWarningData } from './HighPriceWarningModal';
 import InventoryLedger from './InventoryLedger';
@@ -381,6 +382,9 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const [newBankDetails, setNewBankDetails] = useState({ bankName: '', accountNumber: '', accountName: '' });
   const [hasInvoice, setHasInvoice] = useState(false);
   const [receiptDate, setReceiptDate] = useState(getTodayString());
+  const [receiptImages, setReceiptImages] = useState<string[]>([]);
+  const [viewingImageReceiptId, setViewingImageReceiptId] = useState<string | null>(null);
+  const [viewingImageInitialIdx, setViewingImageInitialIdx] = useState<number>(0);
   const [supplierPriceHistory, setSupplierPriceHistory] = useState<Record<string, number>>({});
   const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
@@ -924,6 +928,8 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
             amountPaid: paymentStatus === 'paid' ? total : 0,
             paidAt: paymentStatus === 'paid' ? finalCreatedAt : null,
             hasInvoice, 
+            receiptImages: receiptImages.length > 0 ? receiptImages : [],
+            deliveryImages: receiptImages.length > 0 ? receiptImages : [],
             createdAt: finalCreatedAt, 
             creatorName: user?.displayName || user?.email || 'POS' 
           });
@@ -971,7 +977,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
               }
           }
       });
-      setReceipt([]); setSelectedSupplierId(''); setSupplierSearchTerm(''); setSourceOrderDetails(null);
+      setReceipt([]); setSelectedSupplierId(''); setSupplierSearchTerm(''); setSourceOrderDetails(null); setReceiptImages([]);
       setPaymentStatus('paid');
       setWasLastReceiptDebt(false);
       lastLoadedSupplierIdRef.current = null;
@@ -1021,8 +1027,23 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     <div className={`flex flex-col h-full gap-4 ${isFullscreen ? 'fixed inset-0 bg-slate-100 z-[100] p-4 overflow-y-auto' : ''}`}>
         {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
         
-        <GoodsReceiptDetailModal receipt={selectedReceiptDetail} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
-        <GoodsReceiptEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} receipt={selectedReceiptEdit} suppliers={suppliers} paymentMethods={paymentMethods} warehouses={warehouses} products={products} />
+        {(() => {
+            const viewingReceipt = viewingImageReceiptId ? todayReceipts.find(r => r.id === viewingImageReceiptId) : null;
+            return (
+                <DeliveryImageViewerModal
+                    isOpen={!!viewingReceipt}
+                    onClose={() => setViewingImageReceiptId(null)}
+                    images={viewingReceipt?.receiptImages || viewingReceipt?.deliveryImages || []}
+                    initialIndex={viewingImageInitialIdx}
+                    orderId={viewingReceipt?.id.substring(0, 8).toUpperCase()}
+                    customerName={viewingReceipt?.supplierName || 'Nhà cung cấp'}
+                    receiptId={viewingReceipt?.id}
+                    partnerLabel="Nhà cung cấp"
+                />
+            );
+        })()}
+        <GoodsReceiptDetailModal receipt={todayReceipts.find(r => r.id === selectedReceiptDetail?.id) || selectedReceiptDetail} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
+        <GoodsReceiptEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} receipt={todayReceipts.find(r => r.id === selectedReceiptEdit?.id) || selectedReceiptEdit} suppliers={suppliers} paymentMethods={paymentMethods} warehouses={warehouses} products={products} />
         {isProductModalOpen && <ProductModal product={null} manufacturers={manufacturers} allProductsForCombo={products} onClose={() => setIsProductModalOpen(false)} onSave={handleQuickCreateProduct} existingNames={products.map(p => p.name)} />}
         {isSupplierModalOpen && <SupplierModal supplier={null} onClose={() => setIsSupplierModalOpen(false)} onSave={handleQuickCreateSupplier} existingNames={suppliers.map(s => s.name)} />}
         <HighPriceWarningModal 
@@ -1130,6 +1151,55 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                     </div>
                                 )}
                             </div>
+                            <DeliveryImageUploadSection
+                                images={receiptImages}
+                                onChange={setReceiptImages}
+                                compact
+                                title="Ảnh chụp nhập hàng / Hóa đơn (Phiếu tạo mới)"
+                                customerName={supplierSearchTerm || 'Nhà cung cấp'}
+                                partnerLabel="Nhà cung cấp"
+                            />
+                            {receiptImages.length > 0 && todayReceipts.length > 0 && (
+                                <div className="p-2.5 rounded-xl bg-amber-50 border-2 border-amber-400 space-y-2 animate-fade-in">
+                                    <p className="text-[11px] font-black text-amber-950">
+                                        💡 Bạn vừa tải lên {receiptImages.length} ảnh. Nếu bạn muốn gắn ảnh này vào <span className="underline text-red-600">Phiếu nhập hôm nay đã tạo</span> (thay vì phiếu mới), hãy bấm vào tên Nhà cung cấp bên dưới để lưu ngay:
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                        {todayReceipts.slice(0, 12).map((r) => (
+                                            <button
+                                                key={r.id}
+                                                type="button"
+                                                onClick={async () => {
+                                                    try {
+                                                        const existing = r.receiptImages || r.deliveryImages || [];
+                                                        const merged = [...existing, ...receiptImages];
+                                                        await updateDoc(doc(db, 'goodsReceipts', r.id), {
+                                                            receiptImages: merged,
+                                                            deliveryImages: merged,
+                                                            updatedAt: serverTimestamp()
+                                                        });
+                                                        setReceiptImages([]);
+                                                        setToast({
+                                                            message: `Đã lưu ${merged.length} ảnh nhập hàng vào phiếu của NCC "${r.supplierName || 'Nhà cung cấp'}" thành công!`,
+                                                            type: 'success',
+                                                            duration: 5000
+                                                        });
+                                                    } catch (err: any) {
+                                                        setToast({
+                                                            message: 'Lỗi lưu ảnh vào phiếu nhập: ' + (err.message || err),
+                                                            type: 'error'
+                                                        });
+                                                    }
+                                                }}
+                                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+                                            >
+                                                <Camera size={12} />
+                                                <span>Lưu vào phiếu: {r.supplierName || 'NCC'} ({formatNumber(r.total || 0)}₫)</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-2 shrink-0">
                             <div className="relative flex-1">
@@ -1332,7 +1402,15 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                             ))
                         )}
                     </div>
-                    <div className="p-3 bg-white flex-shrink-0 shadow-sm border-b border-slate-200">
+                    <div className="p-3 bg-white flex-shrink-0 shadow-sm border-b border-slate-200 space-y-3">
+                        <DeliveryImageUploadSection
+                            images={receiptImages}
+                            onChange={setReceiptImages}
+                            compact
+                            title="Ảnh chụp nhập hàng / Hóa đơn"
+                            customerName={supplierSearchTerm || 'Nhà cung cấp'}
+                            partnerLabel="Nhà cung cấp"
+                        />
                         <div className="flex justify-between items-end mb-2.5">
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Thanh toán nhập</span>
                             <span className="font-bold text-primary leading-none text-2xl">{formatNumber(receipt.reduce((s,i) => s + i.importPrice*i.quantity, 0))}<span className="text-xs ml-0.5 font-bold text-slate-500">₫</span></span>
@@ -1427,6 +1505,35 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                 {r.hasInvoice && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded font-bold uppercase shadow-2xs shrink-0">HĐ ĐỎ</span>}
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
+                                                {(() => {
+                                                    const imgs = r.receiptImages || r.deliveryImages || [];
+                                                    return (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setViewingImageInitialIdx(0);
+                                                                setViewingImageReceiptId(r.id);
+                                                            }}
+                                                            className={`px-2 py-1 rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer ${
+                                                                imgs.length > 0
+                                                                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xs'
+                                                                    : 'bg-white/15 hover:bg-emerald-500 hover:text-white text-white'
+                                                            }`}
+                                                            title={
+                                                                imgs.length > 0
+                                                                    ? `Xem ${imgs.length} ảnh nhập hàng / chụp thêm`
+                                                                    : 'Chụp / Tải ảnh nhập hàng cho phiếu này'
+                                                            }
+                                                        >
+                                                            <Camera size={12} />
+                                                            <span>
+                                                                {imgs.length > 0
+                                                                    ? `Xem ảnh (${imgs.length})`
+                                                                    : '+Ảnh'}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })()}
                                                 <button onClick={() => { setSelectedReceiptEdit(r); setIsEditModalOpen(true); }} className="p-1 bg-white/15 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
                                                 <button onClick={() => { setSelectedReceiptDetail(r); setIsDetailModalOpen(true); }} className="p-1 bg-white/15 text-white rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
                                                 <span className="text-sm font-bold text-amber-300 ml-1">{formatNumber(r.total)} ₫</span>
@@ -1461,6 +1568,13 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                 </div>
                                             </div>
                                         ))}
+                                        <ReceiptCardDeliveryImageBar
+                                            receipt={r}
+                                            onOpenViewer={(idx) => {
+                                                setViewingImageInitialIdx(idx);
+                                                setViewingImageReceiptId(r.id);
+                                            }}
+                                        />
                                     </div>
                                 </div>
                                 );

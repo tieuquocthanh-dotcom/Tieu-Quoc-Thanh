@@ -4,10 +4,11 @@ import { collection, onSnapshot, query, orderBy, limit, doc, serverTimestamp, ge
 import { db, auth } from '../services/firebase';
 import { GoodsReceipt, Supplier, PaymentMethod, Warehouse, Product } from '../types';
 // Fixed: Added Users to the list of icons imported from lucide-react
-import { Loader, XCircle, Search, ListFilter, Check, Minus, RefreshCw, Undo, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, FileText as FileTextIcon, Edit, Calendar as CalendarIcon, Package, X, Eye, Tag, Users, CreditCard, History, User } from 'lucide-react';
+import { Loader, XCircle, Search, ListFilter, Check, Minus, RefreshCw, Undo, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, FileText as FileTextIcon, Edit, Calendar as CalendarIcon, Package, X, Eye, Tag, Users, CreditCard, History, User, Camera } from 'lucide-react';
 import Pagination from './Pagination';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import GoodsReceiptEditModal from './GoodsReceiptEditModal';
+import { DeliveryImageViewerModal } from './DeliveryImageViewerModal';
 import InventoryLedger from './InventoryLedger';
 import { formatNumber } from '../utils/formatting';
 import * as XLSX from 'xlsx';
@@ -108,6 +109,8 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [selectedLedgerProductId, setSelectedLedgerProductId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [viewingImageReceiptId, setViewingImageReceiptId] = useState<string | null>(null);
+  const [viewingImageInitialIdx, setViewingImageInitialIdx] = useState<number>(0);
 
   const isAdmin = userRole === 'admin';
 
@@ -383,8 +386,23 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md space-y-6">
-      <GoodsReceiptDetailModal receipt={selectedReceipt} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
-      <GoodsReceiptEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} receipt={receiptToEdit} suppliers={suppliers} paymentMethods={paymentMethods} warehouses={warehouses} products={products} />
+      {(() => {
+        const viewingReceipt = viewingImageReceiptId ? allReceipts.find(r => r.id === viewingImageReceiptId) : null;
+        return (
+          <DeliveryImageViewerModal
+            isOpen={!!viewingReceipt}
+            onClose={() => setViewingImageReceiptId(null)}
+            images={viewingReceipt?.receiptImages || viewingReceipt?.deliveryImages || []}
+            initialIndex={viewingImageInitialIdx}
+            orderId={viewingReceipt?.id.substring(0, 8).toUpperCase()}
+            customerName={viewingReceipt?.supplierName || 'Nhà cung cấp'}
+            receiptId={viewingReceipt?.id}
+            partnerLabel="Nhà cung cấp"
+          />
+        );
+      })()}
+      <GoodsReceiptDetailModal receipt={allReceipts.find(r => r.id === selectedReceipt?.id) || selectedReceipt} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
+      <GoodsReceiptEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} receipt={allReceipts.find(r => r.id === receiptToEdit?.id) || receiptToEdit} suppliers={suppliers} paymentMethods={paymentMethods} warehouses={warehouses} products={products} />
 
       {isLedgerModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
@@ -524,6 +542,7 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                     {isAdmin && <th className="p-4 text-xs font-black uppercase tracking-widest text-right cursor-pointer hover:bg-slate-700 transition" onClick={() => requestSort('total')}>Tổng Tiền {getSortIcon('total')}</th>}
                     <th className="p-4 text-xs font-black uppercase tracking-widest text-center">Thanh Toán</th>
                     <th className="p-4 text-xs font-black uppercase tracking-widest text-center">Hóa Đơn</th>
+                    <th className="p-4 text-xs font-black uppercase tracking-widest text-center">Ảnh Nhập</th>
                     {isAdmin && <th className="p-4 text-xs font-black uppercase tracking-widest text-center">Người Tạo</th>}
                     <th className="p-4 text-xs font-black uppercase tracking-widest">Thao tác</th>
                   </tr>
@@ -576,6 +595,50 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                             {receipt.hasInvoice ? 'Có HĐ' : 'Chưa HĐ'}
                         </span>
                       </td>
+                      <td className="p-4 text-center">
+                        {(() => {
+                          const imgs = receipt.receiptImages || receipt.deliveryImages || [];
+                          return imgs.length > 0 ? (
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setViewingImageInitialIdx(0);
+                                  setViewingImageReceiptId(receipt.id);
+                                }}
+                                className="relative w-9 h-9 rounded-lg overflow-hidden border-2 border-emerald-500 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs"
+                                title="Xem ảnh nhập hàng"
+                              >
+                                <img src={imgs[0]} alt="Ảnh nhập" className="w-full h-full object-cover" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setViewingImageInitialIdx(0);
+                                  setViewingImageReceiptId(receipt.id);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs transition cursor-pointer"
+                              >
+                                <Camera size={12} />
+                                <span>Xem ảnh ({imgs.length})</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewingImageInitialIdx(0);
+                                setViewingImageReceiptId(receipt.id);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-600 text-slate-600 hover:text-white border border-slate-200 text-[11px] font-black uppercase inline-flex items-center gap-1 transition cursor-pointer"
+                              title="Chụp hoặc tải ảnh nhập hàng lên cho phiếu này"
+                            >
+                              <Camera size={12} />
+                              <span>+ Chụp / Up ảnh</span>
+                            </button>
+                          );
+                        })()}
+                      </td>
                       {isAdmin && <td className="p-4 text-center">
                           <span className="inline-flex items-center text-[10px] font-black bg-emerald-50 text-emerald-800 px-2 py-1 rounded-full border border-emerald-200 uppercase">
                               <User size={12} className="mr-1"/> {receipt.creatorName || 'Hệ thống'}
@@ -592,6 +655,21 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                                     {updatingId === receipt.id ? <RefreshCw size={16} className="animate-spin" /> : <Undo size={18} />}
                                 </button>
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setViewingImageInitialIdx(0);
+                                    setViewingImageReceiptId(receipt.id);
+                                }}
+                                className={`p-2 rounded-lg transition cursor-pointer ${
+                                    (receipt.receiptImages || receipt.deliveryImages || []).length > 0
+                                        ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+                                        : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
+                                }`}
+                                title="Xem / Tải ảnh nhập hàng"
+                            >
+                                <Camera size={18} />
+                            </button>
                             <button onClick={() => openEditModal(receipt)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="Chỉnh sửa"><Edit size={18} /></button>
                             <button onClick={() => openDetailModal(receipt)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition" title="Xem chi tiết"><Eye size={18} /></button>
                             <button 

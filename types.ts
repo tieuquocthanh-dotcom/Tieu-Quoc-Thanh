@@ -84,6 +84,8 @@ export interface GoodsReceipt {
   productIds?: string[];
   paidAt?: Timestamp;
   paymentHistory?: any[];
+  receiptImages?: string[];
+  deliveryImages?: string[];
   creatorName?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
