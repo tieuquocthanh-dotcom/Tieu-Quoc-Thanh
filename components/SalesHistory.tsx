@@ -3,12 +3,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, updateDoc, doc, Timestamp, arrayUnion, writeBatch, increment, getDocs, getDoc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Sale, Customer, PaymentMethod, Shipper, Product, Manufacturer, Warehouse } from '../types';
-import { Loader, XCircle, Search, Calendar, Package, RefreshCcw, Truck, DollarSign, CheckCircle, CreditCard, X, Clock, ArrowRight, Save, FileCheck2, TrendingUp, ArrowUp, ArrowDown, ArrowUpDown, Edit, Hash, User, Tag, Wallet, Building, Eye, ChevronLeft, ChevronRight, Filter, ShoppingBag, Receipt, Trash2, Home, Printer, AlertTriangle } from 'lucide-react';
+import { Loader, XCircle, Search, Calendar, Package, RefreshCcw, Truck, DollarSign, CheckCircle, CreditCard, X, Clock, ArrowRight, Save, FileCheck2, TrendingUp, ArrowUp, ArrowDown, ArrowUpDown, Edit, Hash, User, Tag, Wallet, Building, Eye, ChevronLeft, ChevronRight, Filter, ShoppingBag, Receipt, Trash2, Home, Printer, AlertTriangle, Camera } from 'lucide-react';
 import Pagination from './Pagination';
 import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import SalePrintPreviewModal from './SalePrintPreviewModal';
 import InsufficientStockModal, { InsufficientItemInfo } from './InsufficientStockModal';
+import { DeliveryImageViewerModal, DeliveryImageUploadSection } from './DeliveryImageViewerModal';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
 import * as XLSX from 'xlsx';
@@ -24,7 +25,7 @@ const getTodayString = () => new Date().toISOString().split('T')[0];
 const UpdateShippingModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (shipperId: string, date: string) => Promise<void>;
+    onConfirm: (shipperId: string, date: string, deliveryImages: string[]) => Promise<void>;
     sale: Sale | null;
     shippers: Shipper[];
     warehouses: Warehouse[];
@@ -32,6 +33,7 @@ const UpdateShippingModal: React.FC<{
 }> = ({ isOpen, onClose, onConfirm, sale, shippers, warehouses, onOpenStockAlert }) => {
     const [shipperId, setShipperId] = useState('');
     const [shippedDate, setShippedDate] = useState(getTodayString());
+    const [deliveryImages, setDeliveryImages] = useState<string[]>([]);
     const [isCheckingStock, setIsCheckingStock] = useState(false);
     const [insufficientItems, setInsufficientItems] = useState<InsufficientItemInfo[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,6 +46,7 @@ const UpdateShippingModal: React.FC<{
         if (isOpen && sale) {
             setShipperId(sale.shipperId || (shippers.length > 0 ? shippers[0].id : ''));
             setShippedDate(getTodayString());
+            setDeliveryImages(sale.deliveryImages ? [...sale.deliveryImages] : []);
             setInsufficientItems([]);
 
             if (sale.shippingStatus === 'order' && targetWhId) {
@@ -104,7 +107,7 @@ const UpdateShippingModal: React.FC<{
         }
         setIsSubmitting(true);
         try {
-            await onConfirm(shipperId, shippedDate);
+            await onConfirm(shipperId, shippedDate, deliveryImages);
         } finally {
             setIsSubmitting(false);
         }
@@ -191,6 +194,15 @@ const UpdateShippingModal: React.FC<{
                             style={{ colorScheme: 'light' }}
                         />
                     </div>
+
+                    <DeliveryImageUploadSection
+                        images={deliveryImages}
+                        onChange={setDeliveryImages}
+                        compact
+                        title="Ảnh chụp giao hàng"
+                        orderId={sale.id.substring(0, 8).toUpperCase()}
+                        customerName={sale.customerName}
+                    />
 
                     {isOrder && insufficientItems.length > 0 ? (
                         <button 
@@ -403,6 +415,8 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
   const [saleToShip, setSaleToShip] = useState<Sale | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [saleToEdit, setSaleToEdit] = useState<Sale | null>(null);
+  const [viewingImageSaleId, setViewingImageSaleId] = useState<string | null>(null);
+  const [viewingImageInitialIdx, setViewingImageInitialIdx] = useState<number>(0);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [stockAlertModalData, setStockAlertModalData] = useState<{
     isOpen: boolean;
@@ -568,7 +582,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
       }
   };
   
-  const handleConfirmShipping = async (shipperId: string, dateString: string) => {
+  const handleConfirmShipping = async (shipperId: string, dateString: string, updatedDeliveryImages: string[]) => {
       if (!saleToShip) return;
       try {
           const batch = writeBatch(db); 
@@ -660,7 +674,8 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
             shipperName: sName, 
             shippedAt: ts,
             warehouseId: effectiveWarehouseId,
-            warehouseName: effectiveWarehouseName
+            warehouseName: effectiveWarehouseName,
+            deliveryImages: updatedDeliveryImages || []
           });
           await batch.commit(); 
           setIsShippingModalOpen(false); 
@@ -704,7 +719,16 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in pb-10">
-      <SaleDetailModal sale={selectedSale} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
+      <SaleDetailModal sale={sales.find(s => s.id === selectedSale?.id) || selectedSale} isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} userRole={userRole} />
+      <DeliveryImageViewerModal
+        isOpen={!!viewingImageSaleId}
+        onClose={() => setViewingImageSaleId(null)}
+        images={(sales.find(s => s.id === viewingImageSaleId)?.deliveryImages) || []}
+        initialIndex={viewingImageInitialIdx}
+        saleId={viewingImageSaleId || undefined}
+        orderId={viewingImageSaleId ? viewingImageSaleId.substring(0, 8).toUpperCase() : undefined}
+        customerName={sales.find(s => s.id === viewingImageSaleId)?.customerName}
+      />
       <SalePrintPreviewModal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} sale={selectedSaleForPrint} customer={customers.find(c => c.id === selectedSaleForPrint?.customerId) || null} />
       <DebtPaymentModal isOpen={isDebtModalOpen} onClose={() => setIsDebtModalOpen(false)} onConfirm={handleConfirmDebtPayment} sale={saleToPay} paymentMethods={paymentMethods} />
       <UpdateShippingModal 
@@ -869,6 +893,28 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                     {sale.issueInvoice && <span className="ml-1 bg-purple-600 text-[8px] px-1.5 rounded font-black uppercase">HĐ</span>}
                                 </div>
                                 <div className="flex gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setViewingImageInitialIdx(0);
+                                            setViewingImageSaleId(sale.id);
+                                        }}
+                                        className={`px-1.5 py-1 rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer ${
+                                            sale.deliveryImages && sale.deliveryImages.length > 0
+                                                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xs'
+                                                : 'bg-white/10 hover:bg-emerald-500 text-emerald-300 hover:text-white'
+                                        }`}
+                                        title={
+                                            sale.deliveryImages && sale.deliveryImages.length > 0
+                                                ? `Xem ${sale.deliveryImages.length} ảnh chụp giao hàng`
+                                                : 'Chụp / Tải lên ảnh giao hàng'
+                                        }
+                                    >
+                                        <Camera size={13} />
+                                        {sale.deliveryImages && sale.deliveryImages.length > 0 && (
+                                            <span>{sale.deliveryImages.length}</span>
+                                        )}
+                                    </button>
                                     {isAdmin && <button onClick={() => openEditModal(sale)} className="p-1 bg-white/10 hover:bg-blue-500 rounded text-blue-400 hover:text-white transition" title="Sửa đơn"><Edit size={14}/></button>}
                                     <button onClick={() => { setSelectedSale(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/10 hover:bg-primary rounded transition" title="Xem chi tiết"><Eye size={14}/></button>
                                     <button 
@@ -932,6 +978,37 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                     {/* CÔNG NỢ PHỤ */}
                                     {sale.status === 'debt' && <div className="text-[8px] font-black bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-200 uppercase">Còn nợ: {formatNumber(sale.total - (sale.amountPaid || 0))}</div>}
                                 </div>
+                                {sale.deliveryImages && sale.deliveryImages.length > 0 && (
+                                    <div className="pt-2 border-t border-dashed border-emerald-200 flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                                            {sale.deliveryImages.map((imgUrl, imgIdx) => (
+                                                <button
+                                                    key={imgIdx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setViewingImageInitialIdx(imgIdx);
+                                                        setViewingImageSaleId(sale.id);
+                                                    }}
+                                                    className="relative w-10 h-10 rounded-lg overflow-hidden border border-emerald-400 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs"
+                                                    title={`Xem ảnh giao hàng #${imgIdx + 1}`}
+                                                >
+                                                    <img src={imgUrl} alt={`Giao hàng ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setViewingImageInitialIdx(0);
+                                                setViewingImageSaleId(sale.id);
+                                            }}
+                                            className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black uppercase flex items-center gap-1 shrink-0 transition cursor-pointer"
+                                        >
+                                            <Camera size={11} className="text-emerald-600" />
+                                            <span>Xem ảnh ({sale.deliveryImages.length})</span>
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="flex gap-2 mt-2">
                                     {sale.status === 'debt' && (
                                         <button onClick={() => openDebtModal(sale)} className="flex-1 py-1.5 bg-orange-600 text-white rounded-lg font-black text-[10px] uppercase shadow-md flex items-center justify-center hover:bg-orange-700"><Wallet size={12} className="mr-1"/> Thu nợ</button>

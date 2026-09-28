@@ -4,10 +4,11 @@ import { collection, onSnapshot, updateDoc, doc, serverTimestamp, query, orderBy
 import { db } from '../services/firebase';
 import { Sale, Shipper, Customer, PaymentMethod, Product, Warehouse } from '../types';
 // Fixed: Added Info to the list of icons imported from lucide-react
-import { Send, XCircle, Loader, Truck, CheckCircle, Save, Calendar, Package, Eye, Info, Edit, AlertTriangle } from 'lucide-react';
+import { Send, XCircle, Loader, Truck, CheckCircle, Save, Calendar, Package, Eye, Info, Edit, AlertTriangle, Camera } from 'lucide-react';
 import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import InsufficientStockModal, { InsufficientItemInfo } from './InsufficientStockModal';
+import { DeliveryImageViewerModal } from './DeliveryImageViewerModal';
 
 const getTodayString = () => new Date().toISOString().split('T')[0];
 
@@ -29,6 +30,7 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedSaleEdit, setSelectedSaleEdit] = useState<Sale | null>(null);
+  const [viewingImageSaleId, setViewingImageSaleId] = useState<string | null>(null);
   
   // Data for edit modal
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -263,8 +265,16 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
       <SaleDetailModal 
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
-        sale={selectedSale}
+        sale={pendingSales.find(s => s.id === selectedSale?.id) || selectedSale}
         userRole={userRole}
+      />
+      <DeliveryImageViewerModal
+        isOpen={!!viewingImageSaleId}
+        onClose={() => setViewingImageSaleId(null)}
+        images={(pendingSales.find(s => s.id === viewingImageSaleId)?.deliveryImages) || []}
+        saleId={viewingImageSaleId || undefined}
+        orderId={viewingImageSaleId ? viewingImageSaleId.substring(0, 8).toUpperCase() : undefined}
+        customerName={pendingSales.find(s => s.id === viewingImageSaleId)?.customerName}
       />
       <SaleEditModal
         isOpen={isEditModalOpen}
@@ -387,6 +397,25 @@ const ShipmentManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ 
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => setViewingImageSaleId(sale.id)}
+                            className={`p-2 rounded-lg transition shadow-sm border flex items-center gap-1 text-xs font-black cursor-pointer ${
+                              sale.deliveryImages && sale.deliveryImages.length > 0
+                                ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                                : 'text-emerald-600 bg-emerald-50 border-emerald-100 hover:bg-emerald-600 hover:text-white'
+                            }`}
+                            title={
+                              sale.deliveryImages && sale.deliveryImages.length > 0
+                                ? `Xem ${sale.deliveryImages.length} ảnh giao hàng`
+                                : 'Chụp / Tải ảnh giao hàng'
+                            }
+                          >
+                            <Camera size={16} />
+                            {sale.deliveryImages && sale.deliveryImages.length > 0 && (
+                              <span>{sale.deliveryImages.length}</span>
+                            )}
+                          </button>
                           <button
                             onClick={() => handleViewDetails(sale)}
                             className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-primary hover:text-white transition shadow-sm border border-blue-100"

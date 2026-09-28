@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, where, increment, collectionGroup, addDoc, Timestamp, updateDoc, getDocs, limit, arrayUnion, runTransaction, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, SaleItem, Customer, Warehouse, PaymentMethod, Shipper, Sale, Supplier, Manufacturer, GoodsReceipt } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes, Printer, Building2, Repeat } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes, Printer, Building2, Repeat, Camera } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import SalesHistory from './SalesHistory';
 import CustomerModal from './CustomerModal';
@@ -22,6 +22,7 @@ import { User as FirebaseAuthUser } from 'firebase/auth';
 import { StockStatusBadge } from './StockStatusBadge';
 import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietnameseSearch';
 import RefreshButton from './RefreshButton';
+import { DeliveryImageViewerModal, DeliveryImageUploadSection } from './DeliveryImageViewerModal';
 
 const NumericInput: React.FC<{
     value: number;
@@ -964,6 +965,9 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [wasLastOrderDebt, setWasLastOrderDebt] = useState(false);
   const lastLoadedCustomerIdRef = useRef<string | null>(null);
   const [issueInvoice, setIssueInvoice] = useState(false); 
+  const [deliveryImages, setDeliveryImages] = useState<string[]>([]);
+  const [viewingImageSaleId, setViewingImageSaleId] = useState<string | null>(null);
+  const [viewingImageInitialIdx, setViewingImageInitialIdx] = useState<number>(0);
   const [wholesalePrices, setWholesalePrices] = useState<Record<string, number>>({});
   const [indexErrorUrl, setIndexErrorUrl] = useState<string | null>(null); 
 
@@ -1310,6 +1314,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
             shipperId: selectedShipperId || null, 
             shipperName: shippers.find(s => s.id === selectedShipperId)?.name || null, 
             issueInvoice: issueInvoice || false, 
+            deliveryImages: deliveryImages || [],
             createdAt: finalCreatedAt, 
             creatorName: user?.displayName || user?.email || 'POS' 
           });
@@ -1388,6 +1393,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           setIsDebt(false); 
           setAmountPaidInput(''); 
           setIssueInvoice(false); 
+          setDeliveryImages([]);
           if (isSellingToSupplier) {
               setSelectedSupplierId('');
               setSupplierSearchTerm('');
@@ -1630,8 +1636,17 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
         <SaleDetailModal 
           isOpen={isDetailModalOpen} 
           onClose={() => setIsDetailModalOpen(false)} 
-          sale={selectedSaleDetail} 
+          sale={todaySales.find(s => s.id === selectedSaleDetail?.id) || selectedSaleDetail} 
           userRole={userRole} 
+        />
+        <DeliveryImageViewerModal
+          isOpen={!!viewingImageSaleId}
+          onClose={() => setViewingImageSaleId(null)}
+          images={(todaySales.find(s => s.id === viewingImageSaleId)?.deliveryImages) || []}
+          initialIndex={viewingImageInitialIdx}
+          saleId={viewingImageSaleId || undefined}
+          orderId={viewingImageSaleId ? viewingImageSaleId.substring(0, 8).toUpperCase() : undefined}
+          customerName={todaySales.find(s => s.id === viewingImageSaleId)?.customerName}
         />
         <SalePrintPreviewModal
           isOpen={isPrintModalOpen}
@@ -2049,6 +2064,13 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                     />
                                 </div>
                             </div>
+                            <DeliveryImageUploadSection
+                                images={deliveryImages}
+                                onChange={setDeliveryImages}
+                                compact
+                                title="Ảnh chụp giao hàng (Đơn tạo mới)"
+                                customerName={isSellingToSupplier ? (supplierSearchTerm || 'Nhà cung cấp') : (customerSearchTerm || 'Khách vãng lai')}
+                            />
                         </div>
                         <div className="flex gap-2 shrink-0">
                             <div className="relative flex-1">
@@ -2311,8 +2333,15 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                             )}
                         </div>
                     )})}
-                    <div className="p-3 bg-white flex-shrink-0 shadow-2xs border-t border-slate-200">
-                        <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div className="p-3 bg-white flex-shrink-0 shadow-2xs border-t border-slate-200 space-y-3">
+                        <DeliveryImageUploadSection
+                            images={deliveryImages}
+                            onChange={setDeliveryImages}
+                            compact
+                            title="Ảnh chụp giao hàng"
+                            customerName={isSellingToSupplier ? (supplierSearchTerm || 'Nhà cung cấp') : (customerSearchTerm || 'Khách vãng lai')}
+                        />
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Phí vận chuyển</span>
                               <div className="relative">
@@ -2436,6 +2465,28 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                 <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs shrink-0 ${shipColor}`}>{shipLabel}</span>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setViewingImageInitialIdx(0);
+                                                        setViewingImageSaleId(sale.id);
+                                                    }}
+                                                    className={`px-1.5 py-1 rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer ${
+                                                        sale.deliveryImages && sale.deliveryImages.length > 0
+                                                            ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xs'
+                                                            : 'bg-white/20 hover:bg-emerald-500 hover:text-white text-white'
+                                                    }`}
+                                                    title={
+                                                        sale.deliveryImages && sale.deliveryImages.length > 0
+                                                            ? `Xem ${sale.deliveryImages.length} ảnh chụp giao hàng của đơn này`
+                                                            : 'Chụp / Tải lên ảnh giao hàng cho đơn này'
+                                                    }
+                                                >
+                                                    <Camera size={12} />
+                                                    {sale.deliveryImages && sale.deliveryImages.length > 0 && (
+                                                        <span>{sale.deliveryImages.length}</span>
+                                                    )}
+                                                </button>
                                                 <button onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>
                                                 <button onClick={() => { setSelectedSaleDetail(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
                                                 <button 
@@ -2485,6 +2536,37 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                             <div className="flex justify-between items-center pt-1 border-t border-dashed border-slate-200">
                                                 <span className="text-[10px] font-black text-slate-400 uppercase">Phí vận chuyển:</span>
                                                 <span className="text-[10px] font-black text-black">{formatNumber(sale.shippingFee || 0)} ₫</span>
+                                            </div>
+                                        )}
+                                        {sale.deliveryImages && sale.deliveryImages.length > 0 && (
+                                            <div className="pt-2 border-t border-dashed border-emerald-200 flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                                                    {sale.deliveryImages.map((imgUrl, imgIdx) => (
+                                                        <button
+                                                            key={imgIdx}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setViewingImageInitialIdx(imgIdx);
+                                                                setViewingImageSaleId(sale.id);
+                                                            }}
+                                                            className="relative w-10 h-10 rounded-lg overflow-hidden border border-emerald-400 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs"
+                                                            title={`Xem ảnh giao hàng #${imgIdx + 1}`}
+                                                        >
+                                                            <img src={imgUrl} alt={`Giao hàng ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setViewingImageInitialIdx(0);
+                                                        setViewingImageSaleId(sale.id);
+                                                    }}
+                                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black uppercase flex items-center gap-1 shrink-0 transition cursor-pointer"
+                                                >
+                                                    <Camera size={12} className="text-emerald-600" />
+                                                    <span>Xem ảnh ({sale.deliveryImages.length})</span>
+                                                </button>
                                             </div>
                                         )}
                                     </div>

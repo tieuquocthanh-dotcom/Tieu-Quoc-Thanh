@@ -1,13 +1,15 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sale, Product, PaymentHistoryEntry, PaymentMethod } from '../types';
-import { X, User, Warehouse, CreditCard, Truck, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, Wallet, StickyNote, Landmark, Clock } from 'lucide-react';
+import { X, User, Warehouse, CreditCard, Truck, Calendar, Hash, FileText, ShoppingCart, FileCheck2, FileX2, Printer, Trash2, Edit, Save, AlertCircle, Loader, UserCircle, Info, History, Coins, Wallet, StickyNote, Landmark, Clock, Camera, Eye, Plus, Image as ImageIcon } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
-import { doc, writeBatch, increment, getDoc, collection, query, getDocs } from 'firebase/firestore';
+import { doc, writeBatch, increment, getDoc, collection, query, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import ConfirmationModal from './ConfirmationModal';
 import SalePrintPreviewModal from './SalePrintPreviewModal';
 import QuickDebtPayModal from './QuickDebtPayModal';
+import { DeliveryImageViewerModal } from './DeliveryImageViewerModal';
+import { compressMultipleImages } from '../utils/imageCompression';
 import * as XLSX from 'xlsx';
 
 interface SaleDetailModalProps {
@@ -34,6 +36,16 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [isPayDebtModalOpen, setIsPayDebtModalOpen] = useState(false);
   const [localPaymentMethods, setLocalPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [localDeliveryImages, setLocalDeliveryImages] = useState<string[]>([]);
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  const [imageViewerIdx, setImageViewerIdx] = useState(0);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+
+  useEffect(() => {
+    if (sale) {
+      setLocalDeliveryImages(sale.deliveryImages || []);
+    }
+  }, [sale]);
 
   useEffect(() => {
     if (propPaymentMethods && propPaymentMethods.length > 0) {
@@ -218,6 +230,44 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
   };
 
   if (!isOpen || !sale) return null;
+
+  const handleQuickUploadDeliveryImages = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !sale) return;
+    setIsUploadingImages(true);
+    try {
+      const compressed = await compressMultipleImages(files);
+      if (compressed.length > 0) {
+        const updated = [...localDeliveryImages, ...compressed];
+        setLocalDeliveryImages(updated);
+        await updateDoc(doc(db, 'sales', sale.id), {
+          deliveryImages: updated,
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (err: any) {
+      console.error("Lỗi tải ảnh giao hàng:", err);
+      alert("Không thể tải ảnh giao hàng: " + (err.message || err));
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const handleRemoveDeliveryImage = async (idxToRemove: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!sale) return;
+    if (!window.confirm("Bạn có chắc chắn muốn xóa ảnh giao hàng này?")) return;
+    const updated = localDeliveryImages.filter((_, idx) => idx !== idxToRemove);
+    setLocalDeliveryImages(updated);
+    try {
+      await updateDoc(doc(db, 'sales', sale.id), {
+        deliveryImages: updated,
+        updatedAt: serverTimestamp()
+      });
+    } catch (err: any) {
+      console.error("Lỗi xóa ảnh:", err);
+      alert("Không thể xóa ảnh: " + (err.message || err));
+    }
+  };
   
   const confirmDeleteSale = async () => {
     setIsProcessing(true);
@@ -421,6 +471,102 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
                     </div>
                 </div>
 
+                <div className="bg-white rounded-2xl border-2 border-emerald-200 shadow-sm overflow-hidden">
+                    <div className="bg-emerald-50/80 p-3.5 text-slate-800 flex flex-wrap justify-between items-center gap-2 border-b-2 border-emerald-200">
+                        <div className="flex items-center gap-2">
+                            <Camera className="text-emerald-600" size={18} />
+                            <h4 className="text-xs font-black uppercase tracking-tight text-emerald-950">
+                                Hình ảnh chụp giao hàng ({localDeliveryImages.length} ảnh)
+                            </h4>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {localDeliveryImages.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setImageViewerIdx(0);
+                                        setIsImageViewerOpen(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                                >
+                                    <Eye size={14} />
+                                    <span>Xem phóng to</span>
+                                </button>
+                            )}
+                            <label className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-xs">
+                                {isUploadingImages ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
+                                <span>Chụp ảnh</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={(e) => {
+                                        handleQuickUploadDeliveryImages(e.target.files);
+                                        e.target.value = '';
+                                    }}
+                                    className="hidden"
+                                />
+                            </label>
+                            <label className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-xs">
+                                {isUploadingImages ? <Loader size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+                                <span>Tải ảnh lên</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => {
+                                        handleQuickUploadDeliveryImages(e.target.files);
+                                        e.target.value = '';
+                                    }}
+                                    className="hidden"
+                                />
+                            </label>
+                        </div>
+                    </div>
+                    <div className="p-4">
+                        {localDeliveryImages.length === 0 ? (
+                            <div className="py-6 text-center text-slate-400 text-xs font-bold flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                <Camera size={28} className="text-slate-300" />
+                                <span>Đơn hàng này chưa có ảnh chụp giao hàng. Bấm "Chụp ảnh" hoặc "Tải ảnh lên" để thêm.</span>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                                {localDeliveryImages.map((imgUrl, idx) => (
+                                    <div
+                                        key={idx}
+                                        onClick={() => {
+                                            setImageViewerIdx(idx);
+                                            setIsImageViewerOpen(true);
+                                        }}
+                                        className="relative group aspect-square rounded-xl overflow-hidden border-2 border-emerald-400 shadow-xs cursor-pointer bg-slate-100"
+                                        title="Nhấp để xem ảnh lớn"
+                                    >
+                                        <img
+                                            src={imgUrl}
+                                            alt={`Ảnh giao hàng ${idx + 1}`}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                            <Eye size={22} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                                        </div>
+                                        <span className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-black">
+                                            Ảnh #{idx + 1}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleRemoveDeliveryImage(idx, e)}
+                                            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-md cursor-pointer"
+                                            title="Xóa ảnh này"
+                                        >
+                                            <X size={13} strokeWidth={3} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm overflow-hidden">
                     <div className="bg-slate-100 p-3 text-slate-800 flex justify-between items-center border-b-2 border-slate-200">
                         <h4 className="text-xs font-black uppercase flex items-center tracking-tighter">
@@ -543,6 +689,17 @@ const SaleDetailModal: React.FC<SaleDetailModalProps> = ({ isOpen, onClose, sale
             isOpen={isPrintPreviewOpen}
             onClose={() => setIsPrintPreviewOpen(false)}
             sale={sale}
+        />
+
+        <DeliveryImageViewerModal
+            isOpen={isImageViewerOpen}
+            onClose={() => setIsImageViewerOpen(false)}
+            images={localDeliveryImages}
+            initialIndex={imageViewerIdx}
+            saleId={sale.id}
+            orderId={sale.id.substring(0, 8).toUpperCase()}
+            customerName={sale.customerName}
+            onImagesChange={setLocalDeliveryImages}
         />
 
         <QuickDebtPayModal

@@ -121,6 +121,7 @@ export interface Sale {
   shipperName?: string;
   shippingFee?: number;
   shippingStatus?: string;
+  deliveryImages?: string[];
   status?: string;
   issueInvoice?: boolean;
   total?: number;

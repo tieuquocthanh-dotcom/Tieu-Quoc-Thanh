@@ -14,6 +14,7 @@ import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import { filterAndSortCustomers } from '../utils/vietnameseSearch';
 import CustomerModal from './CustomerModal';
+import { DeliveryImageUploadSection } from './DeliveryImageViewerModal';
 
 interface SaleEditModalProps {
   isOpen: boolean;
@@ -118,6 +119,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
   const [shippingFee, setShippingFee] = useState(0);
   const [saleDate, setSaleDate] = useState(getTodayString()); 
   const [issueInvoice, setIssueInvoice] = useState(false);
+  const [deliveryImages, setDeliveryImages] = useState<string[]>([]);
   
   // Products & Items
   const [editedItems, setEditedItems] = useState<SaleItem[]>([]);
@@ -148,6 +150,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
       setShippingMode((sale.shippingStatus as any) || 'none');
       setShippingFee(sale.shippingFee || 0);
       setIssueInvoice(sale.issueInvoice || false);
+      setDeliveryImages(sale.deliveryImages ? [...sale.deliveryImages] : []);
       setEditedItems(sale.items ? JSON.parse(JSON.stringify(sale.items)) : []);
       
       if (sale.createdAt) {
@@ -665,6 +668,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
           shipperName: selectedShipper ? selectedShipper.name : null,
           status: newStatus,
           shippingStatus: shippingMode,
+          deliveryImages: deliveryImages,
           createdAt: finalCreatedAt, 
           amountPaid: newTotalPaid,
           paymentHistory: finalPaymentHistory,
@@ -936,6 +940,15 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
                 Xuất hóa đơn đỏ
               </label>
             </div>
+
+            {/* PHẦN UPLOAD & XEM ẢNH CHỤP GIAO HÀNG */}
+            <DeliveryImageUploadSection
+              images={deliveryImages}
+              onChange={setDeliveryImages}
+              title="Ảnh chụp giao hàng của đơn hàng"
+              orderId={sale.id.substring(0, 8).toUpperCase()}
+              customerName={custSearch || sale.customerName}
+            />
           </div>
 
           {/* PHẦN 2: CHI TIẾT HÀNG HÓA */}
