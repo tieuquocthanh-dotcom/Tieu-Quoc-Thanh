@@ -3,7 +3,7 @@ import {
   Search, X, ShoppingCart, Archive, LayoutDashboard, Wallet, PiggyBank, Landmark,
   PackageSearch, ClipboardList, Plane, CheckCheck, BarChart2, History, BarChart3,
   PieChart, Package, FileText, Contact, Users, Warehouse, Truck, Send, AlertTriangle,
-  Bell, StickyNote, UserCircle, Building, CreditCard, LogOut, Grid, Sparkles, Monitor, Tags
+  Bell, StickyNote, UserCircle, Building, CreditCard, LogOut, Grid, Sparkles, Monitor, Tags, Database
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { View } from '../../types';
@@ -129,7 +129,7 @@ export const StartMenu: React.FC<StartMenuProps> = ({
 
   // Quick pinned top apps
   const pinnedApps = useMemo(() => {
-    const pinnedIds: View[] = ['sales', 'goodsReceipt', 'productAnalytics', 'debtManagement', 'products', 'inventoryMatrix', 'accounts'];
+    const pinnedIds: View[] = ['sales', 'goodsReceipt', 'productAnalytics', 'debtManagement', 'products', 'backupRestore'];
     return apps.filter(a => pinnedIds.includes(a.id) && (userRole === 'admin' || !a.adminOnly));
   }, [apps, userRole]);
 
@@ -328,6 +328,7 @@ export const getAppIcon = (name: string, size = 18) => {
     case 'manufacturers': return <Building size={size} />;
     case 'productCategories': return <Tags size={size} />;
     case 'paymentMethods': return <CreditCard size={size} />;
+    case 'backupRestore': return <Database size={size} />;
     default: return <Monitor size={size} />;
   }
 };

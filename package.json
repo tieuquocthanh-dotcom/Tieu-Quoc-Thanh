@@ -12,6 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "firebase": "^12.18.0",
+    "jszip": "^3.10.2",
     "lucide-react": "^0.553.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",

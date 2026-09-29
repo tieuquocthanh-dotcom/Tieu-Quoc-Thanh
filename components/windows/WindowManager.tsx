@@ -39,6 +39,7 @@ import SavingsManagement from '../SavingsManagement';
 import RestockPredictions from '../RestockPredictions';
 import ProductInvoiceManagement from '../ProductInvoiceManagement';
 import ProductCategoryManagement from '../ProductCategoryManagement';
+import BackupRestoreManagement from '../BackupRestoreManagement';
 import MobileAppSwitcher from './MobileAppSwitcher';
 
 const APP_TITLES: Partial<Record<View, string>> = {
@@ -72,6 +73,7 @@ const APP_TITLES: Partial<Record<View, string>> = {
   users: 'Quản Lý Nhân Viên',
   notes: 'Ghi Chú Công Việc',
   paymentMethods: 'Phương Thức Thanh Toán',
+  backupRestore: 'Sao Lưu & Phục Hồi (DB & Code)',
 };
 
 const getInitialWindowState = (initialView?: View): { windows: WindowState[]; activeId: string | null } => {
@@ -501,6 +503,21 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       color: 'bg-zinc-600',
       adminOnly: true,
       defaultSize: { width: 940, height: 620 }
+    },
+    {
+      id: 'backupRestore',
+      title: 'Sao Lưu & Phục Hồi (DB & Code)',
+      category: 'he_thong',
+      categoryLabel: 'Sao lưu & Bảo mật',
+      iconName: 'backupRestore',
+      color: 'bg-emerald-600',
+      adminOnly: true,
+      keywords: [
+        'sao lưu', 'sao luu', 'phục hồi', 'phuc hoi', 'khôi phục', 'khoi phuc',
+        'backup', 'restore', 'database', 'code', 'source code', 'mã nguồn', 'ma nguon',
+        'download', 'tải về', 'tai ve', 'zip', 'json'
+      ],
+      defaultSize: { width: 1180, height: 750 }
     }
   ], [unreadSalesCount, unreadReceiptsCount]);
 
@@ -773,6 +790,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       case 'savings': return <SavingsManagement user={user} />;
       case 'restockPredictions': return <RestockPredictions />;
       case 'productInvoices': return <ProductInvoiceManagement userRole={userRole} user={user} />;
+      case 'backupRestore': return <BackupRestoreManagement user={user} />;
       default: return <SalesTerminal userRole={userRole} user={user} unreadCount={unreadSalesCount} onMarkAsRead={onMarkSalesAsRead} />;
     }
   };

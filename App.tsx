@@ -37,8 +37,9 @@ import SavingsManagement from './components/SavingsManagement';
 import RestockPredictions from './components/RestockPredictions';
 import ProductInvoiceManagement from './components/ProductInvoiceManagement';
 import ProductCategoryManagement from './components/ProductCategoryManagement';
+import BackupRestoreManagement from './components/BackupRestoreManagement';
 import WindowManager from './components/windows/WindowManager';
-import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw, Monitor, AppWindow, Tags } from 'lucide-react';
+import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw, Monitor, AppWindow, Tags, Database } from 'lucide-react';
 import { View } from './types';
 
 const App: React.FC = () => {
@@ -203,7 +204,7 @@ const App: React.FC = () => {
                       'debtManagement', 'users', 'quotations', 'chinaImport', 
                       'productAnalytics', 'supplierAnalytics', 'customerAnalytics', 'inventoryLedger', 
                       'priceComparison', 'supplierPaymentHistory', 'plannedOrders', 'notes', 'savings',
-                      'productInvoices', 'productCategories'
+                      'productInvoices', 'productCategories', 'backupRestore'
                   ];
                   
                   if (role === 'staff' && adminOnlyViews.includes(view)) {
@@ -411,6 +412,7 @@ const App: React.FC = () => {
       case 'savings': return <SavingsManagement user={user} />;
       case 'restockPredictions': return <RestockPredictions />;
       case 'productInvoices': return <ProductInvoiceManagement userRole={userRole} user={user} />;
+      case 'backupRestore': return <BackupRestoreManagement user={user} />;
       default: return <SalesTerminal userRole={userRole} user={user} />;
     }
   };
@@ -664,8 +666,9 @@ const App: React.FC = () => {
                     ]
                 },
                 {
-                    title: "Cấu Hình",
+                    title: "Cấu Hình & Sao Lưu",
                     items: [
+                        { targetView: "backupRestore" as View, icon: <Database size={16}/>, label: "Sao Lưu & Phục Hồi (DB & Code)" },
                         { targetView: "users" as View, icon: <UserCircle size={16}/>, label: "Quản Lý Người Dùng" },
                         { targetView: "manufacturers" as View, icon: <Building size={16}/>, label: "Hãng Sản Xuất" },
                         { targetView: "productCategories" as View, icon: <Tags size={16}/>, label: "Loại Sản Phẩm" },

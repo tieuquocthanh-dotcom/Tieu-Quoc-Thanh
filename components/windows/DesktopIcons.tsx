@@ -34,7 +34,8 @@ export const DesktopIcons: React.FC<DesktopIconsProps> = ({
       'suppliers',
       'inventoryLedger',
       'notes',
-      'chinaImport'
+      'chinaImport',
+      'backupRestore'
     ];
     // Preserve ordering of prioritized list on desktop
     return prioritized
