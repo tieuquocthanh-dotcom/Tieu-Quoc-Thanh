@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { PlusCircle, Edit, Trash2, StickyNote, Search, Pin } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, StickyNote, Search, Pin, X } from 'lucide-react';
 import Pagination from './Pagination';
 import ConfirmationModal from './ConfirmationModal';
 import { User } from 'firebase/auth';
@@ -154,9 +154,14 @@ const NoteManagement: React.FC<{ user: User | null }> = ({ user }) => {
       </div>
 
       {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-              <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl animate-fade-in-down">
-                  <h2 className="text-2xl font-black mb-6 uppercase text-dark">{editingItem ? 'Sửa Ghi Chú' : 'Thêm Ghi Chú Mới'}</h2>
+          <div onClick={() => setIsModalOpen(false)} className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+              <div onClick={e => e.stopPropagation()} className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl animate-fade-in-down">
+                  <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-black uppercase text-dark">{editingItem ? 'Sửa Ghi Chú' : 'Thêm Ghi Chú Mới'}</h2>
+                      <button type="button" onClick={() => setIsModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors" aria-label="Đóng">
+                          <X size={22} />
+                      </button>
+                  </div>
                   <form onSubmit={handleSave}>
                       <div className="mb-4">
                         <label className="block text-sm font-black text-slate-500 uppercase mb-2">Tiêu đề</label>
@@ -181,7 +186,26 @@ const NoteManagement: React.FC<{ user: User | null }> = ({ user }) => {
               </div>
           </div>
       )}
-      <ConfirmationModal isOpen={isConfirmOpen} title="Xóa Ghi Chú" message={`Bạn có chắc muốn xóa ghi chú "${itemToDelete?.title}"?`} onConfirm={async () => { if(itemToDelete) await deleteDoc(doc(db, "notes", itemToDelete.id)); setIsConfirmOpen(false); }} onCancel={() => setIsConfirmOpen(false)} confirmText="Xóa" cancelText="Hủy" />
+      <ConfirmationModal
+        isOpen={isConfirmOpen}
+        title="Xóa Ghi Chú"
+        message={`Bạn có chắc muốn xóa ghi chú "${itemToDelete?.title}"?`}
+        onConfirm={async () => {
+          if (itemToDelete) await deleteDoc(doc(db, "notes", itemToDelete.id));
+          setIsConfirmOpen(false);
+          setItemToDelete(null);
+        }}
+        onClose={() => {
+          setIsConfirmOpen(false);
+          setItemToDelete(null);
+        }}
+        onCancel={() => {
+          setIsConfirmOpen(false);
+          setItemToDelete(null);
+        }}
+        confirmText="Xóa"
+        cancelText="Hủy"
+      />
     </div>
   );
 };
