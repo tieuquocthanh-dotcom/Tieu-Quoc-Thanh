@@ -1847,8 +1847,8 @@ const DebtManagement: React.FC = () => {
 
             {/* SELECTION SUMMARY BAR (FLOATING) */}
             {selectedIds.size > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-40 animate-fade-in-up">
-                    <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="fixed bottom-6 inset-x-0 flex justify-center px-4 z-40 pointer-events-none">
+                    <div className="w-full max-w-2xl pointer-events-auto bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4 animate-fade-in-up">
                         <div className="flex items-center gap-4">
                             <div className="bg-primary/20 p-2 rounded-xl">
                                 <CheckSquare size={32} className="text-primary" />
@@ -1874,10 +1874,10 @@ const DebtManagement: React.FC = () => {
 
             <style>{`
                 @keyframes fade-in-up {
-                    0% { opacity: 0; transform: translate(-50%, 20px); }
-                    100% { opacity: 1; transform: translate(-50%, 0); }
+                    0% { opacity: 0; transform: translateY(12px); }
+                    100% { opacity: 1; transform: translateY(0); }
                 }
-                .animate-fade-in-up { animation: fade-in-up 0.3s ease-out forwards; }
+                .animate-fade-in-up { animation: fade-in-up 0.22s ease-out forwards; }
             `}</style>
         </div>
     );

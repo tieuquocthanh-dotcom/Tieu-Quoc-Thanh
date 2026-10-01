@@ -139,7 +139,8 @@ export const StartMenu: React.FC<StartMenuProps> = ({
     <div
       ref={menuRef}
       id="windows-start-menu"
-      className="fixed bottom-14 left-2 sm:left-4 w-[95vw] max-w-[620px] h-[580px] max-h-[82vh] bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl z-[9999] flex flex-col overflow-hidden text-white animate-fade-in-up"
+      style={{ left: '12px', right: 'auto' }}
+      className="fixed bottom-14 left-3 w-[calc(100vw-24px)] max-w-[620px] h-[580px] max-h-[82vh] bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl z-[9999] flex flex-col overflow-hidden text-white animate-fade-in-up"
     >
       {/* Header with Search Bar */}
       <div className="p-4 border-b border-slate-800 shrink-0 bg-slate-900/60">
