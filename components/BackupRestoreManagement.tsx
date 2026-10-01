@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
 
-// Load all project source files as raw strings via Vite import.meta.glob
+// Load all project source files as raw strings eagerly via Vite import.meta.glob
 const sourceFilesGlob = import.meta.glob(
   [
     '/App.tsx',
@@ -57,8 +57,8 @@ const sourceFilesGlob = import.meta.glob(
     '/types/**/*.{ts,tsx}',
     '/components/**/*.{ts,tsx}',
   ],
-  { query: '?raw', import: 'default' }
-) as Record<string, () => Promise<string>>;
+  { query: '?raw', import: 'default', eager: true }
+) as Record<string, string>;
 
 export interface CollectionMeta {
   key: string;
@@ -493,16 +493,13 @@ const BackupRestoreManagement: React.FC<{ user: User | null }> = ({ user }) => {
   // Load source code file when previewing
   useEffect(() => {
     if (!isCodeViewerOpen || !selectedSourcePath) return;
-    const loader = sourceFilesGlob[selectedSourcePath];
-    if (!loader) {
+    const rawContent = sourceFilesGlob[selectedSourcePath];
+    if (typeof rawContent !== 'string') {
       setSelectedSourceContent('// Không tìm thấy nội dung file');
       return;
     }
-    setIsLoadingSourceFile(true);
-    loader()
-      .then((raw) => setSelectedSourceContent(raw))
-      .catch(() => setSelectedSourceContent('// Lỗi khi đọc file'))
-      .finally(() => setIsLoadingSourceFile(false));
+    setIsLoadingSourceFile(false);
+    setSelectedSourceContent(rawContent);
   }, [isCodeViewerOpen, selectedSourcePath]);
 
   const totalLiveDocuments = (Object.values(liveCounts) as number[]).reduce(
@@ -578,7 +575,8 @@ const BackupRestoreManagement: React.FC<{ user: User | null }> = ({ user }) => {
         } else if (Array.isArray(v)) {
           if (
             k === 'deliveryImages' ||
-            k === 'receiptImages'
+            k === 'receiptImages' ||
+            k === 'images'
           ) {
             out[k] = `[${v.length} hình ảnh]`;
           } else {
@@ -636,7 +634,7 @@ const BackupRestoreManagement: React.FC<{ user: User | null }> = ({ user }) => {
   ) => {
     const entries = Object.entries(sourceFilesGlob);
     for (let i = 0; i < entries.length; i++) {
-      const [filePath, loader] = entries[i];
+      const [filePath, content] = entries[i];
       const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
       if (i % 8 === 0) {
         onProgress?.(
@@ -644,11 +642,8 @@ const BackupRestoreManagement: React.FC<{ user: User | null }> = ({ user }) => {
           `Đang đóng gói mã nguồn: ${cleanPath} (${i + 1}/${entries.length})...`
         );
       }
-      try {
-        const content = await loader();
+      if (typeof content === 'string') {
         zipFolder.file(cleanPath, content);
-      } catch (err) {
-        console.warn('Could not read file for zip:', cleanPath, err);
       }
     }
 

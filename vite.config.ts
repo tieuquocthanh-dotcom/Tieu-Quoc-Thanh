@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => {
       plugins: [react(), tailwindcss()],
       build: {
         target: 'es2020',
-        cssTarget: 'chrome80'
+        cssTarget: 'chrome80',
+        chunkSizeWarningLimit: 5000
       },
       optimizeDeps: {
         esbuildOptions: {

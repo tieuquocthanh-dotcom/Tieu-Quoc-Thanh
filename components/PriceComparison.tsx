@@ -96,22 +96,23 @@ const PriceComparison: React.FC = () => {
         if (item && data.createdAt) {
           const date = data.createdAt.toDate();
           const price = item.importPrice;
+          const supName = data.supplierName || 'Không rõ';
           
           // Add to raw history
           rawHistory.push({
             receiptId: doc.id,
             date: date,
-            supplierName: data.supplierName,
+            supplierName: supName,
             price: price,
             quantity: item.quantity
           });
 
           // Group for Supplier Stats
-          if (!supplierMap.has(data.supplierName)) {
-            supplierMap.set(data.supplierName, { prices: [], lastDate: date, lastPrice: price });
+          if (!supplierMap.has(supName)) {
+            supplierMap.set(supName, { prices: [], lastDate: date, lastPrice: price });
           }
           
-          const supEntry = supplierMap.get(data.supplierName)!;
+          const supEntry = supplierMap.get(supName)!;
           supEntry.prices.push(price);
           // Update last date/price if this receipt is newer
           if (date > supEntry.lastDate) {

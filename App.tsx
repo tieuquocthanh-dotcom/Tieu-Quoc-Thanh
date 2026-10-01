@@ -548,7 +548,7 @@ const App: React.FC = () => {
             </div>
 
             <button 
-              onClick={handleRefresh}
+              onClick={() => handleRefresh()}
               title="Làm mới / Tải lại hệ thống"
               className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-100 active:scale-95 rounded-lg border border-slate-200 hover:border-primary/40 transition-all shadow-sm flex items-center justify-center shrink-0 self-center"
             >

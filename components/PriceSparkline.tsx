@@ -16,8 +16,8 @@ const PriceSparkline: React.FC<Props> = ({ data }) => {
                     <XAxis dataKey="date" hide />
                     <YAxis domain={['auto', 'auto']} hide />
                     <Tooltip 
-                        labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                        formatter={(value: number) => [value.toLocaleString(), 'Giá']}
+                        labelFormatter={(value) => new Date(Number(value || 0)).toLocaleDateString()}
+                        formatter={(value: any) => [Number(value || 0).toLocaleString(), 'Giá']}
                     />
                     <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2} dot={false} />
                 </LineChart>

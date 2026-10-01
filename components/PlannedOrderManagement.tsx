@@ -17,7 +17,8 @@ const STATUS_CONFIG: Record<PlannedOrderStatus, { label: string, color: string, 
     ordered: { label: 'Đã đặt hàng', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: CheckCircle2 },
     shipped: { label: 'Đã chuyển hàng', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck },
     received_full: { label: 'Đã nhận đủ', color: 'bg-green-100 text-green-700 border-green-200', icon: PackageCheck },
-    received_missing: { label: 'Nhận thiếu hàng', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertCircle }
+    received_missing: { label: 'Nhận thiếu hàng', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertCircle },
+    completed: { label: 'Hoàn tất', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 }
 };
 
 const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {

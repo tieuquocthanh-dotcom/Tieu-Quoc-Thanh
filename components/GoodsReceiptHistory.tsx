@@ -274,19 +274,20 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                 if (!accSnap.exists()) throw new Error("Tài khoản thanh toán không tồn tại.");
                 
                 const currentBal = accSnap.data().balance || 0;
-                if (currentBal < receipt.total) {
-                    throw new Error(`Số dư tài khoản "${receipt.paymentMethodName || ''}" (${formatNumber(currentBal)} ₫) không đủ để thanh toán ${formatNumber(receipt.total)} ₫!`);
+                const receiptTotal = receipt.total || 0;
+                if (currentBal < receiptTotal) {
+                    throw new Error(`Số dư tài khoản "${receipt.paymentMethodName || ''}" (${formatNumber(currentBal)} ₫) không đủ để thanh toán ${formatNumber(receiptTotal)} ₫!`);
                 }
-                const newBal = currentBal - receipt.total;
+                const newBal = currentBal - receiptTotal;
                 transaction.update(accRef, { balance: newBal });
-                transaction.update(receiptRef, { paymentStatus: 'paid', paidAt: serverTimestamp(), amountPaid: receipt.total });
+                transaction.update(receiptRef, { paymentStatus: 'paid', paidAt: serverTimestamp(), amountPaid: receiptTotal });
 
                 const logRef = doc(collection(db, 'paymentLogs'));
                 transaction.set(logRef, {
                     paymentMethodId: receipt.paymentMethodId,
                     paymentMethodName: receipt.paymentMethodName || 'N/A',
                     type: 'withdraw',
-                    amount: receipt.total,
+                    amount: receiptTotal,
                     balanceAfter: newBal,
                     note: `Thanh toán nợ NCC: ${receipt.supplierName}_ mã ${shortId}`,
                     relatedId: receipt.id,
@@ -301,7 +302,7 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
                     const accSnap = await transaction.get(accRef);
                     if (accSnap.exists()) {
                         const currentBal = accSnap.data().balance || 0;
-                        const refundAmount = receipt.amountPaid !== undefined ? receipt.amountPaid : receipt.total;
+                        const refundAmount = (receipt.amountPaid !== undefined ? receipt.amountPaid : receipt.total) || 0;
                         if (refundAmount > 0) {
                             const newBal = currentBal + refundAmount;
                             transaction.update(accRef, { balance: newBal });

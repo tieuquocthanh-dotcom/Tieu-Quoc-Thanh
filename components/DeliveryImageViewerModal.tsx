@@ -36,6 +36,7 @@ interface DeliveryImageViewerModalProps {
   customerName?: string;
   saleId?: string; // Nếu truyền saleId, tự động lưu thẳng vào đơn bán hàng trên Firestore
   receiptId?: string; // Nếu truyền receiptId, tự động lưu thẳng vào phiếu nhập hàng trên Firestore
+  noteId?: string; // Nếu truyền noteId, tự động lưu thẳng vào ghi chú hệ thống trên Firestore
   partnerLabel?: string;
   onImagesChange?: (newImages: string[]) => void;
   readOnly?: boolean;
@@ -50,6 +51,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
   customerName,
   saleId,
   receiptId,
+  noteId,
   partnerLabel,
   onImagesChange,
   readOnly = false
@@ -98,18 +100,37 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
   if (!isOpen) return null;
 
   const isReceipt = !!receiptId;
-  const docTargetId = receiptId || saleId;
-  const effectivePartnerLabel = partnerLabel || (isReceipt ? 'Nhà cung cấp' : 'Khách hàng');
-  const docLabel = isReceipt ? 'Phiếu nhập' : 'Đơn hàng';
-  const imageLabel = isReceipt ? 'ảnh nhập hàng' : 'ảnh giao hàng';
+  const isNote = !!noteId;
+  const docTargetId = noteId || receiptId || saleId;
+  const effectivePartnerLabel = partnerLabel || (isNote ? 'Ghi chú' : isReceipt ? 'Nhà cung cấp' : 'Khách hàng');
+  const docLabel = isNote ? 'Ghi chú' : isReceipt ? 'Phiếu nhập' : 'Đơn hàng';
+  const imageLabel = isNote ? 'ảnh ghi chú' : isReceipt ? 'ảnh nhập hàng' : 'ảnh giao hàng';
 
-  const canModify = !readOnly && (!!saleId || !!receiptId || !!onImagesChange);
+  const canModify = !readOnly && (!!saleId || !!receiptId || !!noteId || !!onImagesChange);
   const currentImage = localImages[currentIndex] || null;
 
   const persistImages = async (updated: string[], successText: string) => {
     setLocalImages(updated);
     onImagesChange?.(updated);
-    if (receiptId) {
+    if (noteId) {
+      try {
+        setIsUploading(true);
+        setUploadStatus(null);
+        await updateDoc(doc(db, 'notes', noteId), {
+          images: updated,
+          updatedAt: serverTimestamp()
+        });
+        setUploadStatus({ type: 'success', message: successText });
+      } catch (err: any) {
+        console.error('Lỗi cập nhật ảnh ghi chú:', err);
+        setUploadStatus({
+          type: 'error',
+          message: 'Lưu ảnh thất bại: ' + (err.message || 'Lỗi kết nối cơ sở dữ liệu')
+        });
+      } finally {
+        setIsUploading(false);
+      }
+    } else if (receiptId) {
       try {
         setIsUploading(true);
         setUploadStatus(null);
@@ -220,7 +241,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
     if (!currentImage) return;
     const link = document.createElement('a');
     link.href = currentImage;
-    link.download = `anh-${isReceipt ? 'nhap-hang' : 'giao-hang'}-${orderId || docTargetId?.substring(0, 8) || 'don-hang'}-${currentIndex + 1}.jpg`;
+    link.download = `anh-${isNote ? 'ghi-chu' : isReceipt ? 'nhap-hang' : 'giao-hang'}-${orderId || docTargetId?.substring(0, 8) || 'don-hang'}-${currentIndex + 1}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -260,7 +281,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-black text-xs sm:text-sm uppercase tracking-tight truncate">
-                {isReceipt ? 'Ảnh nhập hàng' : 'Ảnh giao hàng'} {orderId ? `#${orderId}` : docTargetId ? `#${docTargetId.substring(0, 8).toUpperCase()}` : ''}
+                {isNote ? 'Ảnh ghi chú' : isReceipt ? 'Ảnh nhập hàng' : 'Ảnh giao hàng'} {orderId ? `#${orderId}` : docTargetId ? `#${docTargetId.substring(0, 8).toUpperCase()}` : ''}
               </h3>
               {localImages.length > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[11px] font-black shrink-0">
@@ -556,6 +577,7 @@ interface DeliveryImageUploadSectionProps {
   customerName?: string;
   saleId?: string; // Nếu có saleId (khi đang sửa đơn bán đã tồn tại), tự động lưu ngay vào Firestore khi chọn ảnh!
   receiptId?: string; // Nếu có receiptId (khi đang sửa phiếu nhập đã tồn tại), tự động lưu ngay vào Firestore khi chọn ảnh!
+  noteId?: string; // Nếu có noteId (khi đang sửa ghi chú đã tồn tại), tự động lưu ngay vào Firestore khi chọn ảnh!
   partnerLabel?: string;
 }
 
@@ -568,6 +590,7 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
   customerName,
   saleId,
   receiptId,
+  noteId,
   partnerLabel
 }) => {
   const [isCompressing, setIsCompressing] = useState(false);
@@ -580,7 +603,24 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
 
   const syncToFirestoreIfNeeded = async (updatedImages: string[], actionText: string) => {
     onChange(updatedImages);
-    if (receiptId) {
+    if (noteId) {
+      try {
+        await updateDoc(doc(db, 'notes', noteId), {
+          images: updatedImages,
+          updatedAt: serverTimestamp()
+        });
+        setFeedback({
+          type: 'success',
+          message: `${actionText} Đã lưu trực tiếp vào ghi chú "${customerName || `#${noteId.substring(0, 6).toUpperCase()}`}" (Hiện có ${updatedImages.length} ảnh).`
+        });
+      } catch (err: any) {
+        console.error('Lỗi tự động lưu ảnh vào ghi chú:', err);
+        setFeedback({
+          type: 'error',
+          message: `Lỗi lưu ảnh vào cơ sở dữ liệu: ${err.message || 'Vui lòng bấm Lưu Ghi Chú'}`
+        });
+      }
+    } else if (receiptId) {
       try {
         await updateDoc(doc(db, 'goodsReceipts', receiptId), {
           receiptImages: updatedImages,
@@ -710,6 +750,7 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
         customerName={customerName}
         saleId={saleId}
         receiptId={receiptId}
+        noteId={noteId}
         partnerLabel={partnerLabel}
         onImagesChange={onChange}
       />

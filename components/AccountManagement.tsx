@@ -1284,9 +1284,9 @@ const AccountManagement: React.FC = () => {
                                 <span className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 px-2 py-0.5 rounded">
                                     Cập nhật: {latestLogs[item.id].createdAt?.toDate().toLocaleString('vi-VN')}
                                 </span>
-                                {latestLogs[item.id].note && (
-                                    <span className="text-xs font-medium text-slate-500 mt-1 max-w-[250px] truncate" title={latestLogs[item.id].note}>
-                                        {latestLogs[item.id].note.split('_')[0]}
+                                {latestLogs[item.id]?.note && (
+                                    <span className="text-xs font-medium text-slate-500 mt-1 max-w-[250px] truncate" title={latestLogs[item.id]?.note}>
+                                        {latestLogs[item.id]?.note?.split('_')[0]}
                                     </span>
                                 )}
                             </div>

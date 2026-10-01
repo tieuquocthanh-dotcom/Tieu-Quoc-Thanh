@@ -123,6 +123,7 @@ export interface Sale {
   shipperName?: string;
   shippingFee?: number;
   shippingStatus?: string;
+  shippingPayer?: string;
   deliveryImages?: string[];
   status?: string;
   issueInvoice?: boolean;
@@ -131,6 +132,7 @@ export interface Sale {
   notes?: string;
   note?: string;
   creatorName?: string;
+  paidAt?: Timestamp;
   paymentHistory?: any[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -139,6 +141,7 @@ export interface Sale {
 export interface SaleItem {
   productId: string;
   productName: string;
+  name?: string;
   quantity: number;
   price: number;
   importPrice: number;

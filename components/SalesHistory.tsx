@@ -247,14 +247,14 @@ const DebtPaymentModal: React.FC<{
         if (isOpen && sale) {
             setPaymentDate(getTodayString());
             setSelectedMethodId('');
-            const remaining = sale.total - (sale.amountPaid || 0);
+            const remaining = (sale.total || 0) - (sale.amountPaid || 0);
             setPayAmount(remaining > 0 ? remaining : 0);
         }
     }, [isOpen, sale]);
 
     if (!isOpen || !sale) return null;
 
-    const remaining = sale.total - (sale.amountPaid || 0);
+    const remaining = (sale.total || 0) - (sale.amountPaid || 0);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 animate-fade-in">
@@ -514,7 +514,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
   }, [products, productSearch]);
 
   const stats = useMemo(() => ({
-    total: filteredSales.reduce((a, b) => a + b.total, 0),
+    total: filteredSales.reduce((a, b) => a + (b.total || 0), 0),
     profit: filteredSales.reduce((a, b) => a + b.items.reduce((sum, i) => sum + (i.price - (i.importPrice || 0)) * i.quantity, 0), 0)
   }), [filteredSales]);
 
@@ -538,7 +538,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
               const currentBal = accSnap.data().balance || 0;
               const newBal = currentBal + amount;
               const newPaid = (saleToPay.amountPaid || 0) + amount;
-              const isFull = newPaid >= saleToPay.total;
+              const isFull = newPaid >= (saleToPay.total || 0);
               const method = paymentMethods.find(m => m.id === paymentMethodId);
 
               // Cập nhật đơn hàng
@@ -979,7 +979,7 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                     </div>
 
                                     {/* CÔNG NỢ PHỤ */}
-                                    {sale.status === 'debt' && <div className="text-[8px] font-black bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-200 uppercase">Còn nợ: {formatNumber(sale.total - (sale.amountPaid || 0))}</div>}
+                                    {sale.status === 'debt' && <div className="text-[8px] font-black bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-200 uppercase">Còn nợ: {formatNumber((sale.total || 0) - (sale.amountPaid || 0))}</div>}
                                 </div>
                                 <OrderCardDeliveryImageBar
                                     sale={sale}

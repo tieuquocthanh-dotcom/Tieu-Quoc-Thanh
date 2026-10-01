@@ -189,9 +189,9 @@ const SupplierManagement: React.FC = () => {
     const lowercasedFilter = searchTerm.toLowerCase();
     return allSuppliers.filter(supplier =>
       supplier.name.toLowerCase().includes(lowercasedFilter) ||
-      supplier.contactPerson.toLowerCase().includes(lowercasedFilter) ||
-      supplier.phone.toLowerCase().includes(lowercasedFilter) ||
-      supplier.email.toLowerCase().includes(lowercasedFilter)
+      (supplier.contactPerson || '').toLowerCase().includes(lowercasedFilter) ||
+      (supplier.phone || '').toLowerCase().includes(lowercasedFilter) ||
+      (supplier.email || '').toLowerCase().includes(lowercasedFilter)
     );
   }, [allSuppliers, searchTerm]);
   
