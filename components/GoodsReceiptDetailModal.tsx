@@ -169,7 +169,6 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
   const handleRemoveReceiptImage = async (idx: number, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!receipt) return;
-    if (!window.confirm("Bạn có chắc muốn xóa ảnh nhập hàng này?")) return;
     try {
       const updated = localReceiptImages.filter((_, i) => i !== idx);
       setLocalReceiptImages(updated);
@@ -180,7 +179,7 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
       });
       setImageUploadFeedback({
         type: 'success',
-        message: 'Đã xóa ảnh nhập hàng thành công!'
+        message: `Đã xóa ảnh nhập hàng #${idx + 1} thành công!`
       });
     } catch (err: any) {
       console.error("Lỗi xóa ảnh:", err);
@@ -484,21 +483,20 @@ const GoodsReceiptDetailModal: React.FC<GoodsReceiptDetailModalProps> = ({ isOpe
                             Hình ảnh chụp nhập hàng / Hóa đơn ({localReceiptImages.length} ảnh{localReceiptImages.length > 0 ? ` · ~${getImagesTotalKB(localReceiptImages)} KB` : ''})
                         </h4>
                     </div>
-                    <div className="flex items-center gap-2">
-                        {localReceiptImages.length > 0 && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setImageViewerIdx(0);
-                                    setIsImageViewerOpen(true);
-                                }}
-                                className="px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                            >
-                                <Eye size={14} />
-                                <span>Xem phóng to</span>
-                            </button>
-                        )}
-                        <label className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setImageViewerIdx(0);
+                                setIsImageViewerOpen(true);
+                            }}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                            title="Mở Trình Xem Ảnh Toàn Màn Hình (Phóng to, Thu nhỏ, Xoay 90°, Tải về, Xóa, Up thêm ảnh)"
+                        >
+                            <Eye size={14} />
+                            <span>{localReceiptImages.length > 0 ? `Xem toàn màn hình (${localReceiptImages.length})` : 'Mở trình xem ảnh'}</span>
+                        </button>
+                        <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 transition cursor-pointer shadow-xs">
                             {isUploadingImages ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
                             <span>Chụp ảnh</span>
                             <input

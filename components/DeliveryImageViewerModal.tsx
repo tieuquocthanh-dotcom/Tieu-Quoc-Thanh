@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Camera,
@@ -7,6 +8,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCw,
+  RotateCcw,
   Download,
   ChevronLeft,
   ChevronRight,
@@ -15,7 +17,8 @@ import {
   Eye,
   UploadCloud,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Maximize2
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -61,41 +64,69 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
   const [zoom, setZoom] = useState<number>(1);
   const [rotation, setRotation] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // Đồng bộ danh sách ảnh mới nhất khi mở trình xem hoặc khi propImages thay đổi
   useEffect(() => {
     if (isOpen) {
       const imgs = propImages || [];
       setLocalImages(imgs);
+      setCurrentIndex((prevIdx) => {
+        if (imgs.length === 0) return 0;
+        return Math.min(Math.max(0, prevIdx), imgs.length - 1);
+      });
+    }
+  }, [propImages, isOpen]);
+
+  // Đặt lại trạng thái hiển thị khi mở modal lần đầu hoặc đổi initialIndex
+  useEffect(() => {
+    if (isOpen) {
+      const imgs = propImages || [];
       const validIdx = Math.min(Math.max(0, initialIndex), Math.max(0, imgs.length - 1));
       setCurrentIndex(validIdx);
       setZoom(1);
       setRotation(0);
+      setConfirmDeleteIdx(null);
       setUploadStatus(null);
     }
-  }, [isOpen, propImages, initialIndex]);
+  }, [isOpen, initialIndex]);
 
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (confirmDeleteIdx !== null) {
+          setConfirmDeleteIdx(null);
+        } else {
+          onClose();
+        }
+      }
       if (e.key === 'ArrowLeft' && localImages.length > 1) {
         setCurrentIndex((prev) => (prev - 1 + localImages.length) % localImages.length);
         setZoom(1);
         setRotation(0);
+        setConfirmDeleteIdx(null);
       }
       if (e.key === 'ArrowRight' && localImages.length > 1) {
         setCurrentIndex((prev) => (prev + 1) % localImages.length);
         setZoom(1);
         setRotation(0);
+        setConfirmDeleteIdx(null);
+      }
+      if (e.key === '+' || e.key === '=') {
+        setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)));
+      }
+      if (e.key === '-' || e.key === '_') {
+        setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)));
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, localImages.length, onClose]);
+  }, [isOpen, localImages.length, onClose, confirmDeleteIdx]);
 
   if (!isOpen) return null;
 
@@ -103,11 +134,27 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
   const isNote = !!noteId;
   const docTargetId = noteId || receiptId || saleId;
   const effectivePartnerLabel = partnerLabel || (isNote ? 'Ghi chú' : isReceipt ? 'Nhà cung cấp' : 'Khách hàng');
-  const docLabel = isNote ? 'Ghi chú' : isReceipt ? 'Phiếu nhập' : 'Đơn hàng';
+  const docLabel = isNote ? 'Ghi chú' : isReceipt ? 'Phiếu nhập' : 'Đơn bán hàng';
   const imageLabel = isNote ? 'ảnh ghi chú' : isReceipt ? 'ảnh nhập hàng' : 'ảnh giao hàng';
 
   const canModify = !readOnly && (!!saleId || !!receiptId || !!noteId || !!onImagesChange);
   const currentImage = localImages[currentIndex] || null;
+
+  const goPrevImage = () => {
+    if (localImages.length <= 1) return;
+    setCurrentIndex((prev) => (prev - 1 + localImages.length) % localImages.length);
+    setZoom(1);
+    setRotation(0);
+    setConfirmDeleteIdx(null);
+  };
+
+  const goNextImage = () => {
+    if (localImages.length <= 1) return;
+    setCurrentIndex((prev) => (prev + 1) % localImages.length);
+    setZoom(1);
+    setRotation(0);
+    setConfirmDeleteIdx(null);
+  };
 
   const persistImages = async (updated: string[], successText: string) => {
     setLocalImages(updated);
@@ -177,6 +224,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
     if (!files || files.length === 0) return;
     setIsUploading(true);
     setUploadStatus(null);
+    setConfirmDeleteIdx(null);
     try {
       const batch = await compressMultipleImagesWithStats(files);
       if (batch.images.length > 0) {
@@ -226,30 +274,40 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
     }
   };
 
-  const handleDeleteCurrent = async () => {
+  const executeDeleteCurrent = async () => {
     if (!currentImage) return;
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${imageLabel} này?`)) return;
-    const updated = localImages.filter((_, idx) => idx !== currentIndex);
-    const nextIdx = Math.max(0, Math.min(currentIndex, updated.length - 1));
+    const targetIdx = confirmDeleteIdx !== null ? confirmDeleteIdx : currentIndex;
+    setConfirmDeleteIdx(null);
+    const updated = localImages.filter((_, idx) => idx !== targetIdx);
+    const nextIdx = Math.max(0, Math.min(targetIdx, updated.length - 1));
     setCurrentIndex(nextIdx);
     setZoom(1);
     setRotation(0);
-    await persistImages(updated, `Đã xóa ${imageLabel} thành công!`);
+    await persistImages(updated, `Đã xóa ${imageLabel} #${targetIdx + 1} thành công!`);
   };
 
   const handleDownload = () => {
     if (!currentImage) return;
     const link = document.createElement('a');
     link.href = currentImage;
-    link.download = `anh-${isNote ? 'ghi-chu' : isReceipt ? 'nhap-hang' : 'giao-hang'}-${orderId || docTargetId?.substring(0, 8) || 'don-hang'}-${currentIndex + 1}.jpg`;
+    link.download = `anh-${isNote ? 'ghi-chu' : isReceipt ? 'nhap-hang' : 'ban-hang'}-${orderId || docTargetId?.substring(0, 8) || 'don'}-${currentIndex + 1}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  return (
+  const handleWheelZoom = (e: React.WheelEvent) => {
+    if (!currentImage) return;
+    if (e.deltaY < 0) {
+      setZoom((z) => Math.min(4, +(z + 0.2).toFixed(2)));
+    } else if (e.deltaY > 0) {
+      setZoom((z) => Math.max(0.5, +(z - 0.2).toFixed(2)));
+    }
+  };
+
+  const viewerContent = (
     <div
-      className="fixed inset-0 bg-black/90 z-[350] flex flex-col animate-fade-in select-none"
+      className="fixed inset-0 bg-black/95 z-[9999] flex flex-col animate-fade-in select-none"
       onClick={onClose}
     >
       <input
@@ -271,7 +329,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
 
       {/* TOP BAR */}
       <div
-        className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 bg-slate-900/95 border-b border-slate-800 text-white shrink-0"
+        className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-3 bg-slate-900/95 border-b border-slate-800 text-white shrink-0 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 min-w-0">
@@ -279,12 +337,13 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
             <Camera size={18} />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-black text-xs sm:text-sm uppercase tracking-tight truncate">
-                {isNote ? 'Ảnh ghi chú' : isReceipt ? 'Ảnh nhập hàng' : 'Ảnh giao hàng'} {orderId ? `#${orderId}` : docTargetId ? `#${docTargetId.substring(0, 8).toUpperCase()}` : ''}
+                {isNote ? 'Trình xem ảnh ghi chú' : isReceipt ? 'Trình xem ảnh nhập hàng' : 'Trình xem ảnh bán hàng'}{' '}
+                {orderId ? `#${orderId}` : docTargetId ? `#${docTargetId.substring(0, 8).toUpperCase()}` : ''}
               </h3>
               {localImages.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[11px] font-black shrink-0">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[11px] font-black shrink-0 shadow-xs">
                   Ảnh {currentIndex + 1} / {localImages.length}
                 </span>
               )}
@@ -295,7 +354,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
               )}
             </div>
             {customerName && (
-              <p className="text-xs text-slate-400 font-bold truncate">
+              <p className="text-xs text-slate-400 font-bold truncate mt-0.5">
                 {effectivePartnerLabel}: <span className="text-yellow-300">{customerName}</span>
               </p>
             )}
@@ -322,7 +381,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
                 onClick={() => cameraInputRef.current?.click()}
                 disabled={isUploading}
                 className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
-                title="Chụp ảnh giao hàng trực tiếp bằng Camera"
+                title="Chụp thêm ảnh trực tiếp bằng Camera"
               >
                 {isUploading ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
                 <span>Chụp ảnh</span>
@@ -332,7 +391,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
                 className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
-                title="Chọn ảnh giao hàng từ thư viện điện thoại / máy tính"
+                title="Up thêm ảnh từ thư viện điện thoại / máy tính"
               >
                 {isUploading ? <Loader size={14} className="animate-spin" /> : <Plus size={14} />}
                 <span>Up thêm ảnh</span>
@@ -342,55 +401,90 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
 
           {currentImage && (
             <>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer"
-                title="Thu nhỏ"
-              >
-                <ZoomOut size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoom(1)}
-                className="px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black transition cursor-pointer"
-                title="Đặt lại kích thước 100%"
-              >
-                {Math.round(zoom * 100)}%
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer"
-                title="Phóng to"
-              >
-                <ZoomIn size={16} />
-              </button>
+              {localImages.length > 1 && (
+                <div className="flex items-center bg-slate-800 rounded-xl p-0.5 border border-slate-700">
+                  <button
+                    type="button"
+                    onClick={goPrevImage}
+                    className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+                    title="Ảnh trước (Phím mũi tên trái)"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="px-2 text-[11px] font-black text-slate-300">
+                    {currentIndex + 1}/{localImages.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={goNextImage}
+                    className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+                    title="Ảnh tiếp theo (Phím mũi tên phải)"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center bg-slate-800 rounded-xl p-0.5 border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                  className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+                  title="Thu nhỏ (-)"
+                >
+                  <ZoomOut size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoom(1);
+                    setRotation(0);
+                  }}
+                  className="px-2 py-1 rounded-lg hover:bg-slate-700 text-slate-200 text-xs font-black transition cursor-pointer"
+                  title="Đặt lại kích thước 100%"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))}
+                  className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+                  title="Phóng to (+)"
+                >
+                  <ZoomIn size={16} />
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setRotation((r) => (r + 90) % 360)}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-black flex items-center gap-1 transition cursor-pointer"
                 title="Xoay ảnh 90°"
               >
-                <RotateCw size={16} />
+                <RotateCw size={15} />
+                <span className="hidden md:inline">Xoay 90°</span>
               </button>
+
               <button
                 type="button"
                 onClick={handleDownload}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-black flex items-center gap-1 transition cursor-pointer"
                 title="Tải ảnh này về máy"
               >
-                <Download size={16} />
+                <Download size={15} />
+                <span className="hidden md:inline">Tải về</span>
               </button>
+
               {canModify && (
                 <button
                   type="button"
-                  onClick={handleDeleteCurrent}
+                  onClick={() => setConfirmDeleteIdx(currentIndex)}
                   disabled={isUploading}
-                  className="p-2 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 transition cursor-pointer"
-                  title="Xóa ảnh này"
+                  className="px-2.5 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 text-xs font-black flex items-center gap-1 transition cursor-pointer"
+                  title="Xóa ảnh đang xem"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={15} />
+                  <span className="hidden md:inline">Xóa ảnh</span>
                 </button>
               )}
             </>
@@ -399,13 +493,46 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white transition cursor-pointer ml-1"
-            title="Đóng (Esc)"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-red-600 text-slate-200 hover:text-white border border-slate-700 font-black text-xs flex items-center gap-1 transition cursor-pointer ml-1"
+            title="Đóng trình xem ảnh (Esc)"
           >
-            <X size={20} />
+            <X size={18} />
+            <span className="hidden sm:inline">Đóng</span>
           </button>
         </div>
       </div>
+
+      {/* INLINE CONFIRMATION FOR DELETE IMAGE (Hoạt động ổn định 100% trên mọi thiết bị & iframe) */}
+      {confirmDeleteIdx !== null && currentImage && (
+        <div
+          className="px-4 py-3 bg-red-950/95 border-b border-red-500/50 flex flex-wrap items-center justify-center gap-3 shrink-0 animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2 text-white text-xs sm:text-sm font-black">
+            <AlertCircle size={18} className="text-red-400 shrink-0" />
+            <span>
+              Bạn có chắc chắn muốn xóa {imageLabel} #{confirmDeleteIdx + 1} này không?
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={executeDeleteCurrent}
+              disabled={isUploading}
+              className="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase shadow-md transition active:scale-95 cursor-pointer"
+            >
+              Xác nhận xóa
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteIdx(null)}
+              className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black uppercase border border-slate-600 transition cursor-pointer"
+            >
+              Hủy
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* STATUS BANNER FOR UPLOAD FEEDBACK */}
       {(isUploading || uploadStatus) && (
@@ -416,17 +543,31 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
           {isUploading ? (
             <div className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-black uppercase flex items-center gap-2 shadow-lg animate-pulse">
               <Loader size={16} className="animate-spin" />
-              <span>Đang nén và tải ảnh lên... Vui lòng đợi giây lát!</span>
+              <span>Đang nén siêu nhẹ và tải ảnh lên... Vui lòng đợi giây lát!</span>
             </div>
           ) : uploadStatus?.type === 'success' ? (
             <div className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase flex items-center gap-2 shadow-lg animate-fade-in">
               <CheckCircle2 size={16} />
               <span>{uploadStatus.message}</span>
+              <button
+                type="button"
+                onClick={() => setUploadStatus(null)}
+                className="ml-2 text-white/80 hover:text-white cursor-pointer"
+              >
+                <X size={14} />
+              </button>
             </div>
           ) : uploadStatus?.type === 'error' ? (
             <div className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase flex items-center gap-2 shadow-lg animate-fade-in">
               <AlertCircle size={16} />
               <span>{uploadStatus.message}</span>
+              <button
+                type="button"
+                onClick={() => setUploadStatus(null)}
+                className="ml-2 text-white/80 hover:text-white cursor-pointer"
+              >
+                <X size={14} />
+              </button>
             </div>
           ) : null}
         </div>
@@ -434,17 +575,18 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
 
       {/* MAIN VIEWPORT */}
       <div
-        className="flex-1 relative flex items-center justify-center overflow-auto p-4"
+        className="flex-1 relative flex items-center justify-center overflow-auto p-3 sm:p-6"
         onClick={(e) => e.stopPropagation()}
+        onWheel={handleWheelZoom}
       >
         {localImages.length === 0 ? (
-          <div className="bg-slate-900 border-2 border-dashed border-slate-700 rounded-2xl p-6 sm:p-8 max-w-md w-full text-center space-y-4">
+          <div className="bg-slate-900 border-2 border-dashed border-slate-700 rounded-2xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 shadow-2xl">
             <div className="w-16 h-16 rounded-2xl bg-slate-800 text-emerald-400 flex items-center justify-center mx-auto">
               <Camera size={32} />
             </div>
             <div>
               <h4 className="text-base font-black text-white uppercase">
-                Đơn hàng chưa có ảnh giao hàng
+                {docLabel} chưa có {imageLabel}
               </h4>
               <p className="text-xs text-slate-400 mt-1">
                 Bấm nút bên dưới để chụp ảnh trực tiếp bằng camera điện thoại hoặc chọn ảnh từ thư viện máy.
@@ -459,7 +601,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
                   className="flex-1 py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase flex items-center justify-center gap-2 shadow-lg transition cursor-pointer active:scale-95"
                 >
                   {isUploading ? <Loader size={16} className="animate-spin" /> : <Camera size={16} />}
-                  <span>Chụp ảnh giao hàng</span>
+                  <span>Chụp ảnh ngay</span>
                 </button>
                 <button
                   type="button"
@@ -478,15 +620,11 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
             {localImages.length > 1 && (
               <button
                 type="button"
-                onClick={() => {
-                  setCurrentIndex((prev) => (prev - 1 + localImages.length) % localImages.length);
-                  setZoom(1);
-                  setRotation(0);
-                }}
-                className="absolute left-3 sm:left-6 z-20 p-3 rounded-full bg-slate-900/80 hover:bg-primary text-white border border-slate-700 shadow-xl transition cursor-pointer active:scale-95"
-                title="Ảnh trước"
+                onClick={goPrevImage}
+                className="absolute left-2 sm:left-6 z-20 p-3 sm:p-3.5 rounded-full bg-slate-900/85 hover:bg-emerald-600 text-white border border-slate-700 shadow-2xl transition cursor-pointer active:scale-95"
+                title="Ảnh trước (Phím mũi tên trái)"
               >
-                <ChevronLeft size={24} />
+                <ChevronLeft size={26} />
               </button>
             )}
 
@@ -494,12 +632,14 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
               {currentImage && (
                 <img
                   src={currentImage}
-                  alt={`Ảnh giao hàng ${currentIndex + 1}`}
+                  alt={`${imageLabel} ${currentIndex + 1}`}
+                  onDoubleClick={() => setZoom((z) => (z === 1 ? 2 : 1))}
                   style={{
                     transform: `scale(${zoom}) rotate(${rotation}deg)`,
                     transition: 'transform 0.2s ease'
                   }}
-                  className="max-h-[72vh] max-w-[90vw] object-contain rounded-lg shadow-2xl border border-slate-800"
+                  className="max-h-[70vh] max-w-[90vw] object-contain rounded-lg shadow-2xl border border-slate-800 cursor-zoom-in"
+                  title="Nhấp đúp hoặc lăn chuột để Phóng to / Thu nhỏ"
                 />
               )}
             </div>
@@ -507,16 +647,112 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
             {localImages.length > 1 && (
               <button
                 type="button"
-                onClick={() => {
-                  setCurrentIndex((prev) => (prev + 1) % localImages.length);
-                  setZoom(1);
-                  setRotation(0);
-                }}
-                className="absolute right-3 sm:right-6 z-20 p-3 rounded-full bg-slate-900/80 hover:bg-primary text-white border border-slate-700 shadow-xl transition cursor-pointer active:scale-95"
-                title="Ảnh tiếp theo"
+                onClick={goNextImage}
+                className="absolute right-2 sm:right-6 z-20 p-3 sm:p-3.5 rounded-full bg-slate-900/85 hover:bg-emerald-600 text-white border border-slate-700 shadow-2xl transition cursor-pointer active:scale-95"
+                title="Ảnh tiếp theo (Phím mũi tên phải)"
               >
-                <ChevronRight size={24} />
+                <ChevronRight size={26} />
               </button>
+            )}
+
+            {/* FLOATING QUICK ACTION BAR TRÊN MÀN HÌNH XEM ẢNH (Tiện thao tác trên cả Điện thoại & Máy tính) */}
+            {currentImage && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 sm:gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 shadow-2xl backdrop-blur-xs">
+                {localImages.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={goPrevImage}
+                      className="p-1.5 rounded-lg hover:bg-slate-800 text-white transition cursor-pointer"
+                      title="Ảnh trước"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-[11px] font-black text-emerald-400 px-1">
+                      {currentIndex + 1}/{localImages.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={goNextImage}
+                      className="p-1.5 rounded-lg hover:bg-slate-800 text-white transition cursor-pointer"
+                      title="Ảnh tiếp"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                    <div className="w-px h-4 bg-slate-700 mx-0.5" />
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-white transition cursor-pointer"
+                  title="Thu nhỏ"
+                >
+                  <ZoomOut size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoom(1);
+                    setRotation(0);
+                  }}
+                  className="px-2 py-0.5 rounded-lg hover:bg-slate-800 text-slate-200 text-[11px] font-black transition cursor-pointer"
+                  title="100%"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-white transition cursor-pointer"
+                  title="Phóng to"
+                >
+                  <ZoomIn size={16} />
+                </button>
+
+                <div className="w-px h-4 bg-slate-700 mx-0.5" />
+
+                <button
+                  type="button"
+                  onClick={() => setRotation((r) => (r - 90 + 360) % 360)}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-white transition cursor-pointer"
+                  title="Xoay ngược 90°"
+                >
+                  <RotateCcw size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRotation((r) => (r + 90) % 360)}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-white transition cursor-pointer"
+                  title="Xoay 90°"
+                >
+                  <RotateCw size={16} />
+                </button>
+
+                <div className="w-px h-4 bg-slate-700 mx-0.5" />
+
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-emerald-400 transition cursor-pointer"
+                  title="Tải ảnh về máy"
+                >
+                  <Download size={16} />
+                </button>
+
+                {canModify && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteIdx(currentIndex)}
+                    disabled={isUploading}
+                    className="p-1.5 rounded-lg hover:bg-red-600/30 text-red-400 transition cursor-pointer"
+                    title="Xóa ảnh đang xem"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
             )}
           </>
         )}
@@ -536,36 +772,54 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
                 setCurrentIndex(idx);
                 setZoom(1);
                 setRotation(0);
+                setConfirmDeleteIdx(null);
               }}
               className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition shrink-0 cursor-pointer ${
                 idx === currentIndex
                   ? 'border-emerald-400 ring-2 ring-emerald-500/40 scale-105'
                   : 'border-slate-700 opacity-60 hover:opacity-100'
               }`}
+              title={`Xem ảnh #${idx + 1} (~${getDataUrlKB(img)} KB)`}
             >
               <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
-              <span className="absolute bottom-0.5 right-0.5 px-1 rounded bg-black/70 text-white text-[9px] font-black">
-                {idx + 1}
+              <span className="absolute bottom-0.5 right-0.5 px-1 rounded bg-black/75 text-white text-[9px] font-black">
+                #{idx + 1}
               </span>
             </button>
           ))}
 
           {canModify && (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-dashed border-slate-600 hover:border-emerald-400 text-slate-400 hover:text-emerald-400 flex flex-col items-center justify-center gap-0.5 shrink-0 transition cursor-pointer"
-              title="Thêm ảnh giao hàng"
-            >
-              {isUploading ? <Loader size={16} className="animate-spin" /> : <Plus size={18} />}
-              <span className="text-[9px] font-black uppercase">Thêm</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={isUploading}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-dashed border-emerald-600/70 hover:border-emerald-400 text-emerald-400 hover:bg-emerald-950/40 flex flex-col items-center justify-center gap-0.5 shrink-0 transition cursor-pointer"
+                title="Chụp thêm ảnh bằng Camera"
+              >
+                {isUploading ? <Loader size={16} className="animate-spin" /> : <Camera size={17} />}
+                <span className="text-[9px] font-black uppercase">Chụp</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-dashed border-blue-500/70 hover:border-blue-400 text-blue-400 hover:bg-blue-950/40 flex flex-col items-center justify-center gap-0.5 shrink-0 transition cursor-pointer"
+                title="Up thêm ảnh từ máy"
+              >
+                {isUploading ? <Loader size={16} className="animate-spin" /> : <Plus size={18} />}
+                <span className="text-[9px] font-black uppercase">Thêm</span>
+              </button>
+            </>
           )}
         </div>
       )}
     </div>
   );
+
+  return typeof document !== 'undefined'
+    ? createPortal(viewerContent, document.body)
+    : viewerContent;
 };
 
 interface DeliveryImageUploadSectionProps {
@@ -711,9 +965,8 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
 
   const handleRemoveImage = async (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm('Bạn có chắc chắn muốn xóa tấm ảnh giao hàng này?')) return;
     const updated = images.filter((_, idx) => idx !== index);
-    await syncToFirestoreIfNeeded(updated, 'Đã xóa 1 ảnh.');
+    await syncToFirestoreIfNeeded(updated, `Đã xóa ảnh #${index + 1}.`);
   };
 
   const handlePaste = async (e: React.ClipboardEvent) => {
@@ -823,27 +1076,29 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
               <span>⚡ Giảm nhẹ ảnh</span>
             </button>
           )}
-          {images.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setViewerIndex(0);
-                setViewerOpen(true);
-              }}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase flex items-center gap-1 transition cursor-pointer shadow-sm active:scale-95"
-              title="Xem phóng to tất cả ảnh giao hàng"
-            >
-              <Eye size={13} />
-              <span>Xem ảnh ({images.length})</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setViewerIndex(0);
+              setViewerOpen(true);
+            }}
+            className={`px-3 py-1.5 rounded-lg font-black text-[11px] uppercase flex items-center gap-1 transition cursor-pointer shadow-sm active:scale-95 ${
+              images.length > 0
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+            }`}
+            title="Mở trình xem & quản lý ảnh toàn màn hình"
+          >
+            <Maximize2 size={13} />
+            <span>{images.length > 0 ? `Xem toàn màn hình (${images.length})` : 'Trình xem ảnh'}</span>
+          </button>
 
           <button
             type="button"
             onClick={() => cameraInputRef.current?.click()}
             disabled={isCompressing}
             className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-black text-[11px] uppercase flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-xs"
-            title="Mở Camera chụp ảnh giao hàng"
+            title="Mở Camera chụp ảnh"
           >
             {isCompressing ? <Loader size={13} className="animate-spin" /> : <Camera size={13} />}
             <span>Chụp ảnh</span>
@@ -907,11 +1162,11 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
                 setViewerOpen(true);
               }}
               className="relative group w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 border-emerald-500 shadow-xs shrink-0 cursor-pointer bg-white"
-              title="Bấm để xem ảnh phóng to"
+              title="Bấm để mở trình xem ảnh toàn màn hình"
             >
               <img
                 src={imgUrl}
-                alt={`Ảnh giao hàng ${idx + 1}`}
+                alt={`Ảnh ${idx + 1}`}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
@@ -939,7 +1194,7 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
             onClick={() => fileInputRef.current?.click()}
             disabled={isCompressing}
             className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 border-dashed border-emerald-500 hover:border-emerald-700 bg-white/80 hover:bg-white text-emerald-700 flex flex-col items-center justify-center gap-1 shrink-0 transition cursor-pointer"
-            title="Thêm ảnh giao hàng"
+            title="Thêm ảnh"
           >
             {isCompressing ? <Loader size={16} className="animate-spin" /> : <Plus size={18} />}
             <span className="text-[9px] font-black uppercase">Thêm ảnh</span>
@@ -953,8 +1208,7 @@ export const DeliveryImageUploadSection: React.FC<DeliveryImageUploadSectionProp
 /**
  * Thanh Quản lý & Xem ảnh giao hàng hiển thị TRỰC TIẾP trên từng Thẻ Đơn Hàng
  * (trong "Đơn hàng hôm nay" và "Lịch sử bán hàng").
- * Giúp người dùng trên Điện thoại biết rõ đơn hàng đã có ảnh hay chưa,
- * bấm "Chụp ảnh" / "Up ảnh" trực tiếp cho đơn đó và hiện ngay nút "Xem ảnh" khi thành công!
+ * Đồng bộ giao diện và tính năng Xem Toàn Màn Hình giống hệt phần Ghi Chú Hệ Thống!
  */
 export const OrderCardDeliveryImageBar: React.FC<{
   sale: Sale;
@@ -984,7 +1238,7 @@ export const OrderCardDeliveryImageBar: React.FC<{
         });
         setStatusBanner({
           type: 'success',
-          text: `Đã lưu ${batch.images.length} ảnh cho đơn ${sale.customerName || ''} (${batch.summaryText})!`
+          text: `Đã lưu +${batch.images.length} ảnh (${batch.summaryText})!`
         });
         setTimeout(() => setStatusBanner(null), 6000);
       } else {
@@ -1006,7 +1260,10 @@ export const OrderCardDeliveryImageBar: React.FC<{
   };
 
   return (
-    <div className="pt-2 mt-1.5 border-t border-dashed border-slate-200 space-y-1.5">
+    <div
+      className="pt-2 mt-1.5 border-t border-dashed border-slate-200 space-y-1.5"
+      onClick={(e) => e.stopPropagation()}
+    >
       <input
         ref={cameraRef}
         type="file"
@@ -1028,7 +1285,7 @@ export const OrderCardDeliveryImageBar: React.FC<{
       {isUploading && (
         <div className="p-2 rounded-lg bg-blue-600 text-white text-[11px] font-black flex items-center justify-center gap-2 animate-pulse shadow-xs">
           <Loader size={14} className="animate-spin shrink-0" />
-          <span>Đang tải ảnh giao hàng lên đơn #{sale.id.substring(0, 6).toUpperCase()}...</span>
+          <span>Đang nén siêu nhẹ & tải ảnh lên đơn #{sale.id.substring(0, 6).toUpperCase()}...</span>
         </div>
       )}
 
@@ -1052,24 +1309,25 @@ export const OrderCardDeliveryImageBar: React.FC<{
           <button
             type="button"
             onClick={() => setStatusBanner(null)}
-            className="text-white/80 hover:text-white p-0.5"
+            className="text-white/80 hover:text-white p-0.5 cursor-pointer"
           >
             <X size={13} />
           </button>
         </div>
       )}
 
-      {/* Giao diện khi ĐÃ CÓ ẢNH vs CHƯA CÓ ẢNH */}
+      {/* Giao diện khi ĐÃ CÓ ẢNH vs CHƯA CÓ ẢNH (Đồng bộ với phần Ghi chú) */}
       {images.length > 0 ? (
-        <div className="p-2 rounded-xl bg-emerald-50/90 border border-emerald-300 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+        <div className="p-2 rounded-xl bg-emerald-50/90 border border-emerald-300 space-y-2">
+          {/* Dải ảnh thu nhỏ - Bấm vào ảnh bất kỳ để mở Trình Xem Ảnh Toàn Màn Hình */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
             {images.map((imgUrl, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => onOpenViewer(idx)}
-                className="relative w-11 h-11 rounded-lg overflow-hidden border-2 border-emerald-500 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs bg-white"
-                title={`Bấm để xem ảnh giao hàng #${idx + 1}`}
+                className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-emerald-500 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs bg-white group/thumb"
+                title={`Bấm để xem toàn màn hình ảnh giao hàng #${idx + 1}`}
               >
                 <img src={imgUrl} alt={`Ảnh giao ${idx + 1}`} className="w-full h-full object-cover" />
                 <span className="absolute bottom-0 right-0 px-1 bg-black/70 text-white text-[8px] font-black">
@@ -1079,11 +1337,13 @@ export const OrderCardDeliveryImageBar: React.FC<{
             ))}
           </div>
 
-          <div className="flex items-center gap-1.5 ml-auto">
+          {/* Nút Xem ảnh toàn màn hình & Thêm ảnh */}
+          <div className="flex items-center justify-between gap-1.5">
             <button
               type="button"
               onClick={() => onOpenViewer(0)}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+              className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center justify-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+              title="Mở Trình Xem Ảnh Toàn Màn Hình (Phóng to, Xoay, Tải về, Xóa, Up thêm)"
             >
               <Eye size={13} />
               <span>Xem ảnh ({images.length}) · {getImagesTotalKB(images)}KB</span>
@@ -1145,8 +1405,7 @@ export const OrderCardDeliveryImageBar: React.FC<{
 /**
  * Thanh Quản lý & Xem ảnh nhập hàng hiển thị TRỰC TIẾP trên từng Thẻ Phiếu Nhập
  * (trong "Đơn nhập hôm nay" và "Lịch sử nhập hàng").
- * Giúp người dùng trên Điện thoại biết rõ phiếu nhập đã có ảnh hay chưa,
- * bấm "Chụp ảnh" / "Up ảnh" trực tiếp cho phiếu đó và hiện ngay nút "Xem ảnh" khi thành công!
+ * Đồng bộ giao diện và tính năng Xem Toàn Màn Hình giống hệt phần Ghi Chú Hệ Thống!
  */
 export const ReceiptCardDeliveryImageBar: React.FC<{
   receipt: GoodsReceipt;
@@ -1177,7 +1436,7 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
         });
         setStatusBanner({
           type: 'success',
-          text: `Đã lưu ${batch.images.length} ảnh cho phiếu ${receipt.supplierName || ''} (${batch.summaryText})!`
+          text: `Đã lưu +${batch.images.length} ảnh (${batch.summaryText})!`
         });
         setTimeout(() => setStatusBanner(null), 6000);
       } else {
@@ -1199,7 +1458,10 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
   };
 
   return (
-    <div className="pt-2 mt-1.5 border-t border-dashed border-slate-200 space-y-1.5">
+    <div
+      className="pt-2 mt-1.5 border-t border-dashed border-slate-200 space-y-1.5"
+      onClick={(e) => e.stopPropagation()}
+    >
       <input
         ref={cameraRef}
         type="file"
@@ -1221,7 +1483,7 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
       {isUploading && (
         <div className="p-2 rounded-lg bg-blue-600 text-white text-[11px] font-black flex items-center justify-center gap-2 animate-pulse shadow-xs">
           <Loader size={14} className="animate-spin shrink-0" />
-          <span>Đang tải ảnh nhập hàng lên phiếu #{receipt.id.substring(0, 6).toUpperCase()}...</span>
+          <span>Đang nén siêu nhẹ & tải ảnh lên phiếu #{receipt.id.substring(0, 6).toUpperCase()}...</span>
         </div>
       )}
 
@@ -1245,24 +1507,25 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
           <button
             type="button"
             onClick={() => setStatusBanner(null)}
-            className="text-white/80 hover:text-white p-0.5"
+            className="text-white/80 hover:text-white p-0.5 cursor-pointer"
           >
             <X size={13} />
           </button>
         </div>
       )}
 
-      {/* Giao diện khi ĐÃ CÓ ẢNH vs CHƯA CÓ ẢNH */}
+      {/* Giao diện khi ĐÃ CÓ ẢNH vs CHƯA CÓ ẢNH (Đồng bộ với phần Ghi chú) */}
       {images.length > 0 ? (
-        <div className="p-2 rounded-xl bg-emerald-50/90 border border-emerald-300 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+        <div className="p-2 rounded-xl bg-emerald-50/90 border border-emerald-300 space-y-2">
+          {/* Dải ảnh thu nhỏ - Bấm vào ảnh bất kỳ để mở Trình Xem Ảnh Toàn Màn Hình */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
             {images.map((imgUrl, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => onOpenViewer(idx)}
-                className="relative w-11 h-11 rounded-lg overflow-hidden border-2 border-emerald-500 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs bg-white"
-                title={`Bấm để xem ảnh nhập hàng #${idx + 1}`}
+                className="relative w-12 h-12 rounded-lg overflow-hidden border-2 border-emerald-500 shrink-0 hover:scale-105 transition cursor-pointer shadow-2xs bg-white group/thumb"
+                title={`Bấm để xem toàn màn hình ảnh nhập hàng #${idx + 1}`}
               >
                 <img src={imgUrl} alt={`Ảnh nhập ${idx + 1}`} className="w-full h-full object-cover" />
                 <span className="absolute bottom-0 right-0 px-1 bg-black/70 text-white text-[8px] font-black">
@@ -1272,11 +1535,13 @@ export const ReceiptCardDeliveryImageBar: React.FC<{
             ))}
           </div>
 
-          <div className="flex items-center gap-1.5 ml-auto">
+          {/* Nút Xem ảnh toàn màn hình & Thêm ảnh */}
+          <div className="flex items-center justify-between gap-1.5">
             <button
               type="button"
               onClick={() => onOpenViewer(0)}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+              className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase flex items-center justify-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+              title="Mở Trình Xem Ảnh Toàn Màn Hình (Phóng to, Xoay, Tải về, Xóa, Up thêm)"
             >
               <Eye size={13} />
               <span>Xem ảnh ({images.length}) · {getImagesTotalKB(images)}KB</span>

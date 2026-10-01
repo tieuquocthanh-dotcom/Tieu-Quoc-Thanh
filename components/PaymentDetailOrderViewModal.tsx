@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { GoodsReceipt, Sale } from '../types';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { FileText, Loader, Calendar, Warehouse, Users, CreditCard, ChevronRight, X, AlertCircle, Search, ShoppingBag, Landmark, ArrowUpRight, CheckCircle2, HelpCircle } from 'lucide-react';
+import { FileText, Loader, Calendar, Warehouse, Users, CreditCard, ChevronRight, X, AlertCircle, Search, ShoppingBag, Landmark, ArrowUpRight, CheckCircle2, HelpCircle, Camera, Eye } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 import GoodsReceiptDetailModal from './GoodsReceiptDetailModal';
 import SaleDetailModal from './SaleDetailModal';
+import { DeliveryImageViewerModal } from './DeliveryImageViewerModal';
 
 interface PaymentDetailOrderViewModalProps {
     isOpen: boolean;
@@ -38,6 +39,14 @@ export const PaymentDetailOrderViewModal: React.FC<PaymentDetailOrderViewModalPr
     const [isGoodsReceiptDetailOpen, setIsGoodsReceiptDetailOpen] = useState(false);
     const [activeSaleForDetail, setActiveSaleForDetail] = useState<Sale | null>(null);
     const [isSaleDetailOpen, setIsSaleDetailOpen] = useState(false);
+    const [viewerTarget, setViewerTarget] = useState<{
+        type: 'sale' | 'receipt';
+        id: string;
+        orderId: string;
+        customerName: string;
+        images: string[];
+        initialIdx: number;
+    } | null>(null);
 
     useEffect(() => {
         if (!isOpen || !log) {
@@ -531,6 +540,32 @@ export const PaymentDetailOrderViewModal: React.FC<PaymentDetailOrderViewModalPr
                     userRole={userRole}
                 />
             )}
+
+            {/* Full-screen Image Viewer Modal */}
+            <DeliveryImageViewerModal
+                isOpen={!!viewerTarget}
+                onClose={() => setViewerTarget(null)}
+                images={viewerTarget?.images || []}
+                initialIndex={viewerTarget?.initialIdx || 0}
+                orderId={viewerTarget?.orderId}
+                customerName={viewerTarget?.customerName}
+                saleId={viewerTarget?.type === 'sale' ? viewerTarget.id : undefined}
+                receiptId={viewerTarget?.type === 'receipt' ? viewerTarget.id : undefined}
+                partnerLabel={viewerTarget?.type === 'receipt' ? 'Nhà cung cấp' : 'Khách hàng'}
+                onImagesChange={(newImgs) => {
+                    if (!viewerTarget) return;
+                    setViewerTarget({ ...viewerTarget, images: newImgs });
+                    if (viewerTarget.type === 'receipt') {
+                        setExactReceipts(prev => prev.map(r => r.id === viewerTarget.id ? { ...r, receiptImages: newImgs, deliveryImages: newImgs } : r));
+                        setCandidateReceipts(prev => prev.map(r => r.id === viewerTarget.id ? { ...r, receiptImages: newImgs, deliveryImages: newImgs } : r));
+                        setAllAvailableReceipts(prev => prev.map(r => r.id === viewerTarget.id ? { ...r, receiptImages: newImgs, deliveryImages: newImgs } : r));
+                    } else {
+                        setExactSales(prev => prev.map(s => s.id === viewerTarget.id ? { ...s, deliveryImages: newImgs } : s));
+                        setCandidateSales(prev => prev.map(s => s.id === viewerTarget.id ? { ...s, deliveryImages: newImgs } : s));
+                        setAllAvailableSales(prev => prev.map(s => s.id === viewerTarget.id ? { ...s, deliveryImages: newImgs } : s));
+                    }
+                }}
+            />
         </>
     );
 };
