@@ -173,6 +173,7 @@ const InventoryLedger: React.FC<{
                 const saleSnap = await getDocs(saleQuery);
                 saleSnap.forEach(doc => {
                     const data = doc.data() as any;
+                    if (data.shippingStatus === 'order') return; // Đơn đặt hàng chưa xuất kho nên chưa trừ tồn kho
                     const items = data.items || [];
                     items.forEach((item: any) => {
                         if (selectedProductId === 'all' || item.productId === selectedProductId) {
