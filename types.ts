@@ -292,4 +292,64 @@ export interface ProductInvoiceExport {
   lastEditorName?: string;
 }
 
-export type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions' | 'productInvoices' | 'productCategories' | 'backupRestore';
+export type ConsignmentStatus = 'received' | 'sold' | 'paid' | 'returned';
+
+export interface ConsignmentPayout {
+  id?: string;
+  amount: number;
+  date: any; // YYYY-MM-DD or Timestamp
+  paymentMethodId?: string;
+  paymentMethodName?: string;
+  note?: string;
+  creatorName?: string;
+  createdAt?: any;
+}
+
+export interface ConsignmentItem {
+  id: string;
+  code?: string;
+  productName: string;
+  category?: string; // Cốt vợt, Mặt vợt, Giày, Phụ kiện, Bàn, Khác
+  condition?: string; // Mới 99%, Lướt đẹp, Trầy nhẹ...
+  images?: string[];
+
+  // Khách gửi
+  customerId?: string;
+  customerName: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  customerBankDetails?: string; // STK, Ngân hàng, Chủ TK
+
+  // Tiếp nhận & Giá gửi bán
+  receivedDate: string; // YYYY-MM-DD
+  askingPrice: number; // Tiền khách gửi bán / mong muốn nhận về
+  expectedSellingPrice?: number; // Giá niêm yết bán ra dự kiến
+
+  // Trạng thái
+  status: ConsignmentStatus; // 'received' | 'sold' | 'paid' | 'returned'
+
+  // Bán ra
+  soldDate?: string; // YYYY-MM-DD
+  actualSellingPrice?: number; // Giá bán ra thực tế
+  soldNote?: string;
+  buyerName?: string;
+
+  // Trả tiền khách
+  payoutAmount?: number; // Tổng tiền đã thanh toán cho khách
+  payoutDate?: string; // Ngày trả gần nhất
+  payoutPaymentMethodId?: string;
+  payoutPaymentMethodName?: string;
+  payoutNote?: string;
+  payoutHistory?: ConsignmentPayout[];
+
+  // Trả lại hàng
+  returnDate?: string;
+  returnNote?: string;
+
+  note?: string; // Ghi chú chung
+  creatorName?: string;
+  createdAt: any;
+  updatedAt?: any;
+}
+
+export type View = 'home' | 'login' | 'dashboard' | 'products' | 'sales' | 'goodsReceipt' | 'manufacturers' | 'suppliers' | 'customers' | 'warehouses' | 'shippers' | 'paymentMethods' | 'accounts' | 'setup' | 'inventoryMatrix' | 'shipmentManagement' | 'inventoryAlerts' | 'outsideStockAlerts' | 'debtManagement' | 'users' | 'quotations' | 'chinaImport' | 'productAnalytics' | 'supplierAnalytics' | 'customerAnalytics' | 'inventoryLedger' | 'priceComparison' | 'supplierPaymentHistory' | 'plannedOrders' | 'notes' | 'savings' | 'restockPredictions' | 'productInvoices' | 'productCategories' | 'backupRestore' | 'consignments';

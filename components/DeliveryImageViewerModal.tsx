@@ -40,6 +40,7 @@ interface DeliveryImageViewerModalProps {
   saleId?: string; // Nếu truyền saleId, tự động lưu thẳng vào đơn bán hàng trên Firestore
   receiptId?: string; // Nếu truyền receiptId, tự động lưu thẳng vào phiếu nhập hàng trên Firestore
   noteId?: string; // Nếu truyền noteId, tự động lưu thẳng vào ghi chú hệ thống trên Firestore
+  consignmentId?: string; // Nếu truyền consignmentId, tự động lưu thẳng vào hàng gửi bán trên Firestore
   partnerLabel?: string;
   onImagesChange?: (newImages: string[]) => void;
   readOnly?: boolean;
@@ -55,6 +56,7 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
   saleId,
   receiptId,
   noteId,
+  consignmentId,
   partnerLabel,
   onImagesChange,
   readOnly = false
@@ -132,12 +134,13 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
 
   const isReceipt = !!receiptId;
   const isNote = !!noteId;
-  const docTargetId = noteId || receiptId || saleId;
-  const effectivePartnerLabel = partnerLabel || (isNote ? 'Ghi chú' : isReceipt ? 'Nhà cung cấp' : 'Khách hàng');
-  const docLabel = isNote ? 'Ghi chú' : isReceipt ? 'Phiếu nhập' : 'Đơn bán hàng';
-  const imageLabel = isNote ? 'ảnh ghi chú' : isReceipt ? 'ảnh nhập hàng' : 'ảnh giao hàng';
+  const isConsignment = !!consignmentId;
+  const docTargetId = noteId || receiptId || saleId || consignmentId;
+  const effectivePartnerLabel = partnerLabel || (isNote ? 'Ghi chú' : isReceipt ? 'Nhà cung cấp' : isConsignment ? 'Khách gửi' : 'Khách hàng');
+  const docLabel = isNote ? 'Ghi chú' : isReceipt ? 'Phiếu nhập' : isConsignment ? 'Hàng gửi bán' : 'Đơn bán hàng';
+  const imageLabel = isNote ? 'ảnh ghi chú' : isReceipt ? 'ảnh nhập hàng' : isConsignment ? 'ảnh hàng gửi bán' : 'ảnh giao hàng';
 
-  const canModify = !readOnly && (!!saleId || !!receiptId || !!noteId || !!onImagesChange);
+  const canModify = !readOnly && (!!saleId || !!receiptId || !!noteId || !!consignmentId || !!onImagesChange);
   const currentImage = localImages[currentIndex] || null;
 
   const goPrevImage = () => {
@@ -159,7 +162,25 @@ export const DeliveryImageViewerModal: React.FC<DeliveryImageViewerModalProps> =
   const persistImages = async (updated: string[], successText: string) => {
     setLocalImages(updated);
     onImagesChange?.(updated);
-    if (noteId) {
+    if (consignmentId) {
+      try {
+        setIsUploading(true);
+        setUploadStatus(null);
+        await updateDoc(doc(db, 'consignments', consignmentId), {
+          images: updated,
+          updatedAt: serverTimestamp()
+        });
+        setUploadStatus({ type: 'success', message: successText });
+      } catch (err: any) {
+        console.error('Lỗi cập nhật ảnh hàng gửi bán:', err);
+        setUploadStatus({
+          type: 'error',
+          message: 'Lưu ảnh thất bại: ' + (err.message || 'Lỗi kết nối cơ sở dữ liệu')
+        });
+      } finally {
+        setIsUploading(false);
+      }
+    } else if (noteId) {
       try {
         setIsUploading(true);
         setUploadStatus(null);

@@ -40,11 +40,13 @@ import RestockPredictions from '../RestockPredictions';
 import ProductInvoiceManagement from '../ProductInvoiceManagement';
 import ProductCategoryManagement from '../ProductCategoryManagement';
 import BackupRestoreManagement from '../BackupRestoreManagement';
+import ConsignmentManagement from '../ConsignmentManagement';
 import MobileAppSwitcher from './MobileAppSwitcher';
 
 const APP_TITLES: Partial<Record<View, string>> = {
   sales: 'Bán Hàng & Đơn Hàng',
   goodsReceipt: 'Nhập Hàng & Lịch Sử',
+  consignments: 'Khách Gởi Bán (Ký Gửi)',
   debtManagement: 'Quản Lý Công Nợ',
   dashboard: 'Báo Cáo Dashboard',
   products: 'Quản Lý Sản Phẩm',
@@ -192,6 +194,21 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       iconName: 'goodsReceipt',
       color: 'bg-blue-600',
       badgeCount: unreadReceiptsCount,
+      defaultSize: { width: 1180, height: 740 }
+    },
+    {
+      id: 'consignments',
+      title: 'Khách Gởi Bán (Ký Gửi)',
+      category: 'ban_hang',
+      categoryLabel: 'Ký gửi',
+      iconName: 'consignments',
+      color: 'bg-purple-600',
+      keywords: [
+        'gởi bán', 'goi ban', 'gửi bán', 'gui ban',
+        'khách gởi bán', 'khach goi ban', 'khách gửi bán', 'khach gui ban',
+        'ký gửi', 'ky gui', 'kygui', 'ký gởi', 'ky goi',
+        'hàng ký gửi', 'hang ky gui', 'consign', 'consignment'
+      ],
       defaultSize: { width: 1180, height: 740 }
     },
     {
@@ -791,6 +808,7 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
       case 'restockPredictions': return <RestockPredictions />;
       case 'productInvoices': return <ProductInvoiceManagement userRole={userRole} user={user} />;
       case 'backupRestore': return <BackupRestoreManagement user={user} />;
+      case 'consignments': return <ConsignmentManagement user={user} userRole={userRole} />;
       default: return <SalesTerminal userRole={userRole} user={user} unreadCount={unreadSalesCount} onMarkAsRead={onMarkSalesAsRead} />;
     }
   };

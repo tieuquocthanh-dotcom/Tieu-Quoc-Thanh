@@ -3,7 +3,8 @@ import {
   Search, X, ShoppingCart, Archive, LayoutDashboard, Wallet, PiggyBank, Landmark,
   PackageSearch, ClipboardList, Plane, CheckCheck, BarChart2, History, BarChart3,
   PieChart, Package, FileText, Contact, Users, Warehouse, Truck, Send, AlertTriangle,
-  Bell, StickyNote, UserCircle, Building, CreditCard, LogOut, Grid, Sparkles, Monitor, Tags, Database
+  Bell, StickyNote, UserCircle, Building, CreditCard, LogOut, Grid, Sparkles, Monitor, Tags, Database,
+  Handshake
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { View } from '../../types';
@@ -302,6 +303,7 @@ export const getAppIcon = (name: string, size = 18) => {
   switch (name) {
     case 'sales': return <ShoppingCart size={size} />;
     case 'goodsReceipt': return <Archive size={size} />;
+    case 'consignments': return <Handshake size={size} />;
     case 'dashboard': return <LayoutDashboard size={size} />;
     case 'debtManagement': return <Wallet size={size} />;
     case 'savings': return <PiggyBank size={size} />;

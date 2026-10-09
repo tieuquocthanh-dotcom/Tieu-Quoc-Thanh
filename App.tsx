@@ -38,8 +38,9 @@ import RestockPredictions from './components/RestockPredictions';
 import ProductInvoiceManagement from './components/ProductInvoiceManagement';
 import ProductCategoryManagement from './components/ProductCategoryManagement';
 import BackupRestoreManagement from './components/BackupRestoreManagement';
+import ConsignmentManagement from './components/ConsignmentManagement';
 import WindowManager from './components/windows/WindowManager';
-import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw, Monitor, AppWindow, Tags, Database } from 'lucide-react';
+import { Search, Home, Package, ShoppingCart, CheckCircle, Building, Users, Warehouse, Contact, Settings, Truck, CreditCard, Archive, Send, AlertTriangle, LayoutDashboard, Wallet, LogOut, UserCircle, LogIn, FileText, Plane, Bell, BarChart3, PieChart, History, BarChart2, CheckCheck, ClipboardList, Landmark, StickyNote, PiggyBank, PackageSearch, Clock, RotateCw, Monitor, AppWindow, Tags, Database, Handshake } from 'lucide-react';
 import { View } from './types';
 
 const App: React.FC = () => {
@@ -413,6 +414,7 @@ const App: React.FC = () => {
       case 'restockPredictions': return <RestockPredictions />;
       case 'productInvoices': return <ProductInvoiceManagement userRole={userRole} user={user} />;
       case 'backupRestore': return <BackupRestoreManagement user={user} />;
+      case 'consignments': return <ConsignmentManagement user={user} userRole={userRole} />;
       default: return <SalesTerminal userRole={userRole} user={user} />;
     }
   };
@@ -585,6 +587,7 @@ const App: React.FC = () => {
             {isAdmin && <NavItem targetView="dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" />}
             <NavItem targetView="sales" icon={<ShoppingCart size={18} />} label="Bán Hàng" badgeCount={unreadSalesCount} />
             <NavItem targetView="goodsReceipt" icon={<Archive size={18} />} label="Nhập Hàng" badgeCount={unreadReceiptsCount} />
+            <NavItem targetView="consignments" icon={<Handshake size={18} />} label="Gởi Bán" />
 
             {isAdmin && (
                 <>
@@ -647,6 +650,7 @@ const App: React.FC = () => {
                 {
                     title: "Hàng Hóa & Đối Tác",
                     items: [
+                        { targetView: "consignments" as View, icon: <Handshake size={16}/>, label: "Khách Gởi Bán" },
                         { targetView: "products" as View, icon: <Package size={16}/>, label: "Sản Phẩm" },
                         { targetView: "productInvoices" as View, icon: <FileText size={16}/>, label: "Quản Lý Hóa Đơn SP" },
                         { targetView: "quotations" as View, icon: <FileText size={16}/>, label: "Quản Lý Báo Giá" },
