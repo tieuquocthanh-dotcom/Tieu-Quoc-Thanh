@@ -10,6 +10,7 @@ import GoodsReceiptEditModal from './GoodsReceiptEditModal';
 import { DeliveryImageViewerModal, DeliveryImageUploadSection, ReceiptCardDeliveryImageBar } from './DeliveryImageViewerModal';
 import PriceComparisonModal from './PriceComparisonModal';
 import HighPriceWarningModal, { HighPriceWarningData } from './HighPriceWarningModal';
+import StandardPriceDiffModal, { PriceDiffItem } from './StandardPriceDiffModal';
 import InventoryLedger from './InventoryLedger';
 import StockStatusBadge from './StockStatusBadge';
 import { ProductModal } from './ProductManagement';
@@ -409,6 +410,8 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const [highPriceWarningData, setHighPriceWarningData] = useState<HighPriceWarningData | null>(null);
   const [isHighPriceModalOpen, setIsHighPriceModalOpen] = useState(false);
   const [acknowledgedHighPriceIds, setAcknowledgedHighPriceIds] = useState<Set<string>>(new Set());
+  const [priceDiffItems, setPriceDiffItems] = useState<PriceDiffItem[]>([]);
+  const [isPriceDiffModalOpen, setIsPriceDiffModalOpen] = useState(false);
   const isAdmin = userRole === 'admin';
   const [todayReceiptsSearchTerm, setTodayReceiptsSearchTerm] = useState('');
 
@@ -849,7 +852,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
     }
   };
 
-  const handleConfirmReceipt = async () => {
+  const handleInitiateConfirmReceipt = () => {
     if (receipt.length === 0 || !selectedSupplierId || !selectedWarehouseId) { 
         alert("Vui lòng chọn đầy đủ Nhà cung cấp, Kho nhập và ít nhất 1 sản phẩm."); 
         return; 
@@ -858,6 +861,38 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
         alert("Vui lòng chọn Phương thức thanh toán khi thanh toán ngay, hoặc tích chọn 'Ghi nợ NCC' nếu chưa thanh toán.");
         return;
     }
+
+    // Kiểm tra chênh lệch giữa giá nhập sau cùng của đơn này và giá chuẩn của sản phẩm
+    const diffs: PriceDiffItem[] = [];
+    for (const item of receipt) {
+        const prod = products.find(p => p.id === item.productId);
+        const standardPrice = prod ? prod.importPrice : item.originalImportPrice;
+        if (standardPrice !== undefined && item.importPrice !== standardPrice) {
+            const diff = item.importPrice - standardPrice;
+            const percentDiff = standardPrice > 0 ? (diff / standardPrice) * 100 : 0;
+            diffs.push({
+                productId: item.productId,
+                productName: item.productName || prod?.name || 'Sản phẩm',
+                shortName: prod?.shortName,
+                standardPrice,
+                receiptPrice: item.importPrice,
+                quantity: item.quantity,
+                difference: diff,
+                percentDiff
+            });
+        }
+    }
+
+    if (diffs.length > 0) {
+        setPriceDiffItems(diffs);
+        setIsPriceDiffModalOpen(true);
+    } else {
+        // Không có sản phẩm nào lệch giá so với giá chuẩn -> Nhập ngay
+        executeConfirmReceipt(new Set());
+    }
+  };
+
+  const executeConfirmReceipt = async (productsToUpdateStandardPrice: Set<string> = new Set()) => {
     setIsProcessing(true);
     try {
       await runTransaction(db, async (transaction) => {
@@ -964,7 +999,9 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                 transaction.set(invRef, { stock: increment(item.quantity), warehouseId: selWh.id, warehouseName: selWh.name }, { merge: true });
                 if (hasInvoice) transaction.update(doc(db, 'products', item.productId), { totalInvoicedStock: increment(item.quantity) });
             }
-            if (isAdmin && (item.updateImportPrice || (item.originalImportPrice !== undefined && item.importPrice > item.originalImportPrice))) {
+
+            // Chỉ cập nhật giá chuẩn sản phẩm nếu người dùng đã đồng ý cập nhật cho SP này
+            if (productsToUpdateStandardPrice.has(item.productId)) {
                 transaction.update(doc(db, 'products', item.productId), { importPrice: item.importPrice });
             }
           }
@@ -977,11 +1014,23 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
               }
           }
       });
+      setIsPriceDiffModalOpen(false);
+      setPriceDiffItems([]);
       setReceipt([]); setSelectedSupplierId(''); setSupplierSearchTerm(''); setSourceOrderDetails(null); setReceiptImages([]);
       setPaymentStatus('paid');
       setWasLastReceiptDebt(false);
       lastLoadedSupplierIdRef.current = null;
-      setToast({ message: `Nhập hàng thành công! (${paymentStatus === 'debt' ? 'Ghi nợ NCC' : 'Đã thanh toán'})`, type: 'success' });
+
+      const updateMsg = productsToUpdateStandardPrice.size > 0 
+          ? ` (Đã cập nhật giá chuẩn cho ${productsToUpdateStandardPrice.size} SP)` 
+          : priceDiffItems.length > 0 
+          ? ' (Đã giữ nguyên giá chuẩn cũ)' 
+          : '';
+      setToast({ 
+          message: `Nhập hàng thành công! (${paymentStatus === 'debt' ? 'Ghi nợ NCC' : 'Đã thanh toán'})${updateMsg}`, 
+          type: 'success',
+          duration: 3500
+      });
     } catch (err: any) { 
         console.error(err); 
         setToast({ message: "Lỗi khi nhập hàng: " + err.message, type: 'error' });
@@ -1053,6 +1102,18 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
             onConfirmAdd={handleConfirmHighPriceAdd}
             onAdjustPrice={handleAdjustPrice}
             onOpenPriceComparison={handleOpenComparisonFromWarning}
+        />
+        <StandardPriceDiffModal
+            isOpen={isPriceDiffModalOpen}
+            onClose={() => setIsPriceDiffModalOpen(false)}
+            diffItems={priceDiffItems}
+            onConfirmWithUpdates={async (selectedIds) => {
+                await executeConfirmReceipt(new Set(selectedIds));
+            }}
+            onConfirmKeepOldPrices={async () => {
+                await executeConfirmReceipt(new Set());
+            }}
+            isProcessing={isProcessing}
         />
         
         <div className={`flex flex-col lg:flex-row gap-4 flex-1 ${isFullscreen ? 'min-h-0' : ''}`}>
@@ -1382,7 +1443,25 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         </div>
                                         <div className="text-right relative">
                                             <NumericInput value={item.importPrice} onChange={(val) => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, importPrice: val} : i))} className="w-full p-1.5 border border-slate-700 rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none text-white bg-slate-900 text-sm shadow-2xs" />
-                                            <div className="flex items-center justify-end gap-1.5 mt-1">
+                                             <div className="flex flex-wrap items-center justify-end gap-1.5 mt-1">
+                                                {(() => {
+                                                    const prod = products.find(p => p.id === item.productId);
+                                                    const stdPrice = prod ? prod.importPrice : item.originalImportPrice;
+                                                    if (stdPrice === undefined || stdPrice === item.importPrice) return null;
+                                                    const isHigher = item.importPrice > stdPrice;
+                                                    const diff = Math.abs(item.importPrice - stdPrice);
+                                                    return (
+                                                        <span 
+                                                            className={`text-[9px] font-bold px-1 py-0.5 rounded border flex items-center gap-0.5 ${
+                                                                isHigher ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                                            }`} 
+                                                            title={`Giá chuẩn SP hiện tại: ${formatNumber(stdPrice)} ₫`}
+                                                        >
+                                                            {isHigher ? <TrendingUp size={9}/> : <TrendingDown size={9}/>}
+                                                            {isHigher ? 'Lệch chuẩn: +' : 'Lệch chuẩn: -'}{formatNumber(diff)}đ
+                                                        </span>
+                                                    );
+                                                })()}
                                                 {supplierPriceHistory[item.productId] !== undefined && item.importPrice > supplierPriceHistory[item.productId] && (
                                                     <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded border border-rose-200 flex items-center gap-0.5" title={`Lần trước NCC này: ${formatNumber(supplierPriceHistory[item.productId])} đ`}>
                                                         <TrendingUp size={9}/> +{formatNumber(item.importPrice - supplierPriceHistory[item.productId])}
@@ -1395,7 +1474,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                     {isAdmin && (
                                         <div className={`flex items-center mt-1 p-1 rounded-lg border cursor-pointer transition-all ${item.updateImportPrice ? 'bg-blue-50 border-blue-300 text-blue-800 font-bold' : 'bg-white border-slate-200 text-slate-500'}`}>
                                             <input type="checkbox" id={`pos-up-imp-${item.productId}`} checked={item.updateImportPrice} onChange={e => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, updateImportPrice: e.target.checked} : i))} className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-0 mr-1.5" />
-                                            <label htmlFor={`pos-up-imp-${item.productId}`} className="text-[9px] font-bold uppercase flex-1 cursor-pointer">Cập nhật giá gốc</label>
+                                            <label htmlFor={`pos-up-imp-${item.productId}`} className="text-[9px] font-bold uppercase flex-1 cursor-pointer">Cập nhật giá chuẩn của SP</label>
                                         </div>
                                     )}
                                 </div>
@@ -1416,7 +1495,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                             <span className="font-bold text-primary leading-none text-2xl">{formatNumber(receipt.reduce((s,i) => s + i.importPrice*i.quantity, 0))}<span className="text-xs ml-0.5 font-bold text-slate-500">₫</span></span>
                         </div>
                         <button 
-                            onClick={handleConfirmReceipt} 
+                            onClick={handleInitiateConfirmReceipt} 
                             disabled={isProcessing || receipt.length === 0 || !selectedSupplierId || !selectedWarehouseId} 
                             className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-md active:scale-98 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 flex items-center justify-center uppercase tracking-tight transition-all text-white ${paymentStatus === 'debt' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary hover:bg-primary-hover'}`}
                         >

@@ -6,6 +6,7 @@ import { doc, serverTimestamp, runTransaction, collection, Timestamp, increment,
 import { db, auth } from '../services/firebase';
 import { formatNumber, parseNumber, getLocalYYYYMMDD } from '../utils/formatting';
 import { DeliveryImageUploadSection } from './DeliveryImageViewerModal';
+import StandardPriceDiffModal, { PriceDiffItem } from './StandardPriceDiffModal';
 
 interface GoodsReceiptEditModalProps {
   isOpen: boolean;
@@ -85,6 +86,8 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
   const [editedItems, setEditedItems] = useState<GoodsReceiptItem[]>([]);
   const [receiptImages, setReceiptImages] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [priceDiffItems, setPriceDiffItems] = useState<PriceDiffItem[]>([]);
+  const [isPriceDiffModalOpen, setIsPriceDiffModalOpen] = useState(false);
 
   // Supplier Search State
   const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
@@ -199,7 +202,47 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
     });
   };
 
-  const handleSave = async () => {
+  const handleInitiateSave = () => {
+    if (!receipt) return;
+    if (editedItems.length === 0) {
+      alert("Phiếu nhập không thể để trống sản phẩm.");
+      return;
+    }
+    if (paymentStatus === 'paid' && !paymentMethodId) {
+      alert("Vui lòng chọn tài khoản chi tiền.");
+      return;
+    }
+
+    // Kiểm tra chênh lệch giữa giá nhập mới và giá chuẩn của sản phẩm
+    const diffs: PriceDiffItem[] = [];
+    for (const item of editedItems) {
+      const prod = products.find(p => p.id === item.productId);
+      const standardPrice = prod?.importPrice;
+      if (standardPrice !== undefined && item.importPrice !== standardPrice) {
+        const diff = item.importPrice - standardPrice;
+        const percentDiff = standardPrice > 0 ? (diff / standardPrice) * 100 : 0;
+        diffs.push({
+          productId: item.productId,
+          productName: item.productName || prod?.name || 'Sản phẩm',
+          shortName: prod?.shortName,
+          standardPrice,
+          receiptPrice: item.importPrice,
+          quantity: item.quantity,
+          difference: diff,
+          percentDiff
+        });
+      }
+    }
+
+    if (diffs.length > 0) {
+      setPriceDiffItems(diffs);
+      setIsPriceDiffModalOpen(true);
+    } else {
+      executeSave(new Set());
+    }
+  };
+
+  const executeSave = async (productsToUpdateStandardPrice: Set<string> = new Set()) => {
     if (!receipt) return;
     if (editedItems.length === 0) {
       alert("Phiếu nhập không thể để trống sản phẩm.");
@@ -288,11 +331,8 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                 inventoryDiffs[newItem.productId] = (inventoryDiffs[newItem.productId] || 0) + newItem.quantity;
                 if (hasInvoice) invoiceDiffs[newItem.productId] = (invoiceDiffs[newItem.productId] || 0) + newItem.quantity;
             }
-            if (productData) {
-                const originalImportPrice = productData.importPrice || 0;
-                if (newItem.importPrice > originalImportPrice) {
-                    importPriceUpdates[newItem.productId] = Math.max(importPriceUpdates[newItem.productId] || 0, newItem.importPrice);
-                }
+            if (productData && productsToUpdateStandardPrice.has(newItem.productId)) {
+                importPriceUpdates[newItem.productId] = newItem.importPrice;
             }
         }
 
@@ -388,7 +428,9 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
         });
       });
 
-      alert("Cập nhật phiếu nhập thành công!");
+      setIsPriceDiffModalOpen(false);
+      setPriceDiffItems([]);
+      alert(`Cập nhật phiếu nhập thành công!${productsToUpdateStandardPrice.size > 0 ? ` (Đã cập nhật giá chuẩn cho ${productsToUpdateStandardPrice.size} SP)` : ''}`);
       onClose();
     } catch (error: any) {
       console.error("Lỗi cập nhật:", error);
@@ -694,14 +736,27 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
         <div className="p-4 bg-white border-t-2 border-slate-100 flex justify-end space-x-3 flex-shrink-0">
           <button onClick={onClose} className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition font-black text-xs uppercase" disabled={isProcessing}>Hủy</button>
           <button 
-            onClick={handleSave} 
+            onClick={handleInitiateSave} 
             disabled={isProcessing}
-            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-200 flex items-center transition active:scale-95 disabled:bg-slate-300"
+            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-200 flex items-center transition active:scale-95 disabled:bg-slate-300 cursor-pointer"
           >
             {isProcessing ? <Loader className="animate-spin mr-2" size={18} /> : <Save size={18} className="mr-2" />}
             {isProcessing ? 'Đang xử lý...' : 'Lưu Thay Đổi'}
           </button>
         </div>
+
+        <StandardPriceDiffModal
+          isOpen={isPriceDiffModalOpen}
+          onClose={() => setIsPriceDiffModalOpen(false)}
+          diffItems={priceDiffItems}
+          onConfirmWithUpdates={async (selectedIds) => {
+            await executeSave(new Set(selectedIds));
+          }}
+          onConfirmKeepOldPrices={async () => {
+            await executeSave(new Set());
+          }}
+          isProcessing={isProcessing}
+        />
       </div>
     </div>
   );
