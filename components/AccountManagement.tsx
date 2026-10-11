@@ -1123,6 +1123,44 @@ const AccountManagement: React.FC = () => {
       }
   };
 
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
+
+  // Tự động làm sạch các ID đã chọn nếu tài khoản bị xóa
+  useEffect(() => {
+    if (selectedAccountIds.length > 0) {
+      const validIds = new Set(paymentMethods.map(p => p.id));
+      setSelectedAccountIds(prev => prev.filter(id => validIds.has(id)));
+    }
+  }, [paymentMethods]);
+
+  const handleToggleSelectAccount = (id: string) => {
+    setSelectedAccountIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedAccountIds.length === sortedAndFilteredAccounts.length && sortedAndFilteredAccounts.length > 0) {
+      setSelectedAccountIds([]);
+    } else {
+      setSelectedAccountIds(sortedAndFilteredAccounts.map(a => a.id));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedAccountIds([]);
+  };
+
+  const isAllSelected = sortedAndFilteredAccounts.length > 0 && 
+    sortedAndFilteredAccounts.every(a => selectedAccountIds.includes(a.id));
+
+  const checkedTotalBalance = useMemo(() => {
+    const selectedSet = new Set(selectedAccountIds);
+    return paymentMethods
+      .filter(item => selectedSet.has(item.id))
+      .reduce((sum, item) => sum + (item.balance || 0), 0);
+  }, [paymentMethods, selectedAccountIds]);
+
   const totalBalance = useMemo(() => {
     return paymentMethods.reduce((sum, item) => sum + (item.balance || 0), 0);
   }, [paymentMethods]);
@@ -1175,25 +1213,54 @@ const AccountManagement: React.FC = () => {
           <p className="text-neutral text-sm mt-1">Quản lý dòng tiền, số dư và chuyển khoản nội bộ.</p>
         </div>
         
-        <div className="bg-slate-900 p-6 rounded-3xl shadow-xl border border-slate-700 flex items-center space-x-6 min-w-[320px] hover:border-slate-600 transition-all">
-          <div className="p-4 bg-primary text-white rounded-2xl shadow-lg shadow-primary/30">
-            <Wallet size={32}/>
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Tổng Số Tiền Hệ Thống</p>
-            <p className="text-3xl font-black text-white tracking-tighter">{formatNumber(totalBalance)} <span className="text-primary text-sm font-black italic">₫</span></p>
-            {globalLatestLog && (
-                <div className="mt-2">
-                    <p className="text-xs font-black uppercase tracking-widest text-red-500">
-                        Cập nhật: {globalLatestLog.createdAt?.toDate().toLocaleString('vi-VN')}
-                    </p>
-                    {globalLatestLog.note && (
-                        <p className="text-xs mt-0.5 truncate max-w-sm text-slate-400">
-                            {globalLatestLog.note.split('_')[0]}
-                        </p>
-                    )}
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Card Tổng tiền các tài khoản ĐÃ CHỌN (hiển thị khi có ít nhất 1 tài khoản được tick) */}
+          {selectedAccountIds.length > 0 && (
+            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-5 rounded-3xl shadow-xl border-2 border-emerald-400 flex items-center space-x-4 min-w-[280px] text-white animate-fade-in ring-4 ring-emerald-500/20">
+              <div className="p-3.5 bg-white/20 backdrop-blur-sm rounded-2xl shadow-inner">
+                <Check size={28} className="stroke-[3]"/>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-100">
+                    Đã Chọn ({selectedAccountIds.length} TK)
+                  </p>
+                  <button 
+                    onClick={handleClearSelection}
+                    className="text-[10px] underline font-bold text-white/80 hover:text-white transition"
+                    title="Bỏ chọn tất cả"
+                  >
+                    Bỏ chọn
+                  </button>
                 </div>
-            )}
+                <p className="text-2xl md:text-3xl font-black tracking-tighter text-white">
+                  {formatNumber(checkedTotalBalance)} <span className="text-emerald-200 text-sm font-black italic">₫</span>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Card Tổng tiền hệ thống */}
+          <div className="bg-slate-900 p-5 md:p-6 rounded-3xl shadow-xl border border-slate-700 flex items-center space-x-5 min-w-[280px] hover:border-slate-600 transition-all">
+            <div className="p-4 bg-primary text-white rounded-2xl shadow-lg shadow-primary/30">
+              <Wallet size={28}/>
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Tổng Số Tiền Hệ Thống</p>
+              <p className="text-2xl md:text-3xl font-black text-white tracking-tighter">{formatNumber(totalBalance)} <span className="text-primary text-sm font-black italic">₫</span></p>
+              {globalLatestLog && (
+                  <div className="mt-1.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-red-500">
+                          Cập nhật: {globalLatestLog.createdAt?.toDate().toLocaleString('vi-VN')}
+                      </p>
+                      {globalLatestLog.note && (
+                          <p className="text-xs mt-0.5 truncate max-w-sm text-slate-400">
+                              {globalLatestLog.note.split('_')[0]}
+                          </p>
+                      )}
+                  </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1224,9 +1291,25 @@ const AccountManagement: React.FC = () => {
                 <PlusCircle size={16} className="mr-2"/> Thêm tài khoản
             </button>
           </div>
-          <div className="flex items-center text-[10px] text-blue-600 font-black uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-full border border-blue-100">
-            <History size={14} className="mr-2" />
-            Nhật ký giao dịch tự động lưu vết
+
+          <div className="flex flex-wrap items-center gap-3">
+            {selectedAccountIds.length > 0 && (
+              <div className="flex items-center gap-2 bg-emerald-100 border border-emerald-300 text-emerald-900 px-3 py-1.5 rounded-xl text-xs font-black animate-fade-in">
+                <span>Đã chọn: <strong className="text-emerald-700 font-black">{selectedAccountIds.length}</strong> / {sortedAndFilteredAccounts.length} TK</span>
+                <span className="text-slate-300">|</span>
+                <span>Tổng: <strong className="text-emerald-800 text-sm font-black">{formatNumber(checkedTotalBalance)} ₫</strong></span>
+                <button 
+                  onClick={handleClearSelection}
+                  className="ml-1 text-[10px] text-emerald-800 hover:text-red-600 underline font-black"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+            )}
+            <div className="flex items-center text-[10px] text-blue-600 font-black uppercase tracking-widest bg-blue-50 px-4 py-2 rounded-full border border-blue-100">
+              <History size={14} className="mr-2" />
+              Nhật ký giao dịch tự động lưu vết
+            </div>
           </div>
         </div>
 
@@ -1241,8 +1324,19 @@ const AccountManagement: React.FC = () => {
             </div>
           ) : (
             <table className="w-full text-left border-separate border-spacing-0">
-              <thead className="bg-slate-800 text-white">
+              <thead className="bg-slate-800 text-white select-none">
                 <tr>
+                  <th className="p-4 w-14 text-center">
+                    <div className="flex items-center justify-center">
+                      <input 
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                        title={isAllSelected ? "Bỏ chọn tất cả" : "Chọn tất cả tài khoản"}
+                        className="w-5 h-5 rounded-md border-2 border-slate-400 text-primary focus:ring-primary focus:ring-offset-slate-800 cursor-pointer accent-primary"
+                      />
+                    </div>
+                  </th>
                   <th 
                     className="p-5 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-700 transition"
                     onClick={() => handleSort('name')}
@@ -1259,40 +1353,78 @@ const AccountManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {sortedAndFilteredAccounts.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="p-5">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 rounded-2xl bg-white border-2 border-slate-100 flex items-center justify-center mr-4 text-slate-500 font-black shadow-sm group-hover:border-primary transition-colors">
-                          {item.name.charAt(0).toUpperCase()}
+                {sortedAndFilteredAccounts.map((item) => {
+                  const isChecked = selectedAccountIds.includes(item.id);
+                  return (
+                    <tr 
+                      key={item.id} 
+                      className={`transition-colors group ${isChecked ? 'bg-emerald-50/70 hover:bg-emerald-100/60' : 'hover:bg-slate-50'}`}
+                    >
+                      <td className="p-4 text-center align-middle">
+                        <div className="flex items-center justify-center">
+                          <input 
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleSelectAccount(item.id)}
+                            className="w-5 h-5 rounded-md border-2 border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                            title={`Chọn cộng dồn ${item.name}`}
+                          />
                         </div>
-                        <div>
-                            <span className="font-black text-slate-800 uppercase text-sm block">{item.name}</span>
-                            <button 
-                                onClick={() => handleOpenHistory(item)}
-                                className="text-[10px] font-black text-primary uppercase flex items-center mt-1 hover:underline"
-                            >
-                                <History size={12} className="mr-1"/> Xem nhật ký
-                            </button>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-5 text-right">
-                        <span className="text-2xl font-black text-slate-900 tracking-tighter block">{formatNumber(item.balance || 0)} ₫</span>
-                        {latestLogs[item.id] && (
-                            <div className="mt-2 flex flex-col items-end text-right">
-                                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 px-2 py-0.5 rounded">
-                                    Cập nhật: {latestLogs[item.id].createdAt?.toDate().toLocaleString('vi-VN')}
+                      </td>
+                      <td className="p-5">
+                        <div className="flex items-center">
+                          <div 
+                            onClick={() => handleToggleSelectAccount(item.id)}
+                            className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center mr-4 font-black shadow-sm transition-colors cursor-pointer select-none ${
+                              isChecked 
+                                ? 'bg-emerald-500 text-white border-emerald-600 ring-2 ring-emerald-300' 
+                                : 'bg-white border-slate-100 text-slate-500 group-hover:border-primary'
+                            }`}
+                            title="Click để chọn / bỏ chọn"
+                          >
+                            {isChecked ? <Check size={20} className="stroke-[3]" /> : item.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span 
+                                onClick={() => handleToggleSelectAccount(item.id)}
+                                className={`font-black uppercase text-sm block cursor-pointer hover:text-primary transition-colors ${isChecked ? 'text-emerald-900 font-black' : 'text-slate-800'}`}
+                              >
+                                {item.name}
+                              </span>
+                              {isChecked && (
+                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
+                                  Đang tính tổng
                                 </span>
-                                {latestLogs[item.id]?.note && (
-                                    <span className="text-xs font-medium text-slate-500 mt-1 max-w-[250px] truncate" title={latestLogs[item.id]?.note}>
-                                        {latestLogs[item.id]?.note?.split('_')[0]}
-                                    </span>
-                                )}
+                              )}
                             </div>
+                            <button 
+                              onClick={() => handleOpenHistory(item)}
+                              className="text-[10px] font-black text-primary uppercase flex items-center mt-1 hover:underline"
+                            >
+                              <History size={12} className="mr-1"/> Xem nhật ký
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-5 text-right">
+                        <span className={`text-2xl font-black tracking-tighter block ${isChecked ? 'text-emerald-700' : 'text-slate-900'}`}>
+                          {formatNumber(item.balance || 0)} ₫
+                        </span>
+                        {latestLogs[item.id] && (
+                          <div className="mt-2 flex flex-col items-end text-right">
+                            <span className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 px-2 py-0.5 rounded">
+                              Cập nhật: {latestLogs[item.id].createdAt?.toDate().toLocaleString('vi-VN')}
+                            </span>
+                            {latestLogs[item.id]?.note && (
+                              <span className="text-xs font-medium text-slate-500 mt-1 max-w-[250px] truncate" title={latestLogs[item.id]?.note}>
+                                {latestLogs[item.id]?.note?.split('_')[0]}
+                              </span>
+                            )}
+                          </div>
                         )}
-                    </td>
-                    <td className="p-5 text-center">
+                      </td>
+                      <td className="p-5 text-center">
                         <div className="flex justify-center space-x-3">
                           <button 
                             onClick={() => handleOpenModal('deposit', item)}
@@ -1316,10 +1448,69 @@ const AccountManagement: React.FC = () => {
                             <Edit size={16} />
                           </button>
                         </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                {selectedAccountIds.length > 0 && (
+                  <tr className="bg-emerald-50/90 border-b border-emerald-200 font-black">
+                    <td className="p-4 text-center">
+                      <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto text-xs">
+                        <Check size={14} className="stroke-[3]"/>
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs uppercase tracking-wider text-emerald-900 font-black">
+                          TỔNG CÁC TÀI KHOẢN ĐÃ CHỌN ({selectedAccountIds.length} TK):
+                        </span>
+                        <button 
+                          onClick={handleClearSelection}
+                          className="text-[10px] text-emerald-700 hover:text-red-600 underline font-black uppercase"
+                        >
+                          (Bỏ chọn)
+                        </button>
+                      </div>
+                    </td>
+                    <td className="p-4 text-right">
+                      <span className="text-2xl font-black text-emerald-700 tracking-tighter">
+                        {formatNumber(checkedTotalBalance)} ₫
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className="text-[10px] uppercase font-black text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
+                        Cộng dồn {selectedAccountIds.length} tài khoản
+                      </span>
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+                <tr className="font-black text-slate-800">
+                  <td className="p-4 text-center">
+                    <input 
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={handleSelectAll}
+                      title={isAllSelected ? "Bỏ chọn tất cả" : "Chọn tất cả tài khoản"}
+                      className="w-4 h-4 rounded border-slate-300 text-primary cursor-pointer accent-primary"
+                    />
+                  </td>
+                  <td className="p-4">
+                    <span className="text-xs uppercase tracking-widest text-slate-500 font-black">
+                      TỔNG TOÀN BỘ HỆ THỐNG ({paymentMethods.length} TÀI KHOẢN):
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <span className="text-2xl font-black text-slate-900 tracking-tighter">
+                      {formatNumber(totalBalance)} ₫
+                    </span>
+                  </td>
+                  <td className="p-4 text-center text-xs text-slate-400 font-bold">
+                    {paymentMethods.length} phương thức
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           )}
         </div>
