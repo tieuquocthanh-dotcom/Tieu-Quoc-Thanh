@@ -80,14 +80,26 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 p-4 text-white flex justify-between items-center shrink-0">
+        <div className={`p-4 text-white flex justify-between items-center shrink-0 ${
+          basePriceDifference && basePriceDifference < 0 && !priceIncreaseFromLast
+            ? 'bg-gradient-to-r from-rose-600 via-amber-600 to-indigo-700'
+            : 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500'
+        }`}>
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-white/20 rounded-xl">
               <AlertTriangle size={24} className="text-white animate-bounce-short" />
             </div>
             <div>
-              <h3 className="font-black text-base uppercase tracking-tight">Cảnh Báo: Giá Nhập Cao!</h3>
-              <p className="text-xs text-white/90 font-medium">Phát hiện giá nhập cao hơn bình thường trước khi thêm vào đơn</p>
+              <h3 className="font-black text-base uppercase tracking-tight">
+                {basePriceDifference && basePriceDifference < 0 && !priceIncreaseFromLast
+                  ? 'Cảnh Báo: Giá Nhập Rẻ Hơn Giá Chuẩn!'
+                  : 'Cảnh Báo: Giá Nhập Khác Thường!'}
+              </h3>
+              <p className="text-xs text-white/90 font-medium">
+                {basePriceDifference && basePriceDifference < 0 && !priceIncreaseFromLast
+                  ? 'Giá nhập rẻ hơn giá chuẩn của sản phẩm - Cân nhắc cập nhật lại giá chuẩn'
+                  : 'Phát hiện giá nhập có sự chênh lệch so với giá chuẩn hoặc lịch sử'}
+              </p>
             </div>
           </div>
           <button 
@@ -247,15 +259,39 @@ const HighPriceWarningModal: React.FC<HighPriceWarningModalProps> = ({
               </div>
             )}
 
-            {/* Warning 3: Higher than product standard base import price */}
-            {basePriceDifference && basePriceDifference > 0 && !priceIncreaseFromLast && (
-              <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-2.5">
-                <div className="p-1.5 bg-orange-100 text-orange-700 rounded-lg shrink-0 mt-0.5">
-                  <AlertTriangle size={15} />
+            {/* Warning 3: Price differs from product standard base import price (higher OR cheaper) */}
+            {basePriceDifference !== undefined && basePriceDifference !== 0 && !priceIncreaseFromLast && (
+              <div className={`p-3.5 rounded-xl border-2 flex items-start gap-3 ${
+                basePriceDifference < 0
+                  ? 'bg-rose-50 border-rose-300 text-rose-950'
+                  : 'bg-orange-50 border-orange-300 text-orange-950'
+              }`}>
+                <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+                  basePriceDifference < 0 ? 'bg-rose-100 text-rose-700' : 'bg-orange-100 text-orange-700'
+                }`}>
+                  <AlertTriangle size={18} />
                 </div>
-                <div className="text-xs text-orange-950 font-medium">
-                  Cao hơn giá vốn chuẩn của sản phẩm trong hệ thống: <strong>{formatNumber(product.importPrice)} đ</strong>{' '}
-                  (Chênh lệch: <strong className="text-orange-700">+{formatNumber(basePriceDifference)} đ</strong>)
+                <div className="flex-1 min-w-0">
+                  <div className={`text-xs font-black uppercase ${
+                    basePriceDifference < 0 ? 'text-rose-900' : 'text-orange-900'
+                  }`}>
+                    {basePriceDifference < 0 ? '📉 Giá nhập RẺ HƠN giá chuẩn của sản phẩm' : '📈 Giá nhập CAO HƠN giá chuẩn của sản phẩm'}
+                  </div>
+                  <div className="text-xs mt-1 space-y-0.5 font-medium">
+                    <div className="flex items-center gap-2">
+                      <span>Giá chuẩn SP: <strong>{formatNumber(product.importPrice)} đ</strong></span>
+                      <ArrowRight size={12} className={basePriceDifference < 0 ? 'text-rose-400' : 'text-orange-400'} />
+                      <span>Dự kiến nhập: <strong>{formatNumber(editPrice)} đ</strong></span>
+                    </div>
+                    <div className={`text-xs font-black mt-1 ${
+                      basePriceDifference < 0 ? 'text-rose-700' : 'text-orange-700'
+                    }`}>
+                      ➔ {basePriceDifference < 0 ? 'Rẻ hơn: -' : 'Tăng thêm: +'}{formatNumber(Math.abs(basePriceDifference))} đ/sp ({product.importPrice > 0 ? ((Math.abs(basePriceDifference) / product.importPrice) * 100).toFixed(1) : 0}%)
+                    </div>
+                    <div className="text-[11px] text-slate-500 italic mt-0.5">
+                      💡 Khi hoàn tất đơn nhập này, bạn có thể chọn cập nhật lại giá chuẩn mới hoặc tiếp tục giữ giá cũ.
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

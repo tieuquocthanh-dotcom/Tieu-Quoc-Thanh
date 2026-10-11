@@ -696,11 +696,33 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                                             </div>
                                         </td>
                                         <td className="p-3">
-                                            <NumericInput
-                                                value={item.importPrice}
-                                                onChange={val => updateItem(idx, { importPrice: val })}
-                                                className="w-full p-1.5 border-2 border-slate-300 rounded-lg text-right font-black text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary text-slate-900 bg-white"
-                                            />
+                                            {(() => {
+                                                const prod = products.find(p => p.id === item.productId);
+                                                const stdPrice = prod?.importPrice;
+                                                const hasStdDiff = stdPrice !== undefined && stdPrice > 0 && item.importPrice !== stdPrice;
+                                                const isHigher = stdPrice !== undefined && item.importPrice > stdPrice;
+                                                const diff = stdPrice !== undefined ? Math.abs(item.importPrice - stdPrice) : 0;
+                                                const percent = stdPrice !== undefined && stdPrice > 0 ? (diff / stdPrice) * 100 : 0;
+                                                return (
+                                                    <div className="space-y-1">
+                                                        <NumericInput
+                                                            value={item.importPrice}
+                                                            onChange={val => updateItem(idx, { importPrice: val })}
+                                                            className={`w-full p-1.5 border-2 rounded-lg text-right font-black text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary ${
+                                                                hasStdDiff
+                                                                    ? 'border-rose-400 bg-rose-50 text-rose-950 ring-1 ring-rose-200'
+                                                                    : 'border-slate-300 text-slate-900 bg-white'
+                                                            }`}
+                                                        />
+                                                        {hasStdDiff && (
+                                                            <div className="text-[10px] font-black text-rose-700 bg-rose-100/90 px-1.5 py-0.5 rounded border border-rose-300 text-right flex items-center justify-end gap-1 animate-fade-in" title={`Giá chuẩn SP: ${formatNumber(stdPrice)} ₫`}>
+                                                                <span>{isHigher ? 'Lệch: +' : 'Lệch: -'}{formatNumber(diff)}đ</span>
+                                                                <span className="opacity-75">({percent.toFixed(1)}%)</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="p-3 text-right font-black text-sm text-primary">
                                             {formatNumber(item.importPrice * item.quantity)} ₫
