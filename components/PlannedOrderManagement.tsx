@@ -886,8 +886,18 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                                 placeholder="Tìm sản phẩm để xem tồn kho hoặc thêm nhanh vào đơn..."
                                                 value={stockLookupSearch}
                                                 onChange={e => setStockLookupSearch(e.target.value)}
-                                                className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs placeholder-slate-500 font-bold focus:border-teal-400 outline-none"
+                                                className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg text-xs placeholder-slate-500 font-bold focus:border-teal-400 outline-none"
                                             />
+                                            {stockLookupSearch && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStockLookupSearch('')}
+                                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-red-400 rounded-full transition"
+                                                    title="Xóa tìm kiếm"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
                                         </div>
 
                                         <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-700/50">
@@ -942,8 +952,21 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                             value={productSearch}
                                             onChange={e => { setProductSearch(e.target.value); setIsProductDropdownOpen(true); }}
                                             onFocus={() => setIsProductDropdownOpen(true)}
-                                            className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border-2 border-slate-700 text-white rounded-xl focus:border-primary outline-none text-sm placeholder-slate-600 font-bold"
+                                            className="w-full pl-10 pr-9 py-2.5 bg-slate-800 border-2 border-slate-700 text-white rounded-xl focus:border-primary outline-none text-sm placeholder-slate-600 font-bold"
                                         />
+                                        {productSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setProductSearch('');
+                                                    setIsProductDropdownOpen(false);
+                                                }}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-full transition"
+                                                title="Xóa tìm kiếm"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
                                         {isProductDropdownOpen && productSearch && (
                                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-xl shadow-2xl z-20 max-h-56 overflow-y-auto">
                                                 {filteredProducts.length === 0 ? (

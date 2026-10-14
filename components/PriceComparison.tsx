@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, GoodsReceipt } from '../types';
-import { Search, Loader, TrendingDown, TrendingUp, DollarSign, History, Award, AlertCircle } from 'lucide-react';
+import { Search, Loader, TrendingDown, TrendingUp, DollarSign, History, Award, AlertCircle, X } from 'lucide-react';
 import { formatNumber } from '../utils/formatting';
 
 interface PriceHistoryItem {
@@ -195,8 +195,22 @@ const PriceComparison: React.FC = () => {
                   if (!e.target.value) setSelectedProductId('');
               }}
               onFocus={() => setIsDropdownOpen(true)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-400 shadow-sm"
+              className="w-full pl-10 pr-10 py-3 bg-slate-800 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-400 shadow-sm"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedProductId('');
+                  setIsDropdownOpen(false);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-400 hover:bg-slate-700 rounded-full transition"
+                title="Xóa tìm kiếm"
+              >
+                <X size={16} />
+              </button>
+            )}
             
             {isDropdownOpen && searchTerm && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto">

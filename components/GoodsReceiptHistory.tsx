@@ -80,14 +80,15 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Filters
   const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
+  const supplierInputRef = useRef<HTMLInputElement>(null);
 
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
   const productDropdownRef = useRef<HTMLDivElement>(null);
+  const productInputRef = useRef<HTMLInputElement>(null);
 
   const [startDate, setStartDate] = useState(getInitialStartDate);
   const [endDate, setEndDate] = useState(getInitialEndDate);
@@ -438,13 +439,29 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
              <div className="relative" ref={supplierDropdownRef}>
                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
                  <input 
+                    ref={supplierInputRef}
                     type="text" 
                     placeholder="Tìm nhà cung cấp..." 
                     value={supplierSearchTerm} 
                     onChange={(e) => { setSupplierSearchTerm(e.target.value); setIsSupplierDropdownOpen(true); setCurrentPage(1); }}
                     onFocus={() => setIsSupplierDropdownOpen(true)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary outline-none font-bold placeholder-slate-400"
+                    className="w-full pl-10 pr-10 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary outline-none font-bold placeholder-slate-400"
                  />
+                 {supplierSearchTerm && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSupplierSearchTerm('');
+                            setIsSupplierDropdownOpen(false);
+                            setCurrentPage(1);
+                            supplierInputRef.current?.focus();
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-full transition"
+                        title="Xóa tìm kiếm nhà cung cấp"
+                    >
+                        <X size={16} />
+                    </button>
+                 )}
                  {isSupplierDropdownOpen && supplierSearchTerm && (
                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
                          {suppliers.filter(s => s.name.toLowerCase().includes(supplierSearchTerm.toLowerCase())).map(s => (
@@ -457,13 +474,29 @@ const GoodsReceiptHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({
              <div className="relative" ref={productDropdownRef}>
                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
                  <input 
+                    ref={productInputRef}
                     type="text" 
                     placeholder="Tìm sản phẩm..." 
                     value={productSearchTerm} 
                     onChange={(e) => { setProductSearchTerm(e.target.value); setIsProductDropdownOpen(true); setCurrentPage(1); }}
                     onFocus={() => setIsProductDropdownOpen(true)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none font-bold placeholder-slate-400"
+                    className="w-full pl-10 pr-10 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none font-bold placeholder-slate-400"
                  />
+                 {productSearchTerm && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setProductSearchTerm('');
+                            setIsProductDropdownOpen(false);
+                            setCurrentPage(1);
+                            productInputRef.current?.focus();
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-full transition"
+                        title="Xóa tìm kiếm sản phẩm"
+                    >
+                        <X size={16} />
+                    </button>
+                 )}
                  {isProductDropdownOpen && productSearchTerm && (
                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto">
                          {suggestedProducts.map(p => (

@@ -272,8 +272,21 @@ export const ProductModal: React.FC<{
                                     value={comboSearch}
                                     onChange={e => { setComboSearch(e.target.value); setShowComboDropdown(true); }}
                                     onFocus={() => setShowComboDropdown(true)}
-                                    className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-900 placeholder-slate-400"
+                                    className="w-full pl-10 pr-9 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-900 placeholder-slate-400"
                                 />
+                                {comboSearch && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setComboSearch('');
+                                            setShowComboDropdown(false);
+                                        }}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-full transition"
+                                        title="Xóa tìm kiếm"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                )}
                             </div>
                         </div>
                         {showComboDropdown && comboSearch && (
@@ -564,8 +577,21 @@ const ProductManagement: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ u
                                         setCurrentPage(1);
                                     }
                                 }}
-                                className="w-full sm:w-64 pl-10 pr-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm"
+                                className="w-full sm:w-64 pl-10 pr-10 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-sm"
                             />
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchTerm('');
+                                        setCurrentPage(1);
+                                    }}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-full transition"
+                                    title="Xóa tìm kiếm"
+                                >
+                                    <X size={16} />
+                                </button>
+                            )}
                         </div>
                         <select value={selectedManufacturerId} onChange={e => setSelectedManufacturerId(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-xl bg-black text-white text-xs font-black uppercase outline-none">
                           <option value="all">Tất cả hãng</option>

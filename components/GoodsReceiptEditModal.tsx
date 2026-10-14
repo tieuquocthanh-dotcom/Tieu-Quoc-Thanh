@@ -473,8 +473,22 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                       }}
                       onFocus={() => setIsSupplierDropdownOpen(true)}
                       placeholder="Tìm NCC..."
-                      className="w-full pl-10 pr-3 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold text-slate-900 bg-white"
+                      className="w-full pl-10 pr-9 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-bold text-slate-900 bg-white"
                     />
+                    {supplierSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSupplierSearchTerm('');
+                          setSupplierId('');
+                          setIsSupplierDropdownOpen(false);
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 rounded-full transition"
+                        title="Xóa tìm NCC"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
                   </div>
                   {isSupplierDropdownOpen && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-800 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Warehouse } from '../types';
-import { PlusCircle, Edit, Trash2, Warehouse as WarehouseIcon, Search } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Warehouse as WarehouseIcon, Search, X } from 'lucide-react';
 import Pagination from './Pagination';
 import ConfirmationModal from './ConfirmationModal';
 
@@ -102,7 +102,26 @@ const WarehouseManagement: React.FC = () => {
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
             <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input type="text" placeholder="Tìm kiếm..." value={searchTerm} onChange={e => {setSearchTerm(e.target.value); setCurrentPage(1);}} className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-primary focus:border-primary" />
+                <input 
+                    type="text" 
+                    placeholder="Tìm kiếm..." 
+                    value={searchTerm} 
+                    onChange={e => {setSearchTerm(e.target.value); setCurrentPage(1);}} 
+                    className="w-full pl-10 pr-9 py-2 border rounded-lg focus:ring-primary focus:border-primary font-bold text-sm" 
+                />
+                {searchTerm && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSearchTerm('');
+                            setCurrentPage(1);
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-full transition"
+                        title="Xóa tìm kiếm"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
             </div>
             <select value={pageSize} onChange={e => {setPageSize(Number(e.target.value)); setCurrentPage(1);}} className="border rounded-lg px-3 py-2 text-sm text-dark focus:ring-primary focus:border-primary">
                 <option value={10}>10 dòng / trang</option><option value={20}>20 dòng / trang</option><option value={50}>50 dòng / trang</option>

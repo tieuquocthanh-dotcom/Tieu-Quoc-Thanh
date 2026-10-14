@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { Loader, Package, FileText, Calendar, Search, User, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader, Package, FileText, Calendar, Search, User, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
 import Pagination from './Pagination';
 import * as XLSX from 'xlsx';
 
@@ -144,8 +144,21 @@ const TransferHistory: React.FC<{ userRole?: 'admin' | 'staff' | null }> = ({ us
             placeholder="Tìm theo sản phẩm, kho, người chuyển..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full pl-10 pr-4 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-bold"
+            className="w-full pl-10 pr-10 py-2 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm font-bold"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setCurrentPage(1);
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-full transition"
+              title="Xóa tìm kiếm"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
         <button 
             onClick={exportToExcel} 

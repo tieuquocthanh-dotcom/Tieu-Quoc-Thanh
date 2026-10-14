@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, collectionGroup, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Product, Manufacturer, ProductCategory } from '../types';
-import { Loader, XCircle, AlertTriangle, Package, Search, Download } from 'lucide-react';
+import { Loader, XCircle, AlertTriangle, Package, Search, Download, X } from 'lucide-react';
 import Pagination from './Pagination';
 import * as XLSX from 'xlsx';
 import RefreshButton from './RefreshButton';
@@ -227,8 +227,18 @@ const OutsideStockAlerts: React.FC = () => {
                             placeholder="Tìm sản phẩm..." 
                             value={searchTerm} 
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full sm:w-64 pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
+                            className="w-full sm:w-64 pl-10 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
                         />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchTerm('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-full transition"
+                                title="Xóa tìm kiếm"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
                     <button onClick={handleExport} className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
                         <Download size={18} /> <span>Export</span>

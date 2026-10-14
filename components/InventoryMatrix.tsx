@@ -141,6 +141,7 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('all');
   const [selectedManufacturerId, setSelectedManufacturerId] = useState('all');
   const [showZeroStockOnly, setShowZeroStockOnly] = useState(false);
@@ -955,6 +956,7 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
             <div className="relative md:col-span-3" ref={dropdownRef}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
                 <input 
+                    ref={searchInputRef}
                     type="text" 
                     placeholder="Tìm theo tên sản phẩm..." 
                     value={searchTerm} 
@@ -966,7 +968,16 @@ const InventoryMatrix: React.FC<{ user: User | null; onSwitchTab?: (view: 'creat
                     className="w-full pl-10 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none font-bold"
                 />
                 {searchTerm && (
-                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                    <button 
+                        type="button"
+                        onClick={() => {
+                            setSearchTerm('');
+                            setIsDropdownOpen(false);
+                            searchInputRef.current?.focus();
+                        }} 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-full transition"
+                        title="Xóa tìm kiếm sản phẩm"
+                    >
                         <X size={16}/>
                     </button>
                 )}
