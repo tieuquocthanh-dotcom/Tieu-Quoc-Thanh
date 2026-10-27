@@ -152,7 +152,7 @@ const UpdateShippingModal: React.FC<{
                                     <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                                         {insufficientItems.map((it, idx) => (
                                             <div key={idx} className="bg-white border border-red-300 p-2 rounded-lg text-xs flex justify-between items-center shadow-xs">
-                                                <span className="truncate flex-1 font-bold text-slate-800 mr-2">{it.productName}</span>
+                                                <span className="break-words whitespace-normal flex-1 font-bold text-slate-800 mr-2">{it.productName}</span>
                                                 <div className="text-right shrink-0">
                                                     <span className="text-[11px] text-slate-500">Cần: <strong className="text-slate-800">{it.requiredQty}</strong> | Có: <strong className="text-slate-800">{it.currentStock}</strong></span>
                                                     <span className="block text-[10px] text-red-600 font-black">Thiếu {it.missingQty}</span>
@@ -945,8 +945,8 @@ const SalesHistory: React.FC<{ userRole: 'admin' | 'staff' | null }> = ({ userRo
                                 </div>
                                 <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
                                     {sale.items.map((it, idx) => (
-                                        <div key={idx} className="flex justify-between items-center text-[11px] font-bold border-b border-slate-50 last:border-0 pb-1 gap-2">
-                                            <span className="truncate flex-1 text-slate-700" title={it.productName}>{idx+1}. {it.productName}</span>
+                                        <div key={idx} className="flex justify-between items-start text-[11px] font-bold border-b border-slate-50 last:border-0 pb-1 gap-2">
+                                            <span className="break-words whitespace-normal leading-tight flex-1 text-slate-700" title={it.productName}>{idx+1}. {it.productName}</span>
                                             <div className="flex items-center gap-3 shrink-0">
                                                 <span className="text-slate-400 font-black tracking-tighter">{formatNumber(it.price)}</span>
                                                 <span className="font-black text-primary min-w-[24px] text-right">x{it.quantity}</span>

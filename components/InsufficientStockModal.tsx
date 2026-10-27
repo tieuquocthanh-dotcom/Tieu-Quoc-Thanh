@@ -73,7 +73,7 @@ const InsufficientStockModal: React.FC<InsufficientStockModalProps> = ({
             <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
               {items.map((it, idx) => (
                 <div key={idx} className="bg-slate-50 border border-red-200 rounded-xl p-3 shadow-xs space-y-1.5">
-                  <div className="font-black text-slate-900 text-xs line-clamp-2">
+                  <div className="font-black text-slate-900 text-xs break-words whitespace-normal leading-tight">
                     {it.productName}
                   </div>
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200">

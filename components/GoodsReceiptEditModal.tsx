@@ -684,7 +684,7 @@ const GoodsReceiptEditModal: React.FC<GoodsReceiptEditModalProps> = ({ isOpen, o
                                             </div>
                                         </td>
                                         <td className="p-3">
-                                            <div className="font-bold text-xs text-slate-800 uppercase leading-tight line-clamp-2">{item.productName}</div>
+                                            <div className="font-bold text-xs text-slate-800 uppercase leading-tight break-words whitespace-normal">{item.productName}</div>
                                             {item.isCombo && <span className="text-[8px] bg-blue-100 text-blue-700 px-1 rounded font-black">COMBO</span>}
                                         </td>
                                         <td className="p-3">

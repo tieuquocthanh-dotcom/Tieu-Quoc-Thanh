@@ -978,7 +978,7 @@ const PlannedOrderManagement: React.FC<PlannedOrderManagementProps> = ({ user })
                                                             <button key={p.id} onClick={() => handleSelectProduct(p)} className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 flex items-center justify-between group transition-colors">
                                                                 <div className="flex items-center min-w-0 pr-2">
                                                                     <Tag size={14} className="mr-2 text-slate-300 group-hover:text-blue-500 shrink-0"/>
-                                                                    <span className="font-black text-xs text-slate-700 uppercase truncate">{p.name}</span>
+                                                                    <span className="font-black text-xs text-slate-700 uppercase break-words whitespace-normal leading-tight">{p.name}</span>
                                                                     {p.shortName && (
                                                                         <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded border border-amber-300 inline-block shrink-0">
                                                                             {p.shortName}

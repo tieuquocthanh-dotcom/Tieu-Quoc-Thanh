@@ -133,7 +133,6 @@ const ImportProductCard: React.FC<{
     const [inputQty, setInputQty] = useState(1);
     const [inputImportPrice, setInputImportPrice] = useState(initialPrice);
     const [isSaving, setIsSaving] = useState(false);
-    const [isNameExpanded, setIsNameExpanded] = useState(false);
     const isAdmin = userRole === 'admin';
 
     useEffect(() => { setInputImportPrice(initialPrice); }, [initialPrice, product.id]);
@@ -193,11 +192,10 @@ const ImportProductCard: React.FC<{
                 <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-br-lg font-bold z-10 uppercase shadow-2xs">COMBO</div>
             )}
             {/* Header: Product Name + Action Buttons */}
-            <div className="mb-1.5 mt-0.5 flex justify-between items-center gap-1">
+            <div className="mb-1.5 mt-0.5 flex justify-between items-start gap-1">
                 <div 
-                    className={`font-bold text-slate-900 leading-tight text-[12px] cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'} flex-1 min-w-0 pr-1`}
+                    className="font-bold text-slate-900 leading-tight text-[12px] flex-1 min-w-0 pr-1 break-words whitespace-normal"
                     title={product.name}
-                    onClick={() => setIsNameExpanded(!isNameExpanded)}
                 >
                     {product.name}
                     {product.shortName && (
@@ -1460,7 +1458,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                             receipt.map((item, idx) => (
                                 <div key={item.productId} className={`bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80 animate-fade-in shadow-2xs ${item.updateImportPrice ? 'border-blue-400 bg-blue-50/40' : ''}`}>
                                     <div className="flex justify-between items-start mb-2 gap-1">
-                                        <span className="font-bold text-primary text-sm truncate uppercase leading-tight flex-1">{idx+1}. {item.productName}</span>
+                                        <span className="font-bold text-primary text-sm uppercase leading-tight flex-1 break-words whitespace-normal">{idx+1}. {item.productName}</span>
                                         <div className="flex items-center gap-1 shrink-0">
                                             <button 
                                                 type="button"
@@ -1736,10 +1734,10 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                     <div className="p-2.5 space-y-2 bg-white">
                                         {r.items?.map((it, idx) => (
                                             <div key={idx} className="flex flex-col border-b border-slate-100 last:border-0 pb-1.5">
-                                                <div className="flex justify-between items-center mb-0.5">
-                                                    <div className="flex items-center gap-1.5 min-w-0">
-                                                        <span className="font-bold text-slate-800 text-[11px] truncate uppercase">{it.productName}</span>
-                                                        {it.isCombo && <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded uppercase">Combo</span>}
+                                                <div className="flex justify-between items-start mb-0.5 gap-2">
+                                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                        <span className="font-bold text-slate-800 text-[11px] uppercase break-words whitespace-normal leading-tight">{it.productName}</span>
+                                                        {it.isCombo && <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1 rounded uppercase shrink-0">Combo</span>}
                                                     </div>
                                                     <div className="text-right shrink-0">
                                                         <span className="font-bold text-primary text-[10px] whitespace-nowrap">

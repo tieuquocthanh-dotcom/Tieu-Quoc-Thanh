@@ -1102,7 +1102,7 @@ const SaleEditModal: React.FC<SaleEditModalProps> = ({
                               </div>
                             </td>
                             <td className="p-2">
-                              <div className="font-bold text-xs text-slate-800 uppercase leading-tight line-clamp-2">
+                              <div className="font-bold text-xs text-slate-800 uppercase leading-tight break-words whitespace-normal">
                                 {item.productName}
                               </div>
                               {item.isCombo && (

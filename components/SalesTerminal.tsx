@@ -409,8 +409,8 @@ const EditWarehouseStockModal: React.FC<{
                             <Boxes size={20} />
                         </div>
                         <div className="min-w-0">
-                            <h3 className="font-black uppercase text-sm tracking-tight truncate">Chỉnh sửa số lượng từng kho</h3>
-                            <p className="text-xs text-slate-400 truncate mt-0.5">{product.name}</p>
+                            <h3 className="font-black uppercase text-sm tracking-tight">Chỉnh sửa số lượng từng kho</h3>
+                            <p className="text-xs text-slate-400 break-words whitespace-normal mt-0.5">{product.name}</p>
                         </div>
                     </div>
                     <button 
@@ -424,9 +424,9 @@ const EditWarehouseStockModal: React.FC<{
 
                 {/* Sub-header info */}
                 <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-slate-500 uppercase">Sản phẩm:</span>
-                        <span className="text-xs font-black text-slate-800 uppercase truncate max-w-[200px]">{product.name}</span>
+                        <span className="text-xs font-black text-slate-800 uppercase break-words whitespace-normal">{product.name}</span>
                         {product.shortName && (
                             <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-bold rounded border border-amber-300 shrink-0">
                                 {product.shortName}
@@ -618,7 +618,6 @@ const ProductCardItem: React.FC<{
     const [inputQty, setInputQty] = useState(1);
     const [inputPrice, setInputPrice] = useState(lastSoldPrice !== undefined ? lastSoldPrice : product.sellingPrice);
     const [inputImportPrice, setInputImportPrice] = useState(product.importPrice);
-    const [isNameExpanded, setIsNameExpanded] = useState(false);
 
     // CẬP NHẬT: Luôn cập nhật giá hiển thị khi lastSoldPrice thay đổi (khi chọn khách hàng khác)
     useEffect(() => { 
@@ -637,11 +636,10 @@ const ProductCardItem: React.FC<{
                 <div className="absolute top-0 left-0 bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-br-lg font-black z-10 uppercase shadow-2xs">COMBO</div>
             )}
             {/* Header: Product Name + Action Buttons */}
-            <div className="mb-2 mt-1 flex justify-between items-center gap-1">
+            <div className="mb-2 mt-1 flex justify-between items-start gap-1">
                 <div 
-                    className={`font-bold text-slate-900 leading-tight text-[12px] cursor-pointer transition-all ${isNameExpanded ? '' : 'line-clamp-2 hover:line-clamp-none'} flex-1 min-w-0 pr-1`} 
+                    className="font-bold text-slate-900 leading-tight text-[12px] flex-1 min-w-0 pr-1 break-words whitespace-normal" 
                     title={product.name}
-                    onClick={() => setIsNameExpanded(!isNameExpanded)}
                 >
                     {product.name}
                     {product.shortName && (
@@ -2258,7 +2256,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                         <div key={item.productId} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80 animate-fade-in space-y-2 shadow-2xs">
                             <div className="flex justify-between items-start gap-1">
                                 <div className="flex-1 min-w-0">
-                                    <span className="font-bold text-primary text-[13px] truncate uppercase leading-tight block">{idx+1}. {item.productName}</span>
+                                    <span className="font-bold text-primary text-[13px] uppercase leading-tight block break-words whitespace-normal">{idx+1}. {item.productName}</span>
                                     {(issueInvoice || localStorage.getItem('invoiceDeductMode') === 'all_sales') && (
                                         <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
                                             <span className={`text-[9px] font-black px-1.5 py-0.5 rounded leading-none ${
@@ -2570,7 +2568,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                             const itemProfit = (it.price - (it.importPrice || 0)) * it.quantity;
                                             return (
                                                 <div key={idx} className="flex flex-col border-b border-slate-50 last:border-0 pb-1.5">
-                                                    <div className="flex justify-between items-center mb-0.5"><div className="flex items-center gap-1.5 min-w-0"><span className="font-bold text-slate-800 text-[11px] truncate uppercase">{it.productName}</span>{isAdmin && <span className="text-[9px] font-black text-green-600 bg-green-50 px-1 rounded whitespace-nowrap">LN: {formatNumber(itemProfit)}</span>}</div><div className="text-right shrink-0"><span className="font-black text-primary text-[10px] whitespace-nowrap">{formatNumber(it.price)} x {it.quantity} = {formatNumber(it.price * it.quantity)} ₫</span></div></div>
+                                                    <div className="flex justify-between items-start mb-0.5 gap-2"><div className="flex items-center gap-1.5 min-w-0 flex-1"><span className="font-bold text-slate-800 text-[11px] uppercase break-words whitespace-normal leading-tight">{it.productName}</span>{isAdmin && <span className="text-[9px] font-black text-green-600 bg-green-50 px-1 rounded whitespace-nowrap shrink-0">LN: {formatNumber(itemProfit)}</span>}</div><div className="text-right shrink-0"><span className="font-black text-primary text-[10px] whitespace-nowrap">{formatNumber(it.price)} x {it.quantity} = {formatNumber(it.price * it.quantity)} ₫</span></div></div>
                                                 </div>
                                             );
                                         })}
