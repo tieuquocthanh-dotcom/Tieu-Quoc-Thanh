@@ -25,6 +25,68 @@ import { filterAndSortCustomers, searchVietnameseMatch } from '../utils/vietname
 import RefreshButton from './RefreshButton';
 import { DeliveryImageViewerModal, DeliveryImageUploadSection, OrderCardDeliveryImageBar } from './DeliveryImageViewerModal';
 
+// Helper kiểm tra một đơn bán có phải ban đầu mua nợ hoặc hiện tại đang nợ không
+// (Bao gồm trường hợp mua nợ rồi sau đó mới trả tiền trong ngày hoặc qua phần thu nợ)
+export const isSaleOriginallyOrCurrentlyDebt = (sale: any): boolean => {
+  if (!sale) return false;
+  
+  // 1. Cờ lưu rõ ràng lúc tạo đơn hoặc lúc cập nhật trả nợ
+  if (sale.wasOriginallyDebt === true || sale.originalDebt === true || sale.isDebt === true) {
+    return true;
+  }
+  
+  // 2. Đang nợ hoặc chưa trả hết tiền
+  if (sale.status === 'debt' || sale.paymentStatus === 'debt') {
+    return true;
+  }
+  const total = Number(sale.total ?? sale.finalAmount ?? sale.totalAmount ?? 0);
+  const amountPaid = Number(sale.amountPaid ?? 0);
+  if (total > 0 && amountPaid < total) {
+    return true;
+  }
+  
+  // 3. Có thời điểm trả nợ paidAt (chỉ các đơn nợ thanh toán sau mới được hệ thống gắn paidAt)
+  if (sale.paidAt) {
+    return true;
+  }
+  
+  // 4. Tên phương thức thanh toán có chứa dấu cộng '+' (do QuickDebtPayModal gộp PTTT khi trả nợ sau)
+  if (typeof sale.paymentMethodName === 'string' && sale.paymentMethodName.includes('+')) {
+    return true;
+  }
+  
+  // 5. Kiểm tra lịch sử thanh toán paymentHistory
+  if (Array.isArray(sale.paymentHistory) && sale.paymentHistory.length > 0) {
+    // Nếu có nhiều hơn 1 đợt thanh toán thì đơn này chắc chắn là đơn trả nhiều lần / nợ
+    if (sale.paymentHistory.length > 1) {
+      return true;
+    }
+    // Kiểm tra từ khóa trong ghi chú thanh toán
+    const debtKeywords = ['nợ', 'thu nợ', 'trả nợ', 'thanh toán nợ', 'công nợ'];
+    const hasDebtNote = sale.paymentHistory.some((entry: any) => {
+      const note = (entry.note || '').toLowerCase();
+      return debtKeywords.some(k => note.includes(k));
+    });
+    if (hasDebtNote) {
+      return true;
+    }
+    // Nếu ngày ghi nhận thanh toán sau ngày tạo đơn hơn 30 giây thì là trả sau
+    const histDate = sale.paymentHistory[0]?.date?.toMillis ? sale.paymentHistory[0].date.toMillis() : (sale.paymentHistory[0]?.date ? new Date(sale.paymentHistory[0].date).getTime() : null);
+    const createDate = sale.createdAt?.toMillis ? sale.createdAt.toMillis() : (sale.createdAt ? new Date(sale.createdAt).getTime() : null);
+    if (histDate && createDate && (histDate - createDate > 30000)) {
+      return true;
+    }
+  }
+
+  // 6. Ghi chú của đơn có chứa từ khóa nợ
+  const note = ((sale.note || '') + ' ' + (sale.notes || '')).toLowerCase();
+  if (note.includes('ghi nợ') || note.includes('công nợ') || note.includes('mua nợ') || note.includes('bán nợ')) {
+    return true;
+  }
+
+  return false;
+};
+
 const NumericInput: React.FC<{
     value: number;
     onChange: (val: number) => void;
@@ -962,6 +1024,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [isDebt, setIsDebt] = useState(false);
   const [amountPaidInput, setAmountPaidInput] = useState<string>(''); // empty means full amount
   const [wasLastOrderDebt, setWasLastOrderDebt] = useState(false);
+  const [debtReason, setDebtReason] = useState<'latest' | 'habitual' | 'active_debt' | null>(null);
   const lastLoadedCustomerIdRef = useRef<string | null>(null);
   const [issueInvoice, setIssueInvoice] = useState(false); 
   const [deliveryImages, setDeliveryImages] = useState<string[]>([]);
@@ -1043,7 +1106,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
     setLoading(false);
   }, []);
 
-  // CẬP NHẬT Logic: Lấy giá bán gần nhất cho khách hàng sỉ / NCC, ĐVVC, PTTT và Trạng thái nợ lần trước
+  // CẬP NHẬT Logic: Lấy giá bán gần nhất cho khách hàng sỉ / NCC, ĐVVC, PTTT và Trạng thái nợ lần trước (hoặc khách hay nợ)
   useEffect(() => {
     const targetPartnerId = isSellingToSupplier ? selectedSupplierId : selectedCustomerId;
 
@@ -1052,11 +1115,129 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
       setSelectedShipperId('');
       setIndexErrorUrl(null);
       setWasLastOrderDebt(false);
+      setDebtReason(null);
       lastLoadedCustomerIdRef.current = null;
       return;
     }
 
     const customer = !isSellingToSupplier ? customers.find(c => c.id === targetPartnerId) : null;
+
+    // Hàm xử lý phân tích lịch sử đơn hàng của đối tác
+    const processSalesData = (docs: any[]) => {
+      // 1. Gộp kết quả snapshot với các đơn của đối tác này trong todaySales (đảm bảo đơn mới phát sinh / vừa trả nợ hôm nay được cập nhật ngay)
+      const partnerSalesMap = new Map<string, any>();
+      todaySales.forEach(s => {
+        const pId = isSellingToSupplier ? (s.supplierId || s.customerId) : s.customerId;
+        if (pId === targetPartnerId) {
+          partnerSalesMap.set(s.id, s);
+        }
+      });
+      docs.forEach(doc => {
+        const data = typeof doc.data === 'function' ? doc.data() : doc;
+        const id = doc.id || data.id;
+        partnerSalesMap.set(id, { id, ...data });
+      });
+
+      const allPartnerSales = Array.from(partnerSalesMap.values()).sort((a, b) => {
+        const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return tB - tA;
+      });
+
+      if (allPartnerSales.length > 0) {
+        // Tự động load ĐVVC lần trước
+        const lastShippedSale = allPartnerSales.find(s => s.shipperId);
+        if (lastShippedSale) {
+          setSelectedShipperId(lastShippedSale.shipperId);
+        } else {
+          setSelectedShipperId('');
+        }
+
+        // Tự động load PTTT lần trước
+        const lastPaidSale = allPartnerSales.find(s => s.paymentMethodId);
+        if (lastPaidSale) {
+          setSelectedPaymentMethodId(lastPaidSale.paymentMethodId);
+        } else {
+          setSelectedPaymentMethodId('');
+        }
+
+        // Đơn gần nhất có phải ban đầu mua nợ hoặc hiện tại đang nợ không
+        // (Kể cả khi khách đã thanh toán trả nợ sau đó trong ngày)
+        const latestSaleDoc = allPartnerSales[0];
+        const isLatestDebt = isSaleOriginallyOrCurrentlyDebt(latestSaleDoc);
+
+        // Kiểm tra xem khách hàng có đơn nào hiện tại vẫn đang nợ chưa thanh toán xong không
+        const hasActiveUnpaidDebt = allPartnerSales.some(s => {
+          const tot = Number(s.total ?? s.finalAmount ?? s.totalAmount ?? 0);
+          const pd = Number(s.amountPaid ?? 0);
+          return s.status === 'debt' || s.paymentStatus === 'debt' || (tot > 0 && pd < tot);
+        });
+
+        // Kiểm tra xem khách có thói quen mua hàng nợ ("hay nợ"):
+        // - Hoặc đang còn nợ đơn cũ
+        // - Hoặc nếu là khách mới có 1-2 đơn mà có đơn nợ
+        // - Hoặc tỷ lệ đơn nợ >= 30% tổng số đơn
+        const totalSalesCount = allPartnerSales.length;
+        const debtSalesCount = allPartnerSales.filter(s => isSaleOriginallyOrCurrentlyDebt(s)).length;
+        const isHabitualDebt = totalSalesCount > 0 && (
+          hasActiveUnpaidDebt ||
+          (totalSalesCount <= 2 && debtSalesCount >= 1) ||
+          (debtSalesCount / totalSalesCount >= 0.3)
+        );
+
+        // Mặc định check vào ghi nợ nếu đơn gần nhất là nợ (cho dù có trả tiền trong ngày) hoặc khách hay nợ
+        // Đối với khách không thường nợ hoặc lần trước không nợ thì KHÔNG check ghi nợ
+        const shouldDefaultDebt = isLatestDebt || hasActiveUnpaidDebt || isHabitualDebt;
+
+        let reason: 'active_debt' | 'latest' | 'habitual' | null = null;
+        if (hasActiveUnpaidDebt) {
+          reason = 'active_debt';
+        } else if (isLatestDebt) {
+          reason = 'latest';
+        } else if (isHabitualDebt) {
+          reason = 'habitual';
+        }
+        setDebtReason(reason);
+        setWasLastOrderDebt(shouldDefaultDebt);
+
+        // Chỉ tự động kích hoạt khi mới chọn hoặc đổi đối tác
+        if (lastLoadedCustomerIdRef.current !== targetPartnerId) {
+          if (shouldDefaultDebt) {
+            setIsDebt(true);
+            setAmountPaidInput('');
+          } else {
+            setIsDebt(false);
+          }
+          lastLoadedCustomerIdRef.current = targetPartnerId;
+        }
+
+        // Cập nhật giá bán sỉ gần nhất (hoặc đơn bán cho NCC)
+        if (isSellingToSupplier || customer?.type === 'wholesale') {
+          const prices: Record<string, number> = {};
+          // Duyệt ngược từ cũ nhất đến mới nhất để giá đơn mới nhất ghi đè lên giá cũ
+          for (let i = allPartnerSales.length - 1; i >= 0; i--) {
+            const saleData = allPartnerSales[i];
+            if (Array.isArray(saleData.items)) {
+              saleData.items.forEach((item: any) => {
+                prices[item.productId] = item.price;
+              });
+            }
+          }
+          setWholesalePrices(prices);
+        } else {
+          setWholesalePrices({});
+        }
+      } else {
+        setWasLastOrderDebt(false);
+        setDebtReason(null);
+        if (lastLoadedCustomerIdRef.current !== targetPartnerId) {
+          setIsDebt(false);
+          lastLoadedCustomerIdRef.current = targetPartnerId;
+        }
+        setWholesalePrices({});
+        setSelectedShipperId(''); // Không có lịch sử thì clear ĐVVC
+      }
+    };
 
     // Truy vấn 50 đơn hàng gần nhất của đối tác này
     const q = query(
@@ -1068,84 +1249,22 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setIndexErrorUrl(null);
-      if (!snapshot.empty) {
-        // Tự động load ĐVVC lần trước
-        const lastShippedSale = snapshot.docs.find(doc => doc.data().shipperId);
-        if (lastShippedSale) {
-            setSelectedShipperId(lastShippedSale.data().shipperId);
-        } else {
-            setSelectedShipperId('');
-        }
-
-        // Tự động load PTTT lần trước
-        const lastPaidSale = snapshot.docs.find(doc => doc.data().paymentMethodId);
-        if (lastPaidSale) {
-            setSelectedPaymentMethodId(lastPaidSale.data().paymentMethodId);
-        } else {
-            setSelectedPaymentMethodId('');
-        }
-
-        // Tự động chọn Ghi nợ nếu đơn hàng gần nhất của đối tác này là ghi nợ
-        const latestSaleDoc = snapshot.docs[0]?.data() as Sale | undefined;
-        if (latestSaleDoc) {
-            const isLatestDebt = latestSaleDoc.status === 'debt' || 
-                ((latestSaleDoc.total || 0) > 0 && (latestSaleDoc.amountPaid || 0) < (latestSaleDoc.total || 0));
-            setWasLastOrderDebt(isLatestDebt);
-
-            // Chỉ tự động kích hoạt khi mới chọn hoặc đổi đối tác
-            if (lastLoadedCustomerIdRef.current !== targetPartnerId) {
-                if (isLatestDebt) {
-                    setIsDebt(true);
-                    setAmountPaidInput('');
-                } else {
-                    setIsDebt(false);
-                }
-                lastLoadedCustomerIdRef.current = targetPartnerId;
-            }
-        } else {
-            setWasLastOrderDebt(false);
-            if (lastLoadedCustomerIdRef.current !== targetPartnerId) {
-                setIsDebt(false);
-                lastLoadedCustomerIdRef.current = targetPartnerId;
-            }
-        }
-
-        // Cập nhật giá bán sỉ gần nhất (hoặc đơn bán cho NCC)
-        if (isSellingToSupplier || customer?.type === 'wholesale') {
-            const prices: Record<string, number> = {};
-            // Duyệt ngược từ cũ nhất đến mới nhất trong snapshot để giá đơn mới nhất ghi đè lên giá cũ
-            for (let i = snapshot.docs.length - 1; i >= 0; i--) {
-                const saleData = snapshot.docs[i].data() as Sale;
-                saleData.items.forEach(item => {
-                    prices[item.productId] = item.price;
-                });
-            }
-            setWholesalePrices(prices);
-        } else {
-            setWholesalePrices({});
-        }
-      } else {
-        setWasLastOrderDebt(false);
-        if (lastLoadedCustomerIdRef.current !== targetPartnerId) {
-            setIsDebt(false);
-            lastLoadedCustomerIdRef.current = targetPartnerId;
-        }
-        setWholesalePrices({});
-        setSelectedShipperId(''); // Không có lịch sử thì clear ĐVVC
-      }
+      processSalesData(snapshot.docs);
     }, (err: any) => {
-        console.error("Lỗi lấy giá sỉ gần nhất:", err);
-        if (err.code === 'failed-precondition' && err.message.includes('index')) {
-            const urlRegex = /(https?:\/\/[^\s]+)/;
-            const match = err.message.match(urlRegex);
-            if (match && match[0]) {
-                setIndexErrorUrl(match[0]);
-            }
+      console.error("Lỗi lấy lịch sử bán hàng:", err);
+      if (err.code === 'failed-precondition' && err.message.includes('index')) {
+        const urlRegex = /(https?:\/\/[^\s]+)/;
+        const match = err.message.match(urlRegex);
+        if (match && match[0]) {
+          setIndexErrorUrl(match[0]);
         }
+      }
+      // Dùng dữ liệu fallback từ todaySales
+      processSalesData([]);
     });
 
     return () => unsubscribe();
-  }, [isSellingToSupplier, selectedCustomerId, selectedSupplierId, customers]);
+  }, [isSellingToSupplier, selectedCustomerId, selectedSupplierId, customers, todaySales]);
 
   const calculateEffectiveStock = (product: Product, warehouseId: string) => {
       if (!warehouseId) return 0;
@@ -1310,6 +1429,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
             paymentMethodId: actualAmountPaid > 0 ? (selectedPaymentMethodId || null) : null, 
             paymentMethodName: actualAmountPaid > 0 ? (paymentMethod?.name || null) : null, 
             status: (actualAmountPaid < total) ? 'debt' : 'paid', 
+            wasOriginallyDebt: isDebt || (actualAmountPaid < total),
             shippingStatus: shippingMode || 'shipped', 
             shippingPayer: shippingPayer || 'customer', 
             shipperId: selectedShipperId || null, 
@@ -2016,7 +2136,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                         <span className={`text-xs uppercase ${isDebt ? 'text-red-700 font-black' : 'text-red-600 font-black'}`}>Ghi nợ</span>
                                         {isDebt && wasLastOrderDebt && (
                                             <span className="text-[9px] font-bold text-red-700 bg-red-100 px-1 py-0.5 rounded border border-red-200 hidden sm:inline-block">
-                                                (Đơn trước nợ)
+                                                {debtReason === 'active_debt' ? '(Đang còn nợ)' : debtReason === 'habitual' ? '(Khách hay nợ)' : '(Đơn trước nợ)'}
                                             </span>
                                         )}
                                     </label>

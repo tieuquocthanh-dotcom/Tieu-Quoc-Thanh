@@ -1077,6 +1077,7 @@ const DebtManagement: React.FC = () => {
                     [isSale ? 'status' : 'paymentStatus']: isFull ? 'paid' : 'debt',
                     amountPaid: newPaid,
                     paidAt: isFull ? ts : (anyItem.paidAt || null),
+                    wasOriginallyDebt: true,
                     paymentHistory: arrayUnion({ 
                         
                         date: ts, 
@@ -1201,6 +1202,7 @@ const DebtManagement: React.FC = () => {
                         [isReceivable ? 'status' : 'paymentStatus']: isFull ? 'paid' : 'debt',
                         amountPaid: newPaid,
                         paidAt: isFull ? ts : (anyItem.paidAt || null),
+                        wasOriginallyDebt: true,
                         paymentHistory: arrayUnion({ 
                                                         date: ts, 
                             amount: paymentForThisItem, 

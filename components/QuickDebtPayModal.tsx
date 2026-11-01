@@ -132,6 +132,7 @@ const QuickDebtPayModal: React.FC<QuickDebtPayModalProps> = ({
           amountPaid: newPaid,
           status: isCompleted ? 'paid' : 'debt',
           paidAt: isCompleted ? paymentTimestamp : ((saleData as any).paidAt || null),
+          wasOriginallyDebt: true,
           paymentMethodName: updatedMethodName,
           paymentHistory: arrayUnion(newPaymentHistoryEntry)
         });

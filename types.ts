@@ -83,6 +83,7 @@ export interface GoodsReceipt {
   total?: number;
   productIds?: string[];
   paidAt?: Timestamp;
+  wasOriginallyDebt?: boolean;
   paymentHistory?: any[];
   receiptImages?: string[];
   deliveryImages?: string[];
@@ -133,6 +134,7 @@ export interface Sale {
   note?: string;
   creatorName?: string;
   paidAt?: Timestamp;
+  wasOriginallyDebt?: boolean;
   paymentHistory?: any[];
   createdAt: Timestamp;
   updatedAt: Timestamp;

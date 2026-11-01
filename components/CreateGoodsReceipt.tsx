@@ -22,6 +22,31 @@ import { searchVietnameseMatch } from '../utils/vietnameseSearch';
 // Add missing getTodayString helper function
 const getTodayString = () => getLocalYYYYMMDD();
 
+// Helper kiểm tra một đơn nhập hàng có phải ban đầu nhập nợ hoặc hiện tại đang nợ NCC không
+// (Bao gồm trường hợp nhập nợ rồi sau đó mới trả tiền trong ngày hoặc qua phần thanh toán nợ)
+export const isReceiptOriginallyOrCurrentlyDebt = (receipt: any): boolean => {
+  if (!receipt) return false;
+  if (receipt.wasOriginallyDebt === true || receipt.isDebt === true || receipt.originalDebt === true) return true;
+  if (receipt.paymentStatus === 'debt' || receipt.status === 'debt') return true;
+  const total = Number(receipt.total ?? receipt.finalAmount ?? receipt.totalAmount ?? 0);
+  const amountPaid = Number(receipt.amountPaid ?? 0);
+  if (total > 0 && amountPaid < total) return true;
+  if (receipt.paidAt) return true;
+  if (typeof receipt.paymentMethodName === 'string' && receipt.paymentMethodName.includes('+')) return true;
+  if (Array.isArray(receipt.paymentHistory) && receipt.paymentHistory.length > 1) return true;
+  if (Array.isArray(receipt.paymentHistory) && receipt.paymentHistory.length > 0) {
+    const debtKeywords = ['nợ', 'thu nợ', 'trả nợ', 'thanh toán nợ', 'công nợ'];
+    const hasDebtNote = receipt.paymentHistory.some((e: any) => debtKeywords.some(k => (e.note || '').toLowerCase().includes(k)));
+    if (hasDebtNote) return true;
+    const histDate = receipt.paymentHistory[0]?.date?.toMillis ? receipt.paymentHistory[0].date.toMillis() : (receipt.paymentHistory[0]?.date ? new Date(receipt.paymentHistory[0].date).getTime() : null);
+    const createDate = receipt.createdAt?.toMillis ? receipt.createdAt.toMillis() : (receipt.createdAt ? new Date(receipt.createdAt).getTime() : null);
+    if (histDate && createDate && (histDate - createDate > 30000)) return true;
+  }
+  const note = ((receipt.note || '') + ' ' + (receipt.notes || '')).toLowerCase();
+  if (note.includes('ghi nợ') || note.includes('công nợ') || note.includes('nhập nợ') || note.includes('mua nợ')) return true;
+  return false;
+};
+
 const NumericInput: React.FC<{
     value: number;
     onChange: (val: number) => void;
@@ -398,6 +423,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'debt'>('paid');
   const [wasLastReceiptDebt, setWasLastReceiptDebt] = useState(false);
+  const [receiptDebtReason, setReceiptDebtReason] = useState<'latest' | 'habitual' | 'active_debt' | null>(null);
   const lastLoadedSupplierIdRef = useRef<string | null>(null);
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
   const [isCreatingNewBank, setIsCreatingNewBank] = useState(false);
@@ -574,56 +600,97 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
       if (!selectedSupplierId) { 
           setSupplierPriceHistory({}); 
           setWasLastReceiptDebt(false);
+          setReceiptDebtReason(null);
           lastLoadedSupplierIdRef.current = null;
           return; 
       }
-      return onSnapshot(query(collection(db, "goodsReceipts"), where("supplierId", "==", selectedSupplierId), orderBy("createdAt", "desc"), limit(50)), (snapshot) => {
+
+      const processSupplierReceipts = (docs: any[]) => {
+          // Gộp đơn từ todayReceipts và snapshot để luôn có dữ liệu mới nhất hôm nay
+          const receiptsMap = new Map<string, any>();
+          todayReceipts.forEach(r => {
+              if (r.supplierId === selectedSupplierId) {
+                  receiptsMap.set(r.id, r);
+              }
+          });
+          docs.forEach(doc => {
+              const data = typeof doc.data === 'function' ? doc.data() : doc;
+              const id = doc.id || data.id;
+              receiptsMap.set(id, { id, ...data });
+          });
+
+          const allSupplierReceipts = Array.from(receiptsMap.values()).sort((a, b) => {
+              const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+              const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+              return tB - tA;
+          });
+
           const historyMap: Record<string, number> = {};
-          [...snapshot.docs].reverse().forEach(doc => {
-              const data = doc.data() as GoodsReceipt;
-              if (data.items) data.items.forEach(item => { historyMap[item.productId] = item.importPrice; });
+          [...allSupplierReceipts].reverse().forEach(data => {
+              if (data.items) data.items.forEach((item: any) => { historyMap[item.productId] = item.importPrice; });
           });
           setSupplierPriceHistory(historyMap);
 
-          // Tự động kiểm tra đơn nhập gần nhất của Nhà cung cấp này
-          if (!snapshot.empty) {
-              const latestReceiptDoc = snapshot.docs[0]?.data() as GoodsReceipt | undefined;
-              if (latestReceiptDoc) {
-                  const isLatestDebt = latestReceiptDoc.paymentStatus === 'debt' || 
-                      ((latestReceiptDoc.total || 0) > 0 && (latestReceiptDoc.amountPaid || 0) < (latestReceiptDoc.total || 0));
-                  setWasLastReceiptDebt(isLatestDebt);
+          if (allSupplierReceipts.length > 0) {
+              const latestReceiptDoc = allSupplierReceipts[0];
+              const isLatestDebt = isReceiptOriginallyOrCurrentlyDebt(latestReceiptDoc);
 
-                  // Chỉ tự động chọn khi mới chọn hoặc đổi Nhà cung cấp
-                  if (lastLoadedSupplierIdRef.current !== selectedSupplierId) {
-                      if (isLatestDebt) {
-                          setPaymentStatus('debt');
-                          setSelectedPaymentMethodId('');
-                      } else {
-                          setPaymentStatus('paid');
-                          if (latestReceiptDoc.paymentMethodId) {
-                              setSelectedPaymentMethodId(latestReceiptDoc.paymentMethodId);
-                          }
-                      }
-                      lastLoadedSupplierIdRef.current = selectedSupplierId;
-                  }
-              } else {
-                  setWasLastReceiptDebt(false);
-                  if (lastLoadedSupplierIdRef.current !== selectedSupplierId) {
+              const hasActiveUnpaidDebt = allSupplierReceipts.some(r => {
+                  const tot = Number(r.total ?? r.finalAmount ?? r.totalAmount ?? 0);
+                  const pd = Number(r.amountPaid ?? 0);
+                  return r.paymentStatus === 'debt' || r.status === 'debt' || (tot > 0 && pd < tot);
+              });
+
+              const totalCount = allSupplierReceipts.length;
+              const debtCount = allSupplierReceipts.filter(r => isReceiptOriginallyOrCurrentlyDebt(r)).length;
+              const isHabitualDebt = totalCount > 0 && (
+                  hasActiveUnpaidDebt ||
+                  (totalCount <= 2 && debtCount >= 1) ||
+                  (debtCount / totalCount >= 0.3)
+              );
+
+              const shouldDefaultDebt = isLatestDebt || hasActiveUnpaidDebt || isHabitualDebt;
+
+              let reason: 'active_debt' | 'latest' | 'habitual' | null = null;
+              if (hasActiveUnpaidDebt) {
+                  reason = 'active_debt';
+              } else if (isLatestDebt) {
+                  reason = 'latest';
+              } else if (isHabitualDebt) {
+                  reason = 'habitual';
+              }
+              setReceiptDebtReason(reason);
+              setWasLastReceiptDebt(shouldDefaultDebt);
+
+              if (lastLoadedSupplierIdRef.current !== selectedSupplierId) {
+                  if (shouldDefaultDebt) {
+                      setPaymentStatus('debt');
+                      setSelectedPaymentMethodId('');
+                  } else {
                       setPaymentStatus('paid');
-                      lastLoadedSupplierIdRef.current = selectedSupplierId;
+                      if (latestReceiptDoc.paymentMethodId) {
+                          setSelectedPaymentMethodId(latestReceiptDoc.paymentMethodId);
+                      }
                   }
+                  lastLoadedSupplierIdRef.current = selectedSupplierId;
               }
           } else {
               setWasLastReceiptDebt(false);
+              setReceiptDebtReason(null);
               if (lastLoadedSupplierIdRef.current !== selectedSupplierId) {
                   setPaymentStatus('paid');
                   lastLoadedSupplierIdRef.current = selectedSupplierId;
               }
           }
+      };
+
+      return onSnapshot(query(collection(db, "goodsReceipts"), where("supplierId", "==", selectedSupplierId), orderBy("createdAt", "desc"), limit(50)), (snapshot) => {
+          processSupplierReceipts(snapshot.docs);
       }, (err) => {
           console.warn("Lỗi tải lịch sử đơn nhập của NCC:", err);
+          processSupplierReceipts([]);
       });
-  }, [selectedSupplierId]);
+  }, [selectedSupplierId, todayReceipts]);
 
   const addToReceipt = (product: Product, quantity: number, importPrice: number, keepSearch: boolean = false) => {
     if (quantity <= 0) return;
@@ -981,6 +1048,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
             paymentMethodId: selectedPaymentMethodId || null, 
             paymentMethodName: paymentMethods.find(p => p.id === selectedPaymentMethodId)?.name || null, 
             paymentStatus, 
+            wasOriginallyDebt: paymentStatus === 'debt',
             amountPaid: paymentStatus === 'paid' ? total : 0,
             paidAt: paymentStatus === 'paid' ? finalCreatedAt : null,
             hasInvoice, 
@@ -1173,7 +1241,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         <span className={`text-xs uppercase ${paymentStatus === 'debt' ? 'text-red-700 font-black' : 'text-red-600 font-black'}`}>Ghi nợ NCC</span>
                                         {paymentStatus === 'debt' && wasLastReceiptDebt && (
                                             <span className="text-[9px] font-bold text-red-700 bg-red-100 px-1 py-0.5 rounded border border-red-200 hidden sm:inline-block">
-                                                (Đơn trước nợ)
+                                                {receiptDebtReason === 'active_debt' ? '(Đang còn nợ)' : receiptDebtReason === 'habitual' ? '(NCC hay nợ)' : '(Đơn trước nợ)'}
                                             </span>
                                         )}
                                     </label>
