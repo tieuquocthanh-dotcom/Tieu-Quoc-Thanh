@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, where, increment, collectionGroup, addDoc, Timestamp, updateDoc, getDocs, limit, arrayUnion, runTransaction, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Product, SaleItem, Customer, Warehouse, PaymentMethod, Shipper, Sale, Supplier, Manufacturer, GoodsReceipt } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes, Printer, Building2, Repeat, Camera } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, CheckCircle2, Loader, XCircle, Search, User, Archive, CreditCard, Truck, Info, History, PlusCircle, Package, Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RefreshCcw, FileCheck2, AlertTriangle, Tag, List, Store, Wallet, TrendingUp, Mic, MicOff, Square, Volume2, Download, GitCommit, Save, Users, BarChart2, DollarSign, ArrowUp, ArrowDown, ArrowUpDown, Edit, ArrowRightLeft, TrendingDown, Maximize2, Minimize2, Banknote, Coins, Receipt, Percent, DownloadCloud, FileText, Trash2, Eye, RotateCcw, Clock, AlertCircle, Layers, Settings2, Home, ExternalLink, TrendingUp as ProfitIcon, WalletCards, CheckCheck, Boxes, Printer, Building2, Repeat, Camera } from 'lucide-react';
 import { formatNumber, parseNumber } from '../utils/formatting';
 import SalesHistory from './SalesHistory';
 import CustomerModal from './CustomerModal';
@@ -12,6 +12,7 @@ import SaleDetailModal from './SaleDetailModal';
 import SaleEditModal from './SaleEditModal';
 import DraftOrderModal from './DraftOrderModal';
 import SalePrintPreviewModal from './SalePrintPreviewModal';
+import QuickDebtPayModal from './QuickDebtPayModal';
 import ProductSalesHistory from './ProductSalesHistory';
 import InventoryTransferModal from './InventoryTransferModal';
 import PriceComparisonModal from './PriceComparisonModal';
@@ -982,6 +983,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   const [isDraftOrderModalOpen, setIsDraftOrderModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [selectedLedgerProductId, setSelectedLedgerProductId] = useState<string | null>(null);
+  const [selectedSaleToPay, setSelectedSaleToPay] = useState<Sale | null>(null);
+  const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
 
   // New states for Quick Actions
   const [isQuickImportOpen, setIsQuickImportOpen] = useState(false);
@@ -1618,13 +1621,17 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   }, [cart, shippingFee]);
 
   const summaryToday = useMemo(() => {
-    let revenue = 0; let profit = 0;
+    let revenue = 0; let profit = 0; let debt = 0;
     todaySales.forEach(sale => {
         revenue += (sale.total || 0);
         const saleProfit = sale.items?.reduce((acc, it) => acc + (it.price - (it.importPrice || 0)) * it.quantity, 0) || 0;
         profit += saleProfit;
+        const rem = Math.max(0, (sale.total || 0) - (sale.amountPaid || 0));
+        if (sale.status === 'debt' || rem > 0) {
+            debt += rem;
+        }
     });
-    return { count: todaySales.length, revenue, profit };
+    return { count: todaySales.length, revenue, profit, debt };
   }, [todaySales]);
 
   return (
@@ -1636,6 +1643,25 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
           onClose={() => setIsDetailModalOpen(false)} 
           sale={todaySales.find(s => s.id === selectedSaleDetail?.id) || selectedSaleDetail} 
           userRole={userRole} 
+          paymentMethods={paymentMethods}
+        />
+        <QuickDebtPayModal
+          isOpen={isDebtModalOpen}
+          onClose={() => {
+            setIsDebtModalOpen(false);
+            setSelectedSaleToPay(null);
+          }}
+          sale={todaySales.find(s => s.id === selectedSaleToPay?.id) || selectedSaleToPay}
+          paymentMethods={paymentMethods}
+          onSuccess={() => {
+            setIsDebtModalOpen(false);
+            setSelectedSaleToPay(null);
+            setToast({
+              message: "Cập nhật trả tiền thành công!",
+              type: "success",
+              duration: 3000
+            });
+          }}
         />
         <DeliveryImageViewerModal
           isOpen={!!viewingImageSaleId}
@@ -2426,19 +2452,26 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                   <div className="flex items-center gap-2"><span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Tổng đơn:</span><span className="text-xl font-black text-primary">{summaryToday.count}</span></div>
                                   {isAdmin && (<div className="flex items-center gap-2"><span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Lợi nhuận:</span><span className="text-xl font-black text-emerald-400">{formatNumber(summaryToday.profit)} ₫</span></div>)}
                               </div>
-                              {isAdmin && (
-                                  <div className="text-right">
-                                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight block">Doanh thu hôm nay</span>
-                                      <span className="text-2xl font-black text-yellow-400">{formatNumber(summaryToday.revenue)} ₫</span>
-                                  </div>
-                              )}
+                              <div className="text-right">
+                                  {isAdmin && (
+                                      <div>
+                                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight block">Doanh thu hôm nay</span>
+                                          <span className="text-2xl font-black text-yellow-400">{formatNumber(summaryToday.revenue)} ₫</span>
+                                      </div>
+                                  )}
+                                  {summaryToday.debt > 0 && (
+                                      <span className="inline-block mt-1 px-2 py-0.5 bg-red-600/90 text-white rounded text-[10px] font-black uppercase tracking-tight animate-pulse shadow-xs">
+                                          Chưa thu: {formatNumber(summaryToday.debt)} ₫
+                                      </span>
+                                  )}
+                              </div>
                           </div>
                           
                           <div className="relative mb-2">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16}/>
                               <input 
                                   type="text" 
-                                  placeholder="Tìm đơn hàng theo tên SP, KH, sdt..." 
+                                  placeholder="Tìm đơn hàng theo tên SP, KH, sdt, nợ..." 
                                   value={todaySalesSearchTerm} 
                                   onChange={e => setTodaySalesSearchTerm(e.target.value)} 
                                   className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none shadow-2xs"
@@ -2458,13 +2491,22 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
                           {todaySales.filter(sale => {
                               if (!todaySalesSearchTerm.trim()) return true;
+                              const term = todaySalesSearchTerm.trim().toLowerCase();
+                              if (term === 'nợ' || term === 'công nợ' || term === 'chưa trả') {
+                                  const rem = Math.max(0, (sale.total || 0) - (sale.amountPaid || 0));
+                                  return sale.status === 'debt' || rem > 0;
+                              }
                               return (
                                   (sale.customerName && searchVietnameseMatch(sale.customerName, todaySalesSearchTerm)) ||
                                   ((sale as any).customerPhone && searchVietnameseMatch((sale as any).customerPhone, todaySalesSearchTerm)) ||
-                                  (sale.items && sale.items.some(item => item.productName && searchVietnameseMatch(item.productName, todaySalesSearchTerm)))
+                                  (sale.items && sale.items.some(item => item.productName && searchVietnameseMatch(item.productName, todaySalesSearchTerm))) ||
+                                  (sale.paymentMethodName && searchVietnameseMatch(sale.paymentMethodName, todaySalesSearchTerm)) ||
+                                  (sale.id && sale.id.toLowerCase().includes(term))
                               );
                            }).map((sale, orderIdx) => {
                               const totalProfit = sale.items?.reduce((acc, it) => acc + (it.price - (it.importPrice || 0)) * it.quantity, 0) || 0;
+                              const remainingDebt = Math.max(0, (sale.total || 0) - (sale.amountPaid || 0));
+                              const isDebtOrder = sale.status === 'debt' || remainingDebt > 0;
                               let shipLabel = "Đã giao"; let shipColor = "bg-blue-600 text-white";
                               if (sale.shippingStatus === 'pending') { shipLabel = "Chờ gởi"; shipColor = "bg-slate-200 text-red-600"; }
                               else if (sale.shippingStatus === 'order') { shipLabel = "Đặt hàng"; shipColor = "bg-red-600 text-white"; }
@@ -2503,6 +2545,17 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                 <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs shrink-0 ${shipColor}`}>{shipLabel}</span>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
+                                                {isDebtOrder && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setSelectedSaleToPay(sale); setIsDebtModalOpen(true); }}
+                                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer shadow-xs active:scale-95"
+                                                        title="Cập nhật trả tiền / Thu nợ cho đơn hàng này"
+                                                    >
+                                                        <Wallet size={12} />
+                                                        <span>Trả tiền</span>
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -2555,9 +2608,18 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                         <div className="flex flex-wrap gap-1.5 items-center opacity-90 mt-1.5">
                                             {sale.shipperName && <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><Truck size={10} className="mr-1"/> {sale.shipperName}</span>}
                                             <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {sale.paymentMethodName || 'Nợ/TM'}</span>
-                                            {sale.status === 'debt' && (
-                                                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-red-600 text-white animate-pulse flex items-center shadow-xs">
-                                                    CÒN NỢ: {formatNumber(Math.max(0, (sale.total || 0) - (sale.amountPaid || 0)))} ₫
+                                            {isDebtOrder ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSelectedSaleToPay(sale); setIsDebtModalOpen(true); }}
+                                                    className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-red-600 hover:bg-red-700 text-white animate-pulse flex items-center gap-1 shadow-xs cursor-pointer transition active:scale-95"
+                                                    title="Bấm để cập nhật trả tiền cho đơn này"
+                                                >
+                                                    <Wallet size={10} /> CÒN NỢ: {formatNumber(remainingDebt)} ₫
+                                                </button>
+                                            ) : (
+                                                <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-600/90 text-white flex items-center shadow-xs">
+                                                    ĐÃ THANH TOÁN
                                                 </span>
                                             )}
                                             {isAdmin && <span className="px-2 py-0.5 rounded text-[12px] font-black uppercase bg-green-600 text-white shadow-sm tracking-wide">LN ĐƠN: {formatNumber(totalProfit)}</span>}
@@ -2585,10 +2647,47 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                 setViewingImageSaleId(sale.id);
                                             }}
                                         />
+                                        
+                                        {/* Thanh tác vụ Cập nhật trả tiền trực tiếp */}
+                                        {isDebtOrder ? (
+                                            <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSelectedSaleToPay(sale); setIsDebtModalOpen(true); }}
+                                                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-black text-xs uppercase shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+                                                    title="Mở bảng cập nhật trả tiền đơn hàng"
+                                                >
+                                                    <Wallet size={14} className="stroke-[2.5]" />
+                                                    <span>Cập nhật trả tiền ({formatNumber(remainingDebt)} ₫)</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }}
+                                                    className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                                                    title="Sửa phương thức thanh toán hoặc thông tin đơn"
+                                                >
+                                                    <Edit size={14} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                                <span className="flex items-center text-emerald-700 font-bold">
+                                                    <CheckCircle2 size={13} className="mr-1 text-emerald-600" /> Đã thu đủ: <strong className="ml-1 text-slate-900">{formatNumber(sale.amountPaid && sale.amountPaid > 0 ? sale.amountPaid : sale.total)} ₫</strong>
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }}
+                                                    className="text-[10px] text-slate-500 hover:text-blue-600 font-bold hover:underline cursor-pointer"
+                                                    title="Đổi phương thức thanh toán hoặc sửa thông tin đơn"
+                                                >
+                                                    Đổi PTTT / Sửa
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                               );
-                          })}
+                           })}
                       </div>
                   </div>
               </div>
