@@ -183,17 +183,17 @@ const StandardPriceDiffModal: React.FC<StandardPriceDiffModalProps> = ({
                     </div>
 
                     {/* Badge chênh lệch */}
-                    <div className="min-w-[95px] text-right">
-                      <span className={`inline-flex items-center gap-0.5 px-2 py-1 rounded-lg text-xs font-black uppercase ${
+                    <div className="min-w-[105px] text-right">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-black uppercase ${
                         isIncrease
-                          ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                          : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                          ? 'bg-rose-100 text-rose-900 border-2 border-rose-300'
+                          : 'bg-emerald-100 text-emerald-900 border-2 border-emerald-300'
                       }`}>
-                        {isIncrease ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                        <span>{isIncrease ? '+' : ''}{formatNumber(item.difference)} ₫</span>
+                        {isIncrease ? <TrendingUp size={13} className="text-rose-600 shrink-0" /> : <TrendingDown size={13} className="text-emerald-600 shrink-0" />}
+                        <span>{isIncrease ? 'Mắc: +' : 'Rẻ: -'}{formatNumber(Math.abs(item.difference))} ₫</span>
                       </span>
-                      <div className={`text-[10px] font-bold mt-0.5 ${isIncrease ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        ({isIncrease ? '+' : ''}{item.percentDiff.toFixed(1)}%)
+                      <div className={`text-[10px] font-black mt-0.5 ${isIncrease ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        ({isIncrease ? '+' : '-'}{Math.abs(item.percentDiff).toFixed(1)}%)
                       </div>
                     </div>
                   </div>

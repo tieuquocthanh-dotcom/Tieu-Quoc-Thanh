@@ -207,7 +207,11 @@ const ImportProductCard: React.FC<{
 
     return (
         <div className={`bg-white border rounded-xl p-3 hover:shadow-md transition-all duration-200 flex flex-col justify-between relative group h-full shadow-2xs ${
-            hasBasePriceDiff || hasPriceIncreaseFromLast
+            hasBasePriceDiff
+                ? (isBasePriceCheaper
+                    ? 'border-emerald-400 ring-1 ring-emerald-200 hover:border-emerald-500 bg-emerald-50/15'
+                    : 'border-rose-400 ring-1 ring-rose-200 hover:border-rose-500')
+                : hasPriceIncreaseFromLast
                 ? 'border-rose-400 ring-1 ring-rose-200 hover:border-rose-500'
                 : otherCheapestSupplier
                 ? 'border-sky-300 ring-1 ring-sky-100 hover:border-sky-400'
@@ -238,13 +242,15 @@ const ImportProductCard: React.FC<{
                                 disabled={isSaving}
                                 className={`p-1.5 rounded-lg transition-all shadow-2xs flex items-center justify-center h-6 w-6 ${
                                     hasBasePriceDiff
-                                        ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-300'
+                                        ? (isBasePriceCheaper
+                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
+                                            : 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-300')
                                         : lastSupplierPrice !== undefined 
                                         ? 'bg-red-600 text-white hover:bg-red-700' 
                                         : 'bg-slate-800 text-white hover:bg-slate-900'
                                 }`}
                                 title={hasBasePriceDiff 
-                                    ? `Lệch chuẩn (${isBasePriceCheaper ? '-' : '+'}${formatNumber(basePriceDiff)}đ) - Bấm để lưu ${formatNumber(inputImportPrice)}đ làm giá chuẩn SP`
+                                    ? `${isBasePriceCheaper ? 'Rẻ hơn chuẩn (-' : 'Mắc hơn chuẩn (+'}${formatNumber(basePriceDiff)}đ) - Bấm để lưu ${formatNumber(inputImportPrice)}đ làm giá chuẩn SP`
                                     : "Lưu thành giá vốn gốc của sản phẩm"
                                 }
                             >
@@ -290,12 +296,25 @@ const ImportProductCard: React.FC<{
 
             {/* Hàng 3: Cảnh báo giá lệch chuẩn hoặc giá cao trực quan */}
             {hasBasePriceDiff ? (
-                <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-rose-50 border-2 border-rose-300 text-rose-800 text-[10px] font-black mb-1.5 animate-fade-in shadow-2xs" title={`Giá chuẩn SP hiện tại: ${formatNumber(product.importPrice)} đ`}>
+                <div 
+                    className={`flex items-center justify-between px-2 py-1 rounded-lg border-2 text-[10px] font-black mb-1.5 animate-fade-in shadow-2xs ${
+                        isBasePriceCheaper
+                            ? 'bg-emerald-50 border-emerald-400 text-emerald-950 ring-1 ring-emerald-200'
+                            : 'bg-rose-50 border-rose-400 text-rose-950 ring-1 ring-rose-200'
+                    }`} 
+                    title={`Giá chuẩn SP hiện tại: ${formatNumber(product.importPrice)} đ. Đơn này nhập ${isBasePriceCheaper ? 'rẻ hơn' : 'mắc hơn'} ${formatNumber(basePriceDiff)} đ`}
+                >
                     <span className="flex items-center gap-1">
-                        {isBasePriceCheaper ? <TrendingDown size={11} className="text-rose-600 shrink-0" /> : <TrendingUp size={11} className="text-rose-600 shrink-0" />}
-                        <span>{isBasePriceCheaper ? 'Rẻ hơn chuẩn: -' : 'Cao hơn chuẩn: +'}{formatNumber(basePriceDiff)} đ ({isBasePriceCheaper ? '-' : '+'}{basePriceDiffPercent.toFixed(1)}%)</span>
+                        {isBasePriceCheaper ? <TrendingDown size={12} className="text-emerald-600 shrink-0" /> : <TrendingUp size={12} className="text-rose-600 shrink-0" />}
+                        <span>{isBasePriceCheaper ? '📉 Rẻ hơn chuẩn: -' : '📈 Mắc hơn chuẩn: +'}{formatNumber(basePriceDiff)} đ ({isBasePriceCheaper ? '-' : '+'}{basePriceDiffPercent.toFixed(1)}%)</span>
                     </span>
-                    <span className="text-[8px] bg-rose-200 text-rose-900 px-1.5 py-0.5 rounded font-black uppercase shrink-0">Chuẩn: {formatNumber(product.importPrice)}đ</span>
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase shrink-0 ${
+                        isBasePriceCheaper
+                            ? 'bg-emerald-200 text-emerald-950 border border-emerald-300'
+                            : 'bg-rose-200 text-rose-950 border border-rose-300'
+                    }`}>
+                        Chuẩn: {formatNumber(product.importPrice)}đ
+                    </span>
                 </div>
             ) : hasPriceIncreaseFromLast ? (
                 <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-black mb-1.5 animate-fade-in" title={`Lần trước nhập ${formatNumber(lastSupplierPrice)} đ`}>
@@ -339,7 +358,11 @@ const ImportProductCard: React.FC<{
                                 }
                             }}
                             className={`w-full pl-7 pr-2 py-1.5 text-sm border rounded-lg font-bold text-right focus:ring-2 focus:ring-primary/20 outline-none shadow-2xs transition-colors ${
-                                hasBasePriceDiff || hasPriceIncreaseFromLast
+                                hasBasePriceDiff
+                                    ? (isBasePriceCheaper
+                                        ? 'bg-emerald-50 border-emerald-400 text-emerald-950 ring-1 ring-emerald-200'
+                                        : 'bg-rose-50 border-rose-400 text-rose-950 ring-1 ring-rose-200')
+                                    : hasPriceIncreaseFromLast
                                     ? 'bg-rose-50 border-rose-400 text-rose-950 ring-1 ring-rose-200'
                                     : lastSupplierPrice !== undefined
                                     ? 'bg-amber-50/60 border-amber-300 text-slate-900'
@@ -347,9 +370,13 @@ const ImportProductCard: React.FC<{
                             }`}
                         />
                         <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold flex items-center gap-0.5 ${
-                            hasBasePriceDiff || hasPriceIncreaseFromLast ? 'text-rose-700' : lastSupplierPrice !== undefined ? 'text-amber-700' : 'text-slate-400'
+                            hasBasePriceDiff
+                                ? (isBasePriceCheaper ? 'text-emerald-700' : 'text-rose-700')
+                                : hasPriceIncreaseFromLast ? 'text-rose-700' : lastSupplierPrice !== undefined ? 'text-amber-700' : 'text-slate-400'
                         }`}>
-                            {hasBasePriceDiff || hasPriceIncreaseFromLast ? <AlertTriangle size={10} className="text-rose-600" /> : null}
+                            {hasBasePriceDiff ? (
+                                isBasePriceCheaper ? <TrendingDown size={10} className="text-emerald-600" /> : <AlertTriangle size={10} className="text-rose-600" />
+                            ) : hasPriceIncreaseFromLast ? <AlertTriangle size={10} className="text-rose-600" /> : null}
                             VỐN
                         </span>
                     </div>
@@ -1573,13 +1600,16 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                 const prod = products.find(p => p.id === item.productId);
                                                 const stdPrice = prod ? prod.importPrice : item.originalImportPrice;
                                                 const hasStdDiff = stdPrice !== undefined && stdPrice > 0 && item.importPrice !== stdPrice;
+                                                const isCheaper = stdPrice !== undefined && item.importPrice < stdPrice;
                                                 return (
                                                     <NumericInput 
                                                         value={item.importPrice} 
                                                         onChange={(val) => setReceipt(receipt.map(i => i.productId === item.productId ? {...i, importPrice: val} : i))} 
                                                         className={`w-full p-1.5 border rounded-lg font-bold text-right focus:ring-2 outline-none text-sm shadow-2xs transition-colors ${
                                                             hasStdDiff
-                                                                ? 'border-2 border-rose-500 bg-rose-950 text-rose-100 ring-1 ring-rose-400'
+                                                                ? (isCheaper
+                                                                    ? 'border-2 border-emerald-500 bg-emerald-950 text-emerald-100 ring-1 ring-emerald-400'
+                                                                    : 'border-2 border-rose-500 bg-rose-950 text-rose-100 ring-1 ring-rose-400')
                                                                 : 'border-slate-700 bg-slate-900 text-white focus:ring-primary/20'
                                                         }`} 
                                                     />
@@ -1595,11 +1625,15 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                     const percent = stdPrice > 0 ? (diff / stdPrice) * 100 : 0;
                                                     return (
                                                         <span 
-                                                            className="text-[9px] font-black px-1.5 py-0.5 rounded-md border-2 border-rose-300 bg-rose-100 text-rose-800 flex items-center gap-1 shadow-2xs animate-fade-in" 
-                                                            title={`Giá chuẩn SP hiện tại: ${formatNumber(stdPrice)} ₫. Đơn này nhập ${isHigher ? 'cao hơn' : 'rẻ hơn'} ${formatNumber(diff)} ₫`}
+                                                            className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border-2 flex items-center gap-1 shadow-2xs animate-fade-in ${
+                                                                isHigher
+                                                                    ? 'border-rose-300 bg-rose-100 text-rose-900'
+                                                                    : 'border-emerald-300 bg-emerald-100 text-emerald-900'
+                                                            }`} 
+                                                            title={`Giá chuẩn SP hiện tại: ${formatNumber(stdPrice)} ₫. Đơn này nhập ${isHigher ? 'mắc hơn' : 'rẻ hơn'} ${formatNumber(diff)} ₫`}
                                                         >
-                                                            <AlertCircle size={10} className="text-rose-600 shrink-0"/>
-                                                            <span>{isHigher ? 'Cao hơn chuẩn: +' : 'Rẻ hơn chuẩn: -'}{formatNumber(diff)}đ</span>
+                                                            {isHigher ? <AlertCircle size={10} className="text-rose-600 shrink-0"/> : <TrendingDown size={10} className="text-emerald-600 shrink-0"/>}
+                                                            <span>{isHigher ? 'Mắc hơn chuẩn: +' : 'Rẻ hơn chuẩn: -'}{formatNumber(diff)}đ</span>
                                                             <span className="text-[8px] font-bold opacity-80">({percent.toFixed(1)}%)</span>
                                                         </span>
                                                     );
@@ -1618,12 +1652,15 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                         const stdPrice = prod ? prod.importPrice : item.originalImportPrice;
                                         const hasStdDiff = stdPrice !== undefined && stdPrice > 0 && item.importPrice !== stdPrice;
                                         const isCheaper = stdPrice !== undefined && item.importPrice < stdPrice;
+                                        const diff = stdPrice !== undefined ? Math.abs(item.importPrice - stdPrice) : 0;
                                         return (
                                             <div className={`flex items-center mt-1 p-1.5 rounded-lg border cursor-pointer transition-all ${
                                                 item.updateImportPrice 
                                                     ? 'bg-blue-100 border-blue-400 text-blue-900 font-black' 
                                                     : hasStdDiff
-                                                    ? 'bg-rose-50/90 border-2 border-rose-300 text-rose-900 font-bold ring-1 ring-rose-200' 
+                                                    ? (isCheaper
+                                                        ? 'bg-emerald-50/90 border-2 border-emerald-300 text-emerald-950 font-bold ring-1 ring-emerald-200' 
+                                                        : 'bg-rose-50/90 border-2 border-rose-300 text-rose-950 font-bold ring-1 ring-rose-200')
                                                     : 'bg-white border-slate-200 text-slate-500'
                                             }`}>
                                                 <input 
@@ -1637,7 +1674,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                     {item.updateImportPrice ? (
                                                         <span>✓ Sẽ cập nhật giá chuẩn SP ({formatNumber(item.importPrice)} ₫)</span>
                                                     ) : hasStdDiff ? (
-                                                        <span>⚠️ Lệch chuẩn ({isCheaper ? 'Rẻ hơn' : 'Cao hơn'}) - Tích để cập nhật giá chuẩn</span>
+                                                        <span>{isCheaper ? '📉 Rẻ hơn chuẩn' : '⚠️ Mắc hơn chuẩn'} (-{formatNumber(diff)}đ) - Tích để cập nhật giá chuẩn</span>
                                                     ) : (
                                                         <span>Cập nhật giá chuẩn của SP</span>
                                                     )}
