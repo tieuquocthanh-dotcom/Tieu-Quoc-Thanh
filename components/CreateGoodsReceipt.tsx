@@ -1772,23 +1772,43 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
 
                                 return (
                                 <div key={r.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all">
-                                    <div className="bg-slate-900 px-3 py-2 text-white border-b border-slate-800">
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                    <div className="bg-slate-900 px-3 py-2.5 text-white border-b border-slate-800 space-y-2">
+                                        {/* Hàng 1: Tên nhà cung cấp hiển thị đầy đủ, không bị cắt dấu ... + Tổng tiền */}
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
                                                 <span 
-                                                    className={`text-xs font-black uppercase truncate bg-white/10 px-2 py-0.5 rounded leading-tight max-w-[150px] sm:max-w-[200px] ${supplierTextColor}`}
+                                                    className={`text-xs sm:text-sm font-black uppercase break-words whitespace-normal leading-snug bg-white/10 px-2.5 py-1 rounded-md tracking-wide shadow-2xs ${supplierTextColor}`}
                                                     title={r.supplierName || 'NCC'}
                                                 >
                                                     {r.supplierName || 'NCC'}
                                                 </span>
                                                 {receiptTime && (
-                                                    <span className="text-[10px] text-slate-400 font-mono hidden sm:inline-block">
+                                                    <span className="text-[10px] text-slate-400 font-mono bg-white/5 px-1.5 py-0.5 rounded">
                                                         {receiptTime}
                                                     </span>
                                                 )}
                                                 {r.hasInvoice && <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded font-bold uppercase shadow-2xs shrink-0">HĐ ĐỎ</span>}
                                             </div>
-                                            <div className="flex items-center gap-1 shrink-0">
+                                            <div className="text-right shrink-0">
+                                                <span className="text-sm sm:text-base font-black text-amber-300 block leading-tight">
+                                                    {formatNumber(r.total)} ₫
+                                                </span>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Hàng 2: Thông tin Kho, PTTT, Người tạo, Trạng thái & Cụm nút thao tác */}
+                                        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/80">
+                                            <div className="flex flex-wrap gap-1.5 items-center">
+                                                <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded"><Archive size={10} className="mr-1"/> {r.warehouseName}</span>
+                                                <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {r.paymentMethodName || 'Ghi nợ'}</span>
+                                                {r.creatorName && (
+                                                    <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded text-slate-300" title="Người lập phiếu"><Users size={10} className="mr-1"/> {r.creatorName}</span>
+                                                )}
+                                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs ${r.paymentStatus === 'debt' ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-600 text-white'}`}>
+                                                    {r.paymentStatus === 'debt' ? 'CÒN NỢ' : 'ĐÃ TRẢ'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1 ml-auto shrink-0">
                                                 {(() => {
                                                     const imgs = r.receiptImages || r.deliveryImages || [];
                                                     return (
@@ -1812,7 +1832,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                             <Camera size={12} />
                                                             <span>
                                                                 {imgs.length > 0
-                                                                    ? `Xem ảnh (${imgs.length})`
+                                                                    ? `Ảnh (${imgs.length})`
                                                                     : '+Ảnh'}
                                                             </span>
                                                         </button>
@@ -1820,20 +1840,7 @@ const CreateGoodsReceipt: React.FC<{ userRole: 'admin' | 'staff' | null, user: U
                                                 })()}
                                                 <button onClick={() => { setSelectedReceiptEdit(r); setIsEditModalOpen(true); }} className="p-1 bg-white/15 text-white rounded hover:bg-orange-500 transition" title="Sửa đơn nhập"><Edit size={12}/></button>
                                                 <button onClick={() => { setSelectedReceiptDetail(r); setIsDetailModalOpen(true); }} className="p-1 bg-white/15 text-white rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
-                                                <span className="text-sm font-bold text-amber-300 ml-1">{formatNumber(r.total)} ₫</span>
                                             </div>
-                                        </div>
-                                        
-                                        {/* CẬP NHẬT: Thông tin Trạng thái, PTTT, Kho nhập, Người tạo */}
-                                        <div className="flex flex-wrap gap-1.5 items-center opacity-90 mt-1.5">
-                                            <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded"><Archive size={10} className="mr-1"/> {r.warehouseName}</span>
-                                            <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {r.paymentMethodName || 'Ghi nợ'}</span>
-                                            {r.creatorName && (
-                                                <span className="flex items-center text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded text-slate-300" title="Người lập phiếu"><Users size={10} className="mr-1"/> {r.creatorName}</span>
-                                            )}
-                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs ${r.paymentStatus === 'debt' ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-600 text-white'}`}>
-                                                {r.paymentStatus === 'debt' ? 'CÒN NỢ' : 'ĐÃ TRẢ'}
-                                            </span>
                                         </div>
                                     </div>
                                     <div className="p-2.5 space-y-2 bg-white">

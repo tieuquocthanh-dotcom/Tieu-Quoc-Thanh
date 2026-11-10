@@ -2643,28 +2643,74 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
 
                               return (
                                 <div key={sale.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all">
-                                    <div className="bg-slate-900 px-3 py-2 text-white border-b border-slate-800">
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                    <div className="bg-slate-900 px-3 py-2.5 text-white border-b border-slate-800 space-y-2">
+                                        {/* Hàng 1: Tên khách hàng hiển thị đầy đủ, không bị cắt dấu ... + Tổng tiền */}
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
                                                 {sale.partnerType === 'supplier' && (
                                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-500 text-slate-950 shrink-0 shadow-xs">
                                                         NCC
                                                     </span>
                                                 )}
                                                 <span 
-                                                    className={`text-xs font-black uppercase truncate bg-white/10 px-2 py-0.5 rounded leading-tight max-w-[150px] sm:max-w-[210px] ${customerTextColor}`}
+                                                    className={`text-xs sm:text-sm font-black uppercase break-words whitespace-normal leading-snug bg-white/10 px-2.5 py-1 rounded-md tracking-wide shadow-2xs ${customerTextColor}`}
                                                     title={sale.customerName || 'Khách vãng lai'}
                                                 >
                                                     {sale.customerName || 'Khách vãng lai'}
                                                 </span>
+                                                {(sale as any).customerPhone && (
+                                                    <span className="text-[10px] text-slate-400 font-bold bg-white/5 px-1.5 py-0.5 rounded">
+                                                        {(sale as any).customerPhone}
+                                                    </span>
+                                                )}
                                                 {orderTime && (
-                                                    <span className="text-[10px] text-slate-400 font-mono hidden sm:inline-block">
+                                                    <span className="text-[10px] text-slate-400 font-mono bg-white/5 px-1.5 py-0.5 rounded">
                                                         {orderTime}
                                                     </span>
                                                 )}
-                                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs shrink-0 ${shipColor}`}>{shipLabel}</span>
+                                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shadow-2xs shrink-0 ${shipColor}`}>
+                                                    {shipLabel}
+                                                </span>
                                             </div>
-                                            <div className="flex items-center gap-1 shrink-0">
+                                            <div className="text-right shrink-0">
+                                                <span className="text-sm sm:text-base font-black text-yellow-400 block leading-tight">
+                                                    {formatNumber(sale.total)} ₫
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Hàng 2: Trạng thái thanh toán, công nợ, giao hàng & Cụm nút thao tác */}
+                                        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/80">
+                                            <div className="flex flex-wrap gap-1.5 items-center">
+                                                {isDebtOrder ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setSelectedSaleToPay(sale); setIsDebtModalOpen(true); }}
+                                                        className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-red-600 hover:bg-red-700 text-white animate-pulse flex items-center gap-1 shadow-xs cursor-pointer transition active:scale-95"
+                                                        title="Bấm để cập nhật trả tiền cho đơn này"
+                                                    >
+                                                        <Wallet size={10} /> CÒN NỢ: {formatNumber(remainingDebt)} ₫
+                                                    </button>
+                                                ) : (
+                                                    <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-600/90 text-white flex items-center shadow-xs">
+                                                        ĐÃ THANH TOÁN
+                                                    </span>
+                                                )}
+                                                {sale.shipperName && (
+                                                    <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded text-slate-300">
+                                                        <Truck size={10} className="mr-1 text-slate-400"/> {sale.shipperName}
+                                                    </span>
+                                                )}
+                                                <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded text-slate-300">
+                                                    <CreditCard size={10} className="mr-1 text-slate-400"/> {sale.paymentMethodName || 'Nợ/TM'}
+                                                </span>
+                                                {isAdmin && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-green-600 text-white shadow-xs tracking-wide">
+                                                        LN ĐƠN: {formatNumber(totalProfit)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-1 ml-auto shrink-0">
                                                 {isDebtOrder && (
                                                     <button
                                                         type="button"
@@ -2685,7 +2731,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                     className={`px-2 py-1 rounded flex items-center gap-1 text-[10px] font-black transition cursor-pointer ${
                                                         sale.deliveryImages && sale.deliveryImages.length > 0
                                                             ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-xs'
-                                                            : 'bg-white/20 hover:bg-emerald-500 hover:text-white text-white'
+                                                             : 'bg-white/20 hover:bg-emerald-500 hover:text-white text-white'
                                                     }`}
                                                     title={
                                                         sale.deliveryImages && sale.deliveryImages.length > 0
@@ -2696,12 +2742,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                     <Camera size={12} />
                                                     <span>
                                                         {sale.deliveryImages && sale.deliveryImages.length > 0
-                                                            ? `Xem ảnh (${sale.deliveryImages.length})`
-                                                            : '+Ảnh'}
+                                                            ? `Ảnh (${sale.deliveryImages.length})`
+                                                             : '+Ảnh'}
                                                     </span>
                                                 </button>
-                                                <button onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-blue-500 transition" title="Sửa đơn"><Edit size={12}/></button>
-                                                <button onClick={() => { setSelectedSaleDetail(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-primary transition" title="Xem chi tiết"><Eye size={12}/></button>
+                                                <button onClick={() => { setSelectedSaleEdit(sale); setIsEditModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-blue-500 text-white transition" title="Sửa đơn"><Edit size={12}/></button>
+                                                <button onClick={() => { setSelectedSaleDetail(sale); setIsDetailModalOpen(true); }} className="p-1 bg-white/20 rounded hover:bg-primary text-white transition" title="Xem chi tiết"><Eye size={12}/></button>
                                                 <button 
                                                     onClick={() => { 
                                                         setSelectedSaleForPrint(sale); 
@@ -2717,32 +2763,12 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                                         setSelectedLedgerProductId('all');
                                                         setIsLedgerModalOpen(true);
                                                     }} 
-                                                    className="p-1 bg-white/20 rounded hover:bg-purple-500 transition" 
+                                                    className="p-1 bg-white/20 rounded hover:bg-purple-500 text-white transition" 
                                                     title="Truy vết tồn kho"
                                                 >
                                                     <History size={12}/>
                                                 </button>
-                                                <span className="text-sm font-black text-yellow-400 ml-1">{formatNumber(sale.total)} ₫</span>
                                             </div>
-                                        </div>
-                                        <div className="flex flex-wrap gap-1.5 items-center opacity-90 mt-1.5">
-                                            {sale.shipperName && <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><Truck size={10} className="mr-1"/> {sale.shipperName}</span>}
-                                            <span className="flex items-center text-[9px] font-bold bg-white/10 px-1.5 py-0.5 rounded"><CreditCard size={10} className="mr-1"/> {sale.paymentMethodName || 'Nợ/TM'}</span>
-                                            {isDebtOrder ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { setSelectedSaleToPay(sale); setIsDebtModalOpen(true); }}
-                                                    className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-red-600 hover:bg-red-700 text-white animate-pulse flex items-center gap-1 shadow-xs cursor-pointer transition active:scale-95"
-                                                    title="Bấm để cập nhật trả tiền cho đơn này"
-                                                >
-                                                    <Wallet size={10} /> CÒN NỢ: {formatNumber(remainingDebt)} ₫
-                                                </button>
-                                            ) : (
-                                                <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-600/90 text-white flex items-center shadow-xs">
-                                                    ĐÃ THANH TOÁN
-                                                </span>
-                                            )}
-                                            {isAdmin && <span className="px-2 py-0.5 rounded text-[12px] font-black uppercase bg-green-600 text-white shadow-sm tracking-wide">LN ĐƠN: {formatNumber(totalProfit)}</span>}
                                         </div>
                                     </div>
                                     <div className="p-2.5 space-y-2 bg-white">
