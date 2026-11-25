@@ -679,15 +679,15 @@ const ProductCardItem: React.FC<{
     onCompare?: (product: Product) => void; 
 }> = ({ product, detailedInventory, warehouses, shippingMode, onAdd, onQuickImport, onTransfer, onEditStock, onUpdatePrice, onUpdateImportPrice, lastSoldPrice, isPOS, isAdmin, onCompare }) => {
     const [inputQty, setInputQty] = useState(1);
-    const [inputPrice, setInputPrice] = useState(lastSoldPrice !== undefined ? lastSoldPrice : product.sellingPrice);
-    const [inputImportPrice, setInputImportPrice] = useState(product.importPrice);
+    const [inputPrice, setInputPrice] = useState(lastSoldPrice !== undefined ? lastSoldPrice : (product.sellingPrice || 0));
+    const [inputImportPrice, setInputImportPrice] = useState(Number(product.importPrice || 0));
 
     // CẬP NHẬT: Luôn cập nhật giá hiển thị khi lastSoldPrice thay đổi (khi chọn khách hàng khác)
     useEffect(() => { 
-        setInputPrice(lastSoldPrice !== undefined ? lastSoldPrice : product.sellingPrice); 
+        setInputPrice(lastSoldPrice !== undefined ? lastSoldPrice : (product.sellingPrice || 0)); 
     }, [product.sellingPrice, lastSoldPrice]);
 
-    useEffect(() => { setInputImportPrice(product.importPrice); }, [product.importPrice]);
+    useEffect(() => { setInputImportPrice(Number(product.importPrice || 0)); }, [product.importPrice]);
 
     const top3Warehouses = warehouses.slice(0, 3);
     const productInventory = detailedInventory[product.id] || {};
@@ -1287,7 +1287,10 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
         return; 
     }
     if (quantity <= 0) return;
-    setCart(prev => existing ? prev.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + quantity, price, currentImportPrice: importPrice } : i) : [...prev, { productId: product.id, productName: product.name, quantity, price, importPrice: product.importPrice, stock: stockInWh, invoicedStock: product.totalInvoicedStock || 0, originalImportPrice: product.importPrice, originalSellingPrice: product.sellingPrice, currentImportPrice: importPrice, updateImportPrice: false, updateSellingPrice: false, isCombo: product.isCombo, comboItems: product.comboItems }]);
+    const safePrice = Number(price || 0);
+    const safeImportPrice = Number(importPrice ?? product.importPrice ?? 0);
+    const safeOrigImportPrice = Number(product.importPrice || 0);
+    setCart(prev => existing ? prev.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + quantity, price: safePrice, currentImportPrice: safeImportPrice } : i) : [...prev, { productId: product.id, productName: product.name, quantity, price: safePrice, importPrice: safeOrigImportPrice, stock: stockInWh, invoicedStock: product.totalInvoicedStock || 0, originalImportPrice: safeOrigImportPrice, originalSellingPrice: Number(product.sellingPrice || 0), currentImportPrice: safeImportPrice, updateImportPrice: false, updateSellingPrice: false, isCombo: product.isCombo, comboItems: product.comboItems }]);
     if (!keepSearch) {
         setSearchTerm('');
     }
@@ -1732,11 +1735,16 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
   }, [currentPage, maxPages]);
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize), [filteredProducts, currentPage, pageSize]);
   const totals = useMemo(() => {
-    const itemTotal = cart.reduce((a, b) => a + b.price * b.quantity, 0);
+    const itemTotal = cart.reduce((a, b) => a + Number(b.price || 0) * Number(b.quantity || 0), 0);
+    const costTotal = cart.reduce((a, b) => a + Number(b.currentImportPrice || 0) * Number(b.quantity || 0), 0);
+    const profit = itemTotal - costTotal;
+    const profitMargin = itemTotal > 0 ? (profit / itemTotal) * 100 : 0;
     return {
         itemTotal,
-        revenue: itemTotal + shippingFee,
-        profit: cart.reduce((a, b) => a + (b.price - b.currentImportPrice) * b.quantity, 0)
+        costTotal,
+        revenue: itemTotal + Number(shippingFee || 0),
+        profit,
+        profitMargin
     };
   }, [cart, shippingFee]);
 
@@ -2388,8 +2396,8 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                                 </button>
                             )}
                             {isAdmin && (
-                                <span className="bg-blue-600/90 px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-blue-500 shadow-2xs flex items-center">
-                                    <ProfitIcon size={10} className="mr-1"/> LN: {formatNumber(totals.profit)} ₫
+                                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border shadow-2xs flex items-center ${totals.profit >= 0 ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-rose-600 border-rose-400 text-white'}`}>
+                                    <ProfitIcon size={11} className="mr-1"/> Tổng LN: {formatNumber(totals.profit)} ₫
                                 </span>
                             )}
                             <span className="bg-primary px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-blue-600">{cart.length} SP</span>
@@ -2397,7 +2405,7 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                     </div>
                     <div className="p-2 space-y-1.5 bg-white border-b border-slate-200 overflow-y-auto max-h-[300vh]">
                     {cart.length === 0 ? <div className="h-20 flex flex-col items-center justify-center opacity-30"><ShoppingCart size={36} className="mb-1 text-slate-600"/><p className="font-bold text-[10px] text-slate-500 uppercase">Giỏ hàng trống</p></div> : cart.map((item, idx) => {
-                        const profit = (item.price - item.currentImportPrice) * item.quantity;
+                        const profit = (Number(item.price || 0) - Number(item.currentImportPrice || 0)) * Number(item.quantity || 0);
                         return (
                         <div key={item.productId} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80 animate-fade-in space-y-2 shadow-2xs">
                             <div className="flex justify-between items-start gap-1">
@@ -2542,6 +2550,43 @@ const POSView: React.FC<{ userRole: 'admin' | 'staff' | null, user: FirebaseAuth
                               <span className="font-black text-primary leading-none text-2xl sm:text-3xl">{formatNumber(totals.revenue)}<span className="text-xs ml-0.5 font-bold">₫</span></span>
                           </div>
                         </div>
+                        {isAdmin && (
+                            <div className={`rounded-xl px-3 py-2.5 border flex flex-wrap items-center justify-between gap-2 transition-colors ${
+                                cart.length === 0
+                                    ? 'bg-slate-50 border-slate-200 text-slate-500'
+                                    : totals.profit >= 0
+                                        ? 'bg-emerald-50/90 border-emerald-200'
+                                        : 'bg-rose-50/90 border-rose-200'
+                            }`}>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-600">
+                                    <span>Tiền hàng: <strong className="text-slate-900">{formatNumber(totals.itemTotal)} ₫</strong></span>
+                                    <span className="text-slate-300">|</span>
+                                    <span>Tổng vốn: <strong className="text-slate-800">{formatNumber(totals.costTotal)} ₫</strong></span>
+                                </div>
+                                <div className="flex items-center gap-1.5 ml-auto">
+                                    <ProfitIcon size={15} className={cart.length === 0 ? 'text-slate-400' : totals.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'} />
+                                    <span className="text-[11px] font-black uppercase tracking-tight text-slate-600">Tổng lợi nhuận:</span>
+                                    <span className={`text-base sm:text-lg font-black leading-none ${
+                                        cart.length === 0
+                                            ? 'text-slate-400'
+                                            : totals.profit >= 0
+                                                ? 'text-emerald-700'
+                                                : 'text-rose-600'
+                                    }`}>
+                                        {totals.profit > 0 ? '+' : ''}{formatNumber(totals.profit)} ₫
+                                    </span>
+                                    {cart.length > 0 && totals.itemTotal > 0 && (
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+                                            totals.profit >= 0
+                                                ? 'bg-emerald-600 text-white'
+                                                : 'bg-rose-600 text-white'
+                                        }`}>
+                                            {totals.profitMargin.toFixed(1)}%
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         <div className="flex gap-2">
                             <button 
                                 type="button"
